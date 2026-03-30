@@ -54,16 +54,16 @@
 
 ## 🛠️ 技术栈
 
-| 分类 | 技术 | 说明 |
-|:----:|:-----|:-----|
-| **语言** | Python 3.11+ | 全栈 Python 开发 |
-| **前端** | Streamlit | AI 应用快速原型开发 |
-| **后端** | FastAPI + Uvicorn | 高性能异步 API |
+|    分类     | 技术                    | 说明             |
+|:---------:|:----------------------|:---------------|
+|  **语言**   | Python 3.11+          | 全栈 Python 开发   |
+|  **前端**   | Streamlit             | AI 应用快速原型开发    |
+|  **后端**   | FastAPI + Uvicorn     | 高性能异步 API      |
 | **AI 框架** | LangChain + LangGraph | Multi-Agent 编排 |
-| **大模型** | Ollama + Qwen2.5 | 本地部署，中文优化 |
-| **向量库** | Chroma | 轻量级向量数据库 |
-| **存储** | DuckDB / SQLite | 项目状态持久化 |
-| **文档解析** | PyMuPDF + python-docx | PDF/Word 解析 |
+|  **大模型**  | Ollama + Qwen3.5      | 本地部署，中文优化      |
+|  **向量库**  | Chroma                | 轻量级向量数据库       |
+|  **存储**   | DuckDB / SQLite       | 项目状态持久化        |
+| **文档解析**  | PyMuPDF + python-docx | PDF/Word 解析    |
 
 ---
 
@@ -156,14 +156,14 @@ ai-case-generator-demo/
 
 ## 🎓 学习路线
 
-| 阶段 | 内容 | 预计时间 |
-|:----:|:-----|:--------:|
-| Day 1 | 环境搭建 + Ollama + LangChain 入门 | 1天 |
-| Day 2 | LangChain 核心（Prompt / Chain / Tool）| 1天 |
-| Day 3 | LangGraph Agent 编排 | 1天 |
-| Day 4 | Streamlit 前端开发 | 1天 |
-| Day 5 | Chroma 向量数据库 + RAG | 1天 |
-| Day 6-7 | 全链路整合 + Bug 修复 | 2天 |
+|   阶段    | 内容                                  | 预计时间 |
+|:-------:|:------------------------------------|:----:|
+|  Day 1  | 环境搭建 + Ollama + LangChain 入门        |  1天  |
+|  Day 2  | LangChain 核心（Prompt / Chain / Tool） |  1天  |
+|  Day 3  | LangGraph Agent 编排                  |  1天  |
+|  Day 4  | Streamlit 前端开发                      |  1天  |
+|  Day 5  | Chroma 向量数据库 + RAG                  |  1天  |
+| Day 6-7 | 全链路整合 + Bug 修复                      |  2天  |
 
 ---
 

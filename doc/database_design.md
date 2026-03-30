@@ -10,13 +10,11 @@
 
 ```mermaid
 erDiagram
-    PROJECTS ||--o{ REQUIREMENTS : "包含"
     PROJECTS ||--o{ MODULES : "包含"
     PROJECTS ||--o{ TEST_CASES : "包含"
     PROJECTS ||--o{ APIS : "包含"
     PROJECTS ||--o{ OPERATION_LOGS : "记录"
     
-    REQUIREMENTS ||--o{ MODULES : "拆分为"
     MODULES ||--o{ TEST_CASES : "生成"
     MODULES ||--o{ APIS : "生成"
     
@@ -26,22 +24,14 @@ erDiagram
         string id PK
         string name UK
         string description
+        string requirement_content
+        string requirement_optimized_content
+        string requirement_file_paths
+        string requirement_analysis_result
+        string requirement_risks
+        string requirement_unclear_points
+        string requirement_status
         string status
-        datetime created_at
-        datetime updated_at
-    }
-    
-    REQUIREMENTS {
-        string id PK
-        string project_id FK
-        string title
-        string content
-        string optimized_content
-        string analysis_result
-        string risks
-        string unclear_points
-        string status
-        string file_path
         datetime created_at
         datetime updated_at
     }
@@ -49,7 +39,6 @@ erDiagram
     MODULES {
         string id PK
         string project_id FK
-        string requirement_id FK
         string parent_id FK
         string name
         string description
@@ -115,43 +104,32 @@ erDiagram
 | id | TEXT | PRIMARY KEY | UUID |
 | name | TEXT | NOT NULL, UNIQUE | 项目名称（唯一） |
 | description | TEXT | | 项目描述 |
-| status | TEXT | DEFAULT 'draft' | 状态: draft/active/completed |
+| requirement_content | TEXT | | 需求内容原文 |
+| requirement_optimized_content | TEXT | | AI 优化后的需求内容 |
+| requirement_file_paths | TEXT | | 需求原始文件路径 (JSON数组) |
+| requirement_analysis_result | TEXT | | AI 分析结果 |
+| requirement_risks | TEXT | | 识别的风险点 (JSON) |
+| requirement_unclear_points | TEXT | | 不明确点 (JSON) |
+| requirement_status | TEXT | DEFAULT 'pending' | 需求状态: pending/analyzed/confirmed |
+| status | TEXT | DEFAULT 'draft' | 项目状态: draft/active/completed |
 | created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | DATETIME | | 更新时间 |
 
-### 2. 需求表 (requirements)
+### 2. 模块表 (modules)
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | TEXT | PRIMARY KEY | UUID |
 | project_id | TEXT | FOREIGN KEY | 所属项目ID |
-| title | TEXT | NOT NULL | 需求标题 |
-| content | TEXT | | 需求内容原文 |
-| optimized_content | TEXT | | AI 优化后的需求内容 |
-| analysis_result | TEXT | | AI 分析结果 |
-| risks | TEXT | | 识别的风险点 (JSON) |
-| unclear_points | TEXT | | 不明确点 (JSON) |
-| status | TEXT | DEFAULT 'pending' | 状态: pending/analyzed/confirmed |
-| file_path | TEXT | | 原始文件路径 |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
-| updated_at | DATETIME | | 更新时间 |
-
-### 3. 模块表 (modules)
-
-| 字段 | 类型 | 约束 | 说明 |
-|------|------|------|------|
-| id | TEXT | PRIMARY KEY | UUID |
-| project_id | TEXT | FOREIGN KEY | 所属项目ID |
-| requirement_id | TEXT | FOREIGN KEY | 所属需求ID |
 | parent_id | TEXT | FOREIGN KEY, SELF | 父级模块ID（支持多级） |
 | name | TEXT | NOT NULL | 模块名称 |
 | description | TEXT | | 模块描述 |
 | priority | INTEGER | DEFAULT 1 | 优先级 1-5 |
-| status | TEXT | DEFAULT 'pending' | 状态: pending/designing/completed |
+| status | TEXT | DEFAULT 'draft' | 状态: draft/analyzed/confirmed |
 | created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | DATETIME | | 更新时间 |
 
-### 4. 测试用例表 (test_cases)
+### 3. 测试用例表 (test_cases)
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -170,7 +148,7 @@ erDiagram
 | created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | DATETIME | | 更新时间 |
 
-### 5. 接口表 (apis)
+### 4. 接口表 (apis)
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -189,13 +167,13 @@ erDiagram
 | created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | DATETIME | | 更新时间 |
 
-### 6. 操作日志表 (operation_logs)
+### 5. 操作日志表 (operation_logs)
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | TEXT | PRIMARY KEY | UUID |
 | project_id | TEXT | FOREIGN KEY | 所属项目ID |
-| entity_type | TEXT | NOT NULL | 实体类型: project/requirement/module/test_case/api |
+| entity_type | TEXT | NOT NULL | 实体类型: project/module/test_case/api |
 | entity_id | TEXT | NOT NULL | 实体ID |
 | action | TEXT | NOT NULL | 操作类型: create/update/delete/export |
 | detail | TEXT | | 操作详情 (JSON) |
@@ -211,6 +189,13 @@ CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     description TEXT,
+    requirement_content TEXT,
+    requirement_optimized_content TEXT,
+    requirement_file_paths TEXT,
+    requirement_analysis_result TEXT,
+    requirement_risks TEXT,
+    requirement_unclear_points TEXT,
+    requirement_status TEXT DEFAULT 'pending' CHECK(requirement_status IN ('pending', 'analyzed', 'confirmed')),
     status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'active', 'completed')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME
@@ -219,49 +204,26 @@ CREATE TABLE IF NOT EXISTS projects (
 -- 项目表索引
 CREATE UNIQUE INDEX idx_projects_name ON projects(name);
 CREATE INDEX idx_projects_status ON projects(status);
+CREATE INDEX idx_projects_requirement_status ON projects(requirement_status);
 CREATE INDEX idx_projects_created ON projects(created_at);
-
--- 需求表
-CREATE TABLE IF NOT EXISTS requirements (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    content TEXT,
-    optimized_content TEXT,
-    analysis_result TEXT,
-    risks TEXT,
-    unclear_points TEXT,
-    status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'analyzed', 'confirmed')),
-    file_path TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-);
-
--- 需求表索引
-CREATE INDEX idx_requirements_project ON requirements(project_id);
-CREATE INDEX idx_requirements_status ON requirements(status);
 
 -- 模块表
 CREATE TABLE IF NOT EXISTS modules (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
-    requirement_id TEXT,
     parent_id TEXT,
     name TEXT NOT NULL,
     description TEXT,
     priority INTEGER DEFAULT 1 CHECK(priority BETWEEN 1 AND 5),
-    status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'designing', 'completed')),
+    status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'analyzed', 'confirmed')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-    FOREIGN KEY (requirement_id) REFERENCES requirements(id) ON DELETE SET NULL,
-    FOREIGN KEY (parent_id) REFERENCES modules(id) ON DELETE SET NULL
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (parent_id) REFERENCES modules(id)
 );
 
 -- 模块表索引
 CREATE INDEX idx_modules_project ON modules(project_id);
-CREATE INDEX idx_modules_requirement ON modules(requirement_id);
 CREATE INDEX idx_modules_parent ON modules(parent_id);
 CREATE INDEX idx_modules_status ON modules(status);
 
@@ -281,11 +243,11 @@ CREATE TABLE IF NOT EXISTS test_cases (
     tags TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-    FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE SET NULL
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (module_id) REFERENCES modules(id)
 );
 
--- 测试用例索引
+-- 测试用例表索引
 CREATE INDEX idx_testcases_project ON test_cases(project_id);
 CREATE INDEX idx_testcases_module ON test_cases(module_id);
 CREATE INDEX idx_testcases_level ON test_cases(level);
@@ -307,8 +269,8 @@ CREATE TABLE IF NOT EXISTS apis (
     status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'approved')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-    FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE SET NULL
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (module_id) REFERENCES modules(id)
 );
 
 -- 接口表索引
@@ -326,10 +288,10 @@ CREATE TABLE IF NOT EXISTS operation_logs (
     action TEXT NOT NULL,
     detail TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES projects(id)
 );
 
--- 操作日志索引
+-- 操作日志表索引
 CREATE INDEX idx_logs_project ON operation_logs(project_id);
 CREATE INDEX idx_logs_entity ON operation_logs(entity_type, entity_id);
 CREATE INDEX idx_logs_created ON operation_logs(created_at);
@@ -340,14 +302,14 @@ CREATE INDEX idx_logs_created ON operation_logs(created_at);
 ## 状态流转
 
 ```
+项目需求状态:
+pending ──> analyzed ──> confirmed
+
 项目状态:
 draft ──> active ──> completed
 
-需求状态:
-pending ──> analyzed ──> confirmed
-
 模块状态:
-pending ──> designing ──> completed
+draft ──> analyzed ──> confirmed
 
 用例状态:
 draft ──> approved ──> archived
@@ -362,7 +324,8 @@ draft ──> approved
 
 - 所有 ID 使用 UUID v4
 - JSON 类型字段存储时使用 JSON 格式
-- 使用软删除机制（status 标记）而非物理删除
+- 使用硬删除机制，直接物理删除数据
 - 时间字段使用 ISO 8601 格式
 - 项目名称全局唯一，避免重复项目
 - 模块支持树形结构（parent_id 自关联）
+- 需求信息合并到项目表，减少表关联

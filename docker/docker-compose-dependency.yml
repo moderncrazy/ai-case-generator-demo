@@ -1,0 +1,5 @@
+services:
+  clamav:
+    image: clamav/clamav-debian:stable
+    ports:
+      - "3310:3310"

@@ -125,7 +125,7 @@ ai-case-generator-demo/
 │   ├── agents/                 # Agent 逻辑
 │   │   ├── requirement_agent.py    # 需求分析 Agent
 │   │   ├── module_agent.py           # 模块拆分 Agent
-│   │   └── testcase_agent.py        # 用例生成 Agent
+│   │   └── test_case_agent.py        # 用例生成 Agent
 │   │
 │   ├── graph/                  # LangGraph 编排
 │   │   └── workflow_graph.py        # 状态机定义
@@ -149,7 +149,7 @@ ai-case-generator-demo/
 └── templates/                  # 模板文件
     ├── requirement.md
     ├── module.md
-    └── testcase.xlsx
+    └── test_case.xlsx
 ```
 
 ---

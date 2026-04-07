@@ -35,10 +35,7 @@ ENV/
 *~
 
 # Data files
-data/db/*.db
-data/chroma/
-data/exports/*
-!data/exports/.gitkeep
+/data/
 
 # Logs
 *.log
@@ -55,4 +52,5 @@ Thumbs.db
 *.key
 
 # Model cache
-ollama/
+/ollama/
+/models/

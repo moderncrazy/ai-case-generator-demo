@@ -1,36 +1,49 @@
 # AI Case Generator Demo - Python Dependencies
 
 # Core AI Framework
-langchain>=0.3.0
-langchain-core>=0.3.0
-langchain-ollama>=0.2.0
-langgraph>=0.2.0
+langchain>=1.2.0
+langgraph>=1.1.0
+langchain-core>=1.2.0
+langchain-ollama>=1.0.0
+langchain-milvus>=0.3.0
+langchain-anthropic>=1.4.0
+langchain-mcp-adapters>=0.2.0
+langgraph-checkpoint-sqlite>=3.0.0
 
 # Vector Database
-langchain-chroma>=0.3.0
-chroma-hnsw>=0.3.0
+numpy>=2.4.0
+torch>=2.11.0
+transformers==4.57.6
+optimum[onnxruntime]>=1.24.4
+flagembedding>=1.3.5
+pymilvus[model]>=0.3.2
+pymilvus[milvus-lite]>=2.5.0
 
 # Backend
 fastapi>=0.115.0
 starlette>=1.0.0
-uvicorn[standard]>=0.32.0
+uvicorn[standard]>=0.43.0
 pydantic>=2.10.0
 pydantic-settings>=2.7.0
-python-multipart>=0.0.20
+python-multipart>=0.0.22
 
 # Frontend
 streamlit>=1.40.0
 streamlit-extras>=0.4.0
 
 # Database
-duckdb>=1.2.0
-peewee>=3.17.0
+piccolo>=1.33.0
+aiosqlite>=0.22.0
 
 # Document Processing
-pymupdf>=1.25.0
+pyclamd>=0.4.0
+pillow>=12.0.0
+pymupdf>=1.27.1
 python-docx>=1.1.0
 openpyxl>=3.1.0
 
 # Utilities
+async-lru>=2.3.0
 loguru>=0.7.0
 pathlib>=1.0.0
+setuptools==81.0.0

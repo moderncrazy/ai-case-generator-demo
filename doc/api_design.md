@@ -8,12 +8,12 @@
 
 ## 基础信息
 
-| 项目 | 说明 |
-|------|------|
+| 项目     | 说明        |
+|--------|-----------|
 | 基础 URL | `/api/v1` |
-| 数据格式 | JSON |
-| 认证方式 | 无（本地应用） |
-| 字符编码 | UTF-8 |
+| 数据格式   | JSON      |
+| 认证方式   | 无（本地应用）   |
+| 字符编码   | UTF-8     |
 
 ---
 
@@ -25,7 +25,7 @@
 {
   "code": 200,
   "message": "success",
-  "data": { ... }
+  "data": {}
 }
 ```
 
@@ -46,7 +46,7 @@
   "code": 200,
   "message": "success",
   "data": {
-    "items": [...],
+    "items": [],
     "total": 100,
     "page": 1,
     "page_size": 20,
@@ -57,12 +57,34 @@
 
 ---
 
-## 项目接口 (Projects)
+## 项目进度说明
+
+项目进度由统一字段管理，流转如下：
+
+```
+init ──> requirement ──> system_design ──> api ──> test_case ──> stress_test ──> completed
+```
+
+| 进度值           | 说明     |
+|---------------|--------|
+| init          | 初始化    |
+| requirement   | 需求设计   |
+| system_design | 系统设计   |
+| api           | 接口设计   |
+| test_case     | 测试用例设计 |
+| stress_test   | 压测脚本设计 |
+| completed     | 完成     |
+
+**注意：** 项目流程通过用户与 AI 的交互自然推进，无需手动确认或切换状态。
+
+---
+
+## 项目接口 (Project)
 
 ### 创建项目
 
 ```
-POST /api/v1/projects
+POST /api/v1/project
 ```
 
 **请求体：**
@@ -80,11 +102,7 @@ POST /api/v1/projects
 {
   "code": 200,
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "用户中心系统",
-    "description": "用户注册、登录、权限管理模块",
-    "status": "draft",
-    "created_at": "2026-03-30T20:00:00Z"
+    "id": "550e8400-e29b-41d4-a716-446655440000"
   }
 }
 ```
@@ -94,16 +112,16 @@ POST /api/v1/projects
 ### 查询项目列表
 
 ```
-GET /api/v1/projects
+GET /api/v1/project
 ```
 
 **查询参数：**
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| page | int | 否 | 页码，默认 1 |
-| page_size | int | 否 | 每页数量，默认 20 |
-| status | string | 否 | 筛选状态 |
+| 参数        | 类型     | 必填 | 说明         |
+|-----------|--------|----|------------|
+| page      | int    | 否  | 页码，默认 1    |
+| page_size | int    | 否  | 每页数量，默认 20 |
+| progress  | string | 否  | 筛选进度       |
 
 **响应：**
 
@@ -116,7 +134,7 @@ GET /api/v1/projects
         "id": "550e8400-e29b-41d4-a716-446655440000",
         "name": "用户中心系统",
         "description": "...",
-        "status": "draft",
+        "progress": "init",
         "created_at": "2026-03-30T20:00:00Z"
       }
     ],
@@ -132,7 +150,7 @@ GET /api/v1/projects
 ### 获取项目详情
 
 ```
-GET /api/v1/projects/{project_id}
+GET /api/v1/project/{project_id}
 ```
 
 **响应：**
@@ -146,12 +164,17 @@ GET /api/v1/projects/{project_id}
     "description": "...",
     "requirement_content": "支持手机号注册...",
     "requirement_optimized_content": "优化后的需求...",
-    "requirement_file_paths": ["/data/req1.pdf", "/data/req2.docx"],
-    "requirement_analysis_result": "需求结构清晰...",
-    "requirement_risks": ["验证码有效期未定义"],
-    "requirement_unclear_points": ["是否支持第三方登录"],
-    "requirement_status": "pending",
-    "status": "draft",
+    "requirement_files": [
+      "req1.pdf",
+      "req2.docx"
+    ],
+    "requirement_risks": [
+      "验证码有效期未定义"
+    ],
+    "requirement_unclear_points": [
+      "是否支持第三方登录"
+    ],
+    "progress": "init",
     "created_at": "2026-03-30T20:00:00Z",
     "updated_at": "2026-03-30T21:00:00Z",
     "stats": {
@@ -165,46 +188,13 @@ GET /api/v1/projects/{project_id}
 
 ---
 
-### 更新项目
-
-```
-PUT /api/v1/projects/{project_id}
-```
-
-**请求体：**
-
-```json
-{
-  "name": "用户中心系统 V2",
-  "description": "更新描述",
-  "status": "active"
-}
-```
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "用户中心系统 V2",
-    "description": "更新描述",
-    "status": "active",
-    "updated_at": "2026-03-30T22:00:00Z"
-  }
-}
-```
-
----
-
 ### 删除项目
 
 ```
-DELETE /api/v1/projects/{project_id}
+DELETE /api/v1/project/{project_id}
 ```
 
-**说明：** 删除项目及其所有关联数据
+**说明：** 删除项目及其所有关联数据。（系统创建的项目不允许删除）
 
 **响应：**
 
@@ -217,37 +207,83 @@ DELETE /api/v1/projects/{project_id}
 }
 ```
 
+**错误响应：**
+
+```json
+{
+  "code": 403,
+  "message": "系统创建的项目不允许删除"
+}
+```
+
 ---
 
-## 需求讨论接口 (Requirement Discussion)
-
-### 需求对话
+### 复制项目
 
 ```
-POST /api/v1/projects/{project_id}/requirement/discuss
+POST /api/v1/project/{project_id}/copy
 ```
 
-**说明：** 与 AI 进行需求讨论，可迭代调整需求内容，支持上传需求文件。**调用后需求状态会重置为 pending**
+**说明：** 复制指定项目及其所有关联数据（模块、测试用例、接口、对话上下文、项目文件、向量信息等）
+
+**请求体：**
+
+```json
+{
+  "name": "用户中心系统-副本"
+}
+```
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "id": "new_project_id",
+    "name": "用户中心系统-副本",
+    "description": "用户注册、登录、权限管理模块",
+    "progress": "init",
+    "creator_type": "user",
+    "created_at": "2026-04-03T21:00:00Z",
+    "updated_at": "2026-04-03T21:00:00Z"
+  }
+}
+```
+
+---
+
+## 项目讨论接口 (Project Discussion)
+
+项目讨论接口用于用户与 AI 进行自然语言交互，推进项目流程。AI 会根据当前进度和用户对话，自动更新相关内容。（系统创建的项目不允许对话）
+
+### 项目对话
+
+```
+POST /api/v1/project/{project_id}/discuss
+```
+
+**说明：** 与 AI 进行项目讨论，支持上传文件，AI 会根据上下文自动推进项目
 
 **请求格式：** `multipart/form-data`
 
 **请求参数：**
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| message | string | 是 | 对话消息 |
-| files | file | 否 | 需求文件（支持 PDF/Word/Markdown） |
+| 参数      | 类型     | 必填 | 说明                         |
+|---------|--------|----|----------------------------|
+| message | string | 是  | 对话消息                       |
+| files   | file   | 否  | 需求文件（支持 PDF/Word/Markdown） |
 
 **请求示例：**
 
 ```
-POST /api/v1/projects/{project_id}/requirement/discuss
+POST /api/v1/project/{project_id}/discuss
 Content-Type: multipart/form-data
 
 --boundary
 Content-Disposition: form-data; name="message"
 
-用户注册需要支持邮箱注册
+帮我设计一个用户注册登录的功能模块
 --boundary
 Content-Disposition: form-data; name="files"; filename="req.pdf"
 Content-Type: application/pdf
@@ -258,15 +294,324 @@ Content-Type: application/pdf
 
 **响应：**
 
+根据当前进度，返回对应的上下文数据：
+
+#### 进度 = requirement（需求设计）
+
 ```json
 {
   "code": 200,
   "data": {
-    "response": "好的，我理解了需求变更。新增邮箱注册方式需要以下字段：\n1. 邮箱地址（必填）\n2. 邮箱验证码（必填）\n\n是否需要我更新需求文档？",
-    "suggested_changes": {
-      "requirement_optimized_content": "更新后的需求内容...",
-      "new_risks": ["邮箱验证码有效期问题"],
-      "new_unclear_points": ["是否需要邮箱激活链接"]
+    "message": {
+      "id": "msg_123",
+      "role": "assistant",
+      "content": "好的，我来帮你设计用户注册登录的需求。",
+      "created_at": "2026-03-31T09:00:00Z"
+    },
+    "context": {
+      "current_progress": "requirement",
+      "requirement_content": "支持手机号注册、验证码登录...",
+      "requirement_risks": [
+        "验证码有效期未定义"
+      ],
+      "requirement_unclear_points": [
+        "是否支持第三方登录"
+      ],
+      "suggested_requirement_content": "更新后的需求内容...",
+      "suggested_requirement_risks": [],
+      "suggested_requirement_unclear_points": [],
+      "modules_tree": null,
+      "suggested_modules_tree": null,
+      "test_cases_tree": null,
+      "suggested_test_cases_tree": null,
+      "apis_tree": null,
+      "suggested_apis_tree": null
+    }
+  }
+}
+```
+
+#### 进度 = system_design（系统设计）
+
+```json
+{
+  "code": 200,
+  "data": {
+    "message": {
+      "id": "msg_123",
+      "role": "assistant",
+      "content": "好的，我来帮你设计系统架构。",
+      "created_at": "2026-03-31T09:00:00Z"
+    },
+    "context": {
+      "current_progress": "system_design",
+      "requirement_content": "支持手机号注册、验证码登录...",
+      "requirement_risks": [],
+      "requirement_unclear_points": [],
+      "suggested_requirement_content": null,
+      "suggested_requirement_risks": null,
+      "suggested_requirement_unclear_points": null,
+      "modules_tree": [
+        {
+          "id": "module_1",
+          "name": "用户中心",
+          "children": [
+            {
+              "id": "module_2",
+              "name": "用户注册",
+              "children": []
+            },
+            {
+              "id": "module_3",
+              "name": "用户登录",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "suggested_modules_tree": [
+        {
+          "id": "module_new",
+          "name": "用户认证",
+          "description": "整合注册和登录",
+          "children": []
+        }
+      ],
+      "test_cases_tree": null,
+      "suggested_test_cases_tree": null,
+      "apis_tree": null,
+      "suggested_apis_tree": null
+    }
+  }
+}
+```
+
+#### 进度 = test_case（测试用例设计）
+
+```json
+{
+  "code": 200,
+  "data": {
+    "message": {
+      "id": "msg_123",
+      "role": "assistant",
+      "content": "好的，我来帮你设计测试用例。",
+      "created_at": "2026-03-31T09:00:00Z"
+    },
+    "context": {
+      "current_progress": "test_case",
+      "requirement_content": "...",
+      "requirement_risks": [],
+      "requirement_unclear_points": [],
+      "suggested_requirement_content": null,
+      "suggested_requirement_risks": null,
+      "suggested_requirement_unclear_points": null,
+      "modules_tree": [],
+      "suggested_modules_tree": null,
+      "test_cases_tree": [
+        {
+          "module_id": "module_1",
+          "module_name": "用户中心",
+          "test_cases": [
+            {
+              "id": "tc_1",
+              "title": "注册成功-手机号验证通过",
+              "precondition": "手机号未注册，验证码正确",
+              "test_steps": [
+                {
+                  "step": 1,
+                  "action": "输入手机号",
+                  "expected": ""
+                },
+                {
+                  "step": 2,
+                  "action": "输入验证码",
+                  "expected": ""
+                },
+                {
+                  "step": 3,
+                  "action": "点击注册",
+                  "expected": "注册成功"
+                }
+              ],
+              "expected_result": "显示注册成功提示，跳转首页",
+              "test_data": {
+                "phone": "13800138000",
+                "code": "123456"
+              },
+              "level": "P0",
+              "type": "functional"
+            }
+          ],
+          "children": [
+            {
+              "module_id": "module_2",
+              "module_name": "用户注册",
+              "test_cases": [
+                {
+                  "id": "tc_2",
+                  "title": "邮箱注册成功",
+                  "precondition": "邮箱未注册",
+                  "test_steps": [],
+                  "expected_result": "...",
+                  "test_data": {
+                    "email": "example@163.com"
+                  },
+                  "level": "P1",
+                  "type": "functional"
+                }
+              ],
+              "children": []
+            }
+          ]
+        }
+      ],
+      "suggested_test_cases_tree": [
+        {
+          "module_id": "module_2",
+          "module_name": "用户注册",
+          "test_cases": [
+            {
+              "id": "tc_new",
+              "title": "注册成功-新增邮箱注册",
+              "precondition": "邮箱格式正确，验证码正确",
+              "test_steps": [],
+              "expected_result": "...",
+              "test_data": {
+                "email": "example@163.com"
+              },
+              "level": "P0",
+              "type": "functional"
+            }
+          ],
+          "children": []
+        }
+      ],
+      "apis_tree": null,
+      "suggested_apis_tree": null
+    }
+  }
+}
+```
+
+#### 进度 = api（接口设计）
+
+```json
+{
+  "code": 200,
+  "data": {
+    "message": {
+      "id": "msg_123",
+      "role": "assistant",
+      "content": "好的，我来帮你设计接口。",
+      "created_at": "2026-03-31T09:00:00Z"
+    },
+    "context": {
+      "current_progress": "api",
+      "requirement_content": "...",
+      "requirement_risks": [],
+      "requirement_unclear_points": [],
+      "suggested_requirement_content": null,
+      "suggested_requirement_risks": null,
+      "suggested_requirement_unclear_points": null,
+      "modules_tree": [],
+      "suggested_modules_tree": null,
+      "test_cases_tree": [],
+      "suggested_test_cases_tree": null,
+      "apis_tree": [
+        {
+          "module_id": "module_1",
+          "module_name": "用户中心",
+          "apis": [
+            {
+              "id": "api_1",
+              "name": "获取验证码",
+              "method": "POST",
+              "path": "/api/v1/auth/send-code",
+              "description": "发送注册验证码"
+            }
+          ],
+          "children": [
+            {
+              "module_id": "module_2",
+              "module_name": "用户注册",
+              "apis": [
+                {
+                  "id": "api_2",
+                  "name": "用户注册",
+                  "method": "POST",
+                  "path": "/api/v1/users/register",
+                  "description": "用户注册接口"
+                }
+              ],
+              "children": []
+            }
+          ]
+        }
+      ],
+      "suggested_apis_tree": [
+        {
+          "module_id": "module_2",
+          "module_name": "用户注册",
+          "apis": [
+            {
+              "id": "api_new",
+              "name": "邮箱注册",
+              "method": "POST",
+              "path": "/api/v1/users/register/email",
+              "description": "邮箱用户注册接口"
+            }
+          ],
+          "children": []
+        }
+      ]
+    }
+  }
+}
+```
+
+#### 进度 = stress_test（压测脚本设计）
+
+```json
+{
+  "code": 200,
+  "data": {
+    "message": {
+      "id": "msg_123",
+      "role": "assistant",
+      "content": "好的，我来帮你生成压测脚本。",
+      "created_at": "2026-03-31T09:00:00Z"
+    },
+    "context": {
+      "current_progress": "stress_test",
+      "requirement_content": "...",
+      "requirement_risks": [],
+      "requirement_unclear_points": [],
+      "suggested_requirement_content": null,
+      "suggested_requirement_risks": null,
+      "suggested_requirement_unclear_points": null,
+      "modules_tree": [],
+      "suggested_modules_tree": null,
+      "test_cases_tree": [],
+      "suggested_test_cases_tree": null,
+      "apis_tree": [
+        {
+          "module_id": "module_1",
+          "module_name": "用户中心",
+          "apis": [
+            {
+              "id": "api_1",
+              "name": "获取验证码",
+              "method": "POST",
+              "path": "/api/v1/auth/send-code",
+              "description": "发送注册验证码",
+              "test_script": "from locust import HttpUser, task, between\n\nclass WebsiteUser(HttpUser):\n    wait_time = between(1, 3)\n    \n    @task\n    def send_code(self):\n        payload = {\"phone\": \"13800138000\"}\n        self.client.post(\"/api/v1/auth/send-code\", json=payload)"
+            }
+          ],
+          "children": []
+        }
+      ],
+      "suggested_apis_tree": null
     }
   }
 }
@@ -274,13 +619,18 @@ Content-Type: application/pdf
 
 ---
 
-### 需求变更确认
+### 获取对话历史
 
 ```
-POST /api/v1/projects/{project_id}/requirement/accept
+GET /api/v1/project/{project_id}/messages
 ```
 
-**说明：** 确认需求变更，将 AI 建议的变更内容应用到需求中
+**查询参数：**
+
+| 参数        | 类型  | 必填 | 说明         |
+|-----------|-----|----|------------|
+| page      | int | 否  | 页码，默认 1    |
+| page_size | int | 否  | 每页数量，默认 50 |
 
 **响应：**
 
@@ -288,56 +638,23 @@ POST /api/v1/projects/{project_id}/requirement/accept
 {
   "code": 200,
   "data": {
-    "requirement_optimized_content": "更新后的需求内容...",
-    "requirement_risks": ["邮箱验证码有效期问题"],
-    "requirement_unclear_points": ["是否需要邮箱激活链接"],
-    "requirement_status": "pending"
-  }
-}
-```
-
----
-
-### 需求变更拒绝
-
-```
-POST /api/v1/projects/{project_id}/requirement/reject
-```
-
-**说明：** 拒绝需求变更，保持当前需求内容
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "message": "已拒绝变更，当前需求内容保持不变"
-  }
-}
-```
-
----
-
-### 确认需求
-
-```
-POST /api/v1/projects/{project_id}/requirement/confirm
-```
-
-**说明：** 确认需求，触发后续模块拆分。**前置条件：requirement_risks 和 requirement_unclear_points 必须为空**
-
-**前置校验：**
-- requirement_risks = []
-- requirement_unclear_points = []
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "requirement_status": "confirmed"
+    "items": [
+      {
+        "id": "msg_1",
+        "role": "user",
+        "content": "帮我设计一个用户注册登录的功能",
+        "created_at": "2026-03-31T09:00:00Z"
+      },
+      {
+        "id": "msg_2",
+        "role": "assistant",
+        "content": "好的，我来设计...",
+        "created_at": "2026-03-31T09:00:01Z"
+      }
+    ],
+    "total": 2,
+    "page": 1,
+    "page_size": 50
   }
 }
 ```
@@ -349,15 +666,14 @@ POST /api/v1/projects/{project_id}/requirement/confirm
 ### 查询模块列表
 
 ```
-GET /api/v1/projects/{project_id}/modules
+GET /api/v1/project/{project_id}/modules
 ```
 
 **查询参数：**
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| parent_id | string | 否 | 父级模块ID |
-| status | string | 否 | 状态筛选 |
+| 参数        | 类型     | 必填 | 说明     |
+|-----------|--------|----|--------|
+| parent_id | string | 否  | 父级模块ID |
 
 **响应：**
 
@@ -372,24 +688,11 @@ GET /api/v1/projects/{project_id}/modules
         "parent_id": null,
         "name": "用户中心",
         "description": "用户相关功能模块",
-        "priority": 1,
-        "status": "draft",
-        "created_at": "2026-03-30T20:00:00Z",
-        "updated_at": "2026-03-30T21:00:00Z"
-      },
-      {
-        "id": "module_2",
-        "project_id": "project_1",
-        "parent_id": "module_1",
-        "name": "用户注册",
-        "description": "用户注册功能",
-        "priority": 1,
-        "status": "analyzed",
         "created_at": "2026-03-30T20:00:00Z",
         "updated_at": "2026-03-30T21:00:00Z"
       }
     ],
-    "total": 2,
+    "total": 1,
     "page": 1,
     "page_size": 20
   }
@@ -401,7 +704,7 @@ GET /api/v1/projects/{project_id}/modules
 ### 获取模块树形结构
 
 ```
-GET /api/v1/projects/{project_id}/modules/tree
+GET /api/v1/project/{project_id}/modules/tree
 ```
 
 **响应：**
@@ -413,18 +716,15 @@ GET /api/v1/projects/{project_id}/modules/tree
     {
       "id": "module_1",
       "name": "用户中心",
-      "status": "draft",
       "children": [
         {
           "id": "module_2",
           "name": "用户注册",
-          "status": "analyzed",
           "children": []
         },
         {
           "id": "module_3",
           "name": "用户登录",
-          "status": "draft",
           "children": []
         }
       ]
@@ -435,174 +735,21 @@ GET /api/v1/projects/{project_id}/modules/tree
 
 ---
 
-### AI 分析模块
-
-```
-POST /api/v1/projects/{project_id}/modules/analyze
-```
-
-**说明：** AI 分析模块，自动拆分生成子模块。**前置条件：需求状态必须为 confirmed**
-
-**前置校验：**
-- 需求状态 requirement_status = 'confirmed'
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "modules": [
-      {
-        "id": "module_1",
-        "name": "用户注册模块",
-        "description": "处理用户注册相关逻辑",
-        "priority": 1,
-        "status": "draft"
-      },
-      {
-        "id": "module_2",
-        "name": "验证码模块",
-        "description": "处理验证码发送和验证",
-        "priority": 2,
-        "status": "draft"
-      }
-    ]
-  }
-}
-```
-
----
-
-## 模块讨论接口 (Module Discussion)
-
-### 模块对话
-
-```
-POST /api/v1/modules/{module_id}/discuss
-```
-
-**说明：** 与 AI 进行模块讨论，可拆分或合并模块
-
-**请求体：**
-
-```json
-{
-  "message": "用户注册模块和验证码模块可以合并为一个模块"
-}
-```
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "response": "好的，我将用户注册模块和验证码模块合并为一个模块。",
-    "suggested_changes": {
-      "modules_tree": [
-        {
-          "id": "module_new",
-          "name": "注册认证模块",
-          "status": "draft",
-          "description": "整合用户注册和验证码功能",
-          "children": []
-        }
-      ]
-    }
-  }
-}
-```
-
----
-
-### 模块变更确认
-
-```
-POST /api/v1/modules/{module_id}/accept
-```
-
-**说明：** 确认模块变更，删除历史模块并根据 modules_tree 重建
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "modules_tree": [
-      {
-        "id": "module_new",
-        "name": "注册认证模块",
-        "status": "analyzed",
-        "description": "整合用户注册和验证码功能",
-        "children": []
-      }
-    ]
-  }
-}
-```
-
----
-
-### 模块变更拒绝
-
-```
-POST /api/v1/modules/{module_id}/reject
-```
-
-**说明：** 拒绝模块变更，保持当前模块结构
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "message": "已拒绝变更，当前模块结构保持不变"
-  }
-}
-```
-
----
-
-### 确认模块
-
-```
-POST /api/v1/modules/{module_id}/confirm
-```
-
-**说明：** 确认模块，触发后续测试用例和接口生成
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "status": "confirmed"
-  }
-}
-```
-
----
-
 ## 测试用例接口 (Test Cases)
 
 ### 查询测试用例列表
 
 ```
-GET /api/v1/projects/{project_id}/test-cases
+GET /api/v1/project/{project_id}/test-cases
 ```
 
 **查询参数：**
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| module_id | string | 否 | 关联模块ID |
-| level | string | 否 | P0/P1/P2/P3 |
-| type | string | 否 | functional/interface/performance |
-| status | string | 否 | 状态筛选 |
+| 参数        | 类型     | 必填 | 说明                               |
+|-----------|--------|----|----------------------------------|
+| module_id | string | 否  | 关联模块ID                           |
+| level     | string | 否  | P0/P1/P2/P3                      |
+| type      | string | 否  | functional/interface/performance |
 
 **响应：**
 
@@ -618,18 +765,29 @@ GET /api/v1/projects/{project_id}/test-cases
         "title": "注册成功-手机号验证通过",
         "precondition": "手机号未注册，验证码正确",
         "test_steps": [
-          {"step": 1, "action": "输入手机号", "expected": ""},
-          {"step": 2, "action": "输入验证码", "expected": ""},
-          {"step": 3, "action": "点击注册", "expected": "注册成功，跳转首页"}
+          {
+            "step": 1,
+            "action": "输入手机号",
+            "expected": ""
+          },
+          {
+            "step": 2,
+            "action": "输入验证码",
+            "expected": ""
+          },
+          {
+            "step": 3,
+            "action": "点击注册",
+            "expected": "注册成功，跳转首页"
+          }
         ],
+        "expected_result": "显示注册成功提示，跳转首页",
         "test_data": {
           "phone": "13800138000",
           "code": "123456"
         },
         "level": "P0",
         "type": "functional",
-        "status": "draft",
-        "tags": ["注册", "正向"],
         "created_at": "2026-03-30T20:00:00Z"
       }
     ],
@@ -642,43 +800,77 @@ GET /api/v1/projects/{project_id}/test-cases
 
 ---
 
-### AI 生成测试用例
+### 获取测试用例树形结构
 
 ```
-POST /api/v1/modules/{module_id}/generate-test-cases
+GET /api/v1/project/{project_id}/test-cases/tree
 ```
 
-**请求体：**
-
-```json
-{
-  "count": 20,
-  "types": ["functional", "interface"],
-  "levels": ["P0", "P1", "P2"]
-}
-```
+**说明：** 获取项目下所有测试用例的树形结构，按模块层级组织
 
 **响应：**
 
 ```json
 {
   "code": 200,
-  "data": {
-    "generated_count": 20,
-    "test_cases": [
-      {
-        "id": "tc_1",
-        "module_id": "module_1",
-        "title": "注册成功-手机号验证通过",
-        "precondition": "手机号未注册，验证码正确",
-        "test_steps": [...],
-        "test_data": {...},
-        "level": "P0",
-        "type": "functional",
-        "status": "draft"
-      }
-    ]
-  }
+  "data": [
+    {
+      "module_id": "module_1",
+      "module_name": "用户中心",
+      "test_cases": [
+        {
+          "id": "tc_1",
+          "title": "注册成功-手机号验证通过",
+          "precondition": "手机号未注册，验证码正确",
+          "test_steps": [
+            {
+              "step": 1,
+              "action": "输入手机号",
+              "expected": ""
+            },
+            {
+              "step": 2,
+              "action": "输入验证码",
+              "expected": ""
+            },
+            {
+              "step": 3,
+              "action": "点击注册",
+              "expected": "注册成功"
+            }
+          ],
+          "expected_result": "显示注册成功提示，跳转首页",
+          "test_data": {
+            "phone": "13800138000",
+            "code": "123456"
+          },
+          "level": "P0",
+          "type": "functional"
+        }
+      ],
+      "children": [
+        {
+          "module_id": "module_2",
+          "module_name": "用户注册",
+          "test_cases": [
+            {
+              "id": "tc_2",
+              "title": "邮箱注册成功",
+              "precondition": "邮箱未注册",
+              "test_steps": [],
+              "expected_result": "...",
+              "test_data": {
+                "email": "example@163.com"
+              },
+              "level": "P1",
+              "type": "functional"
+            }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
 }
 ```
 
@@ -687,45 +879,35 @@ POST /api/v1/modules/{module_id}/generate-test-cases
 ### 导出测试用例
 
 ```
-GET /api/v1/projects/{project_id}/test-cases/export
+GET /api/v1/project/{project_id}/test-cases/export
 ```
+
+**说明：** 直接返回文件数据流
 
 **查询参数：**
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| format | string | 否 | excel/csv/json，默认 excel |
-| module_id | string | 否 | 筛选模块 |
+| 参数        | 类型     | 必填 | 说明                 |
+|-----------|--------|----|--------------------|
+| format    | string | 否  | excel/csv，默认 excel |
+| module_id | string | 否  | 筛选模块               |
 
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "file_path": "/data/exports/test_cases_20260330.xlsx",
-    "download_url": "/api/v1/files/download/test_cases_20260330.xlsx"
-  }
-}
-```
+**响应：** 直接返回文件二进制流，Content-Type 根据 format 参数决定
 
 ---
 
 ## 接口设计接口 (APIs)
 
-### AI 生成接口设计
+### 查询接口列表
 
 ```
-POST /api/v1/modules/{module_id}/generate-apis
+GET /api/v1/project/{project_id}/apis
 ```
 
-**说明：** AI 根据模块描述自动生成接口设计
+**查询参数：**
 
-**请求体：**
-
-```json
-{}
-```
+| 参数        | 类型     | 必填 | 说明     |
+|-----------|--------|----|--------|
+| module_id | string | 否  | 关联模块ID |
 
 **响应：**
 
@@ -733,15 +915,21 @@ POST /api/v1/modules/{module_id}/generate-apis
 {
   "code": 200,
   "data": {
-    "apis": [
+    "items": [
       {
         "id": "api_1",
+        "project_id": "project_1",
+        "module_id": "module_1",
         "name": "获取验证码",
         "method": "POST",
         "path": "/api/v1/auth/send-code",
         "description": "发送注册验证码",
         "request_params": {
-          "phone": {"type": "string", "required": true, "description": "手机号"}
+          "phone": {
+            "type": "string",
+            "required": true,
+            "description": "手机号"
+          }
         },
         "response_schema": {
           "code": 200,
@@ -749,66 +937,86 @@ POST /api/v1/modules/{module_id}/generate-apis
           "data": {
             "expires_in": 60
           }
-        }
-      },
-      {
-        "id": "api_2",
-        "name": "用户注册",
-        "method": "POST",
-        "path": "/api/v1/users/register",
-        "description": "用户注册接口",
-        "request_params": {},
-        "request_body": {
-          "type": "object",
-          "properties": {
-            "phone": {"type": "string", "description": "手机号"},
-            "code": {"type": "string", "description": "验证码"},
-            "password": {"type": "string", "description": "密码"}
-          },
-          "required": ["phone", "code", "password"]
         },
-        "response_schema": {
-          "code": 200,
-          "message": "success",
-          "data": {
-            "user_id": "user_123",
-            "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-          }
-        }
+        "test_script": null,
+        "created_at": "2026-03-30T20:00:00Z"
       }
-    ]
+    ],
+    "total": 1,
+    "page": 1,
+    "page_size": 20
   }
 }
 ```
 
 ---
 
-### 生成压测脚本
+### 获取接口树形结构
 
 ```
-POST /api/v1/apis/{api_id}/generate-stress-script
+GET /api/v1/project/{project_id}/apis/tree
 ```
 
-**说明：** 为接口生成 Locust 压测脚本
-
-**请求体：**
-
-```json
-{
-  "concurrent_users": 100,
-  "spawn_rate": 10,
-  "duration": 60
-}
-```
+**说明：** 获取项目下所有接口的树形结构，按模块层级组织
 
 **响应：**
 
 ```json
 {
   "code": 200,
-  "data": {
-    "test_script": "from locust import HttpUser, task, between\\n\\nclass WebsiteUser(HttpUser):\\n    wait_time = between(1, 3)\\n    \\n    @task\\n    def send_code(self):\\n        payload = {\"phone\": \"13800138000\"}\\n        self.client.post(\"/api/v1/auth/send-code\", json=payload)"
-  }
+  "data": [
+    {
+      "module_id": "module_1",
+      "module_name": "用户中心",
+      "apis": [
+        {
+          "id": "api_1",
+          "name": "获取验证码",
+          "method": "POST",
+          "path": "/api/v1/auth/send-code",
+          "description": "发送注册验证码",
+          "request_params": {
+            "phone": {
+              "type": "string",
+              "required": true,
+              "description": "手机号"
+            }
+          },
+          "response_schema": {
+            "code": 200,
+            "message": "success",
+            "data": {
+              "expires_in": 60
+            }
+          },
+          "test_script": null
+        }
+      ],
+      "children": [
+        {
+          "module_id": "module_2",
+          "module_name": "用户注册",
+          "apis": [
+            {
+              "id": "api_2",
+              "name": "用户注册",
+              "method": "POST",
+              "path": "/api/v1/users/register",
+              "description": "用户注册接口",
+              "request_params": {},
+              "response_schema": {
+                "code": 200,
+                "message": "success",
+                "data": {}
+              },
+              "test_script": null
+            }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
 }
 ```
 
@@ -819,17 +1027,17 @@ POST /api/v1/apis/{api_id}/generate-stress-script
 ### 查询操作日志
 
 ```
-GET /api/v1/projects/{project_id}/logs
+GET /api/v1/project/{project_id}/logs
 ```
 
 **查询参数：**
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| entity_type | string | 否 | 实体类型: project/module/test_case/api |
-| entity_id | string | 否 | 实体ID |
-| start_date | string | 否 | 开始日期 (ISO 8601) |
-| end_date | string | 否 | 结束日期 (ISO 8601) |
+| 参数          | 类型     | 必填 | 说明                                 |
+|-------------|--------|----|------------------------------------|
+| entity_type | string | 否  | 实体类型: project/module/test_case/api |
+| entity_id   | string | 否  | 实体ID                               |
+| start_date  | string | 否  | 开始日期 (ISO 8601)                    |
+| end_date    | string | 否  | 结束日期 (ISO 8601)                    |
 
 **响应：**
 
@@ -849,21 +1057,9 @@ GET /api/v1/projects/{project_id}/logs
           "description": "处理用户注册相关逻辑"
         },
         "created_at": "2026-03-30T20:00:00Z"
-      },
-      {
-        "id": "log_2",
-        "project_id": "project_1",
-        "entity_type": "test_case",
-        "entity_id": "tc_1",
-        "action": "generate",
-        "detail": {
-          "count": 20,
-          "module_id": "module_1"
-        },
-        "created_at": "2026-03-30T21:00:00Z"
       }
     ],
-    "total": 2,
+    "total": 1,
     "page": 1,
     "page_size": 20
   }
@@ -872,88 +1068,13 @@ GET /api/v1/projects/{project_id}/logs
 
 ---
 
-## AI 工作流接口
-
-### 创建并执行完整工作流
-
-```
-POST /api/v1/projects/{project_id}/workflow
-```
-
-**请求体：**
-
-```json
-{
-  "step": "generate_test_cases",
-  "module_id": "mod_123",
-  "params": {
-    "test_cases_count": 30,
-    "include_interface": true
-  }
-}
-```
-
-**步骤选项：**
-- `split_modules` - 拆分模块
-- `generate_test_cases` - 生成测试用例
-- `design_apis` - 设计接口
-- `generate_stress_script` - 生成压测脚本
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "workflow_id": "wf_123",
-    "step": "generate_test_cases",
-    "status": "running"
-  }
-}
-```
-
----
-
-### 获取工作流状态
-
-```
-GET /api/v1/projects/{project_id}/workflow/status
-```
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "workflow_id": "wf_123",
-    "current_step": "generate_test_cases",
-    "completed_steps": ["split_modules"],
-    "progress": 66,
-    "status": "running",
-    "result": {
-      "split_modules": {
-        "modules_count": 5,
-        "modules": [...]
-      },
-      "generate_test_cases": {
-        "generated_count": 20,
-        "progress": 50
-      }
-    }
-  }
-}
-```
-
----
-
 ## 状态码说明
 
-| 状态码 | 说明 |
-|--------|------|
-| 200 | 成功 |
-| 400 | 请求参数错误 |
-| 404 | 资源不存在 |
+| 状态码 | 说明      |
+|-----|---------|
+| 200 | 成功      |
+| 400 | 请求参数错误  |
+| 404 | 资源不存在   |
 | 500 | 服务器内部错误 |
 
 ---
@@ -965,7 +1086,8 @@ GET /api/v1/projects/{project_id}/workflow/status
 - 文件上传使用 `multipart/form-data`
 - 大文件导出异步处理，返回任务ID
 - 使用硬删除机制，直接物理删除数据
-- AI 分析模块接口需校验需求状态为 confirmed
-- 需求确认接口需校验 risks 和 unclear_points 为空
-- 需求对话接口调用后状态重置为 pending
-- 模块变更确认后删除历史模块并重建
+- 项目流程通过用户与 AI 的交互自然推进
+- 进度由项目统一管理，流转：init → requirement → system_design → api → test_case → stress_test → completed
+- api、test_case、stress_test 阶段 modules_tree 返回空数组
+- stress_test 阶段 test_cases_tree 返回空数组
+- 测试用例、API、压测脚本均按模块树形结构返回，支持嵌套子模块

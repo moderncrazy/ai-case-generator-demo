@@ -2,8 +2,8 @@ import uuid
 from typing import List, Any
 from datetime import datetime
 
-from src.enums import ConversationRole
-from src.models import ConversationMessage
+from src.enums.conversation_role import ConversationRole
+from src.models.conversation_message import ConversationMessage
 
 
 class ConversationMessageRepository:
@@ -15,14 +15,15 @@ class ConversationMessageRepository:
     async def create(
             self,
             project_id: str,
+            content: str,
             role: ConversationRole,
-            content: str = None,
+            id: str = None,
             metadata: str = None,
     ) -> str | None:
         """创建对话消息"""
         results = await self.model.insert(
             self.model(
-                id=str(uuid.uuid4()),
+                id=id if id else str(uuid.uuid4()),
                 project_id=project_id,
                 role=role.value,
                 content=content,

@@ -40,6 +40,7 @@
 | path                  | VARCHAR(1024)       | 文件路径            |
 | type                  | VARCHAR(32)         | 文件类型/扩展名        |
 | content               | VARCHAR(65535)      | 文件原始内容          |
+| summary               | VARCHAR(4096)       | 文件摘要      |
 | content_dense_vector  | FLOAT_VECTOR(1024)  | 稠密向量嵌入          |
 | content_sparse_vector | SPARSE_FLOAT_VECTOR | 稀疏 BM25 向量      |
 | create_time           | VARCHAR(32)         | 创建时间 (ISO 8601) |

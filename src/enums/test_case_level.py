@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class TestCaseLevel(str, Enum):
+class TestCaseLevel(StrEnum):
     """测试用例等级枚举，与数据库 test_cases.level 字段一致"""
 
     P0 = "P0"

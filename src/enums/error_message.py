@@ -1,17 +1,20 @@
 from enum import Enum
-from pathlib import Path
-from functools import cached_property
+
+from src.constant import TRANSACTION_ID
 
 
 class ErrorMessage(Enum):
     """错误语"""
 
-    TRANSACTION_ID_NOT_FOUND = (4001, "X-Transaction-Id not found")
-    FILE_TYPE_ERROR = (4002, "文件类型错误")
-    FILE_SIZE_ERROR = (4003, "文件过大")
-    FILE_EXCEPTION_ERROR = (4004, "文件异常")
-    PROJECT_FILE_TOTAL_SIZE_ERROR = (4005, "项目文件总体过大")
-    PROJECT_FILE_EXIST_ERROR = (4006, "项目文件已存在")
+    TRANSACTION_ID_NOT_FOUND = (4001, f"{TRANSACTION_ID} not found")
+    PROJECT_NOT_FOUND_ERROR = (4002, "项目不存在")
+    FILE_TYPE_ERROR = (4003, "文件类型错误")
+    FILE_SIZE_ERROR = (4004, "文件过大")
+    FILE_EXCEPTION_ERROR = (4005, "文件异常")
+    PROJECT_FILE_TOTAL_SIZE_ERROR = (4006, "项目文件总体过大")
+    PROJECT_FILE_EXIST_ERROR = (4007, "项目文件已存在")
+    PROJECT_NAME_EXIST_ERROR = (4008, "项目名称已存在")
+    LLM_ERROR = (4100, "模型调用异常")
 
     def __init__(self, code: int, message: str):
         self.code = code

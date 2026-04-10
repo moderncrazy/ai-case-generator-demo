@@ -1,10 +1,10 @@
 # AI Case Generator Demo - Python Dependencies
 
 # Core AI Framework
-langchain>=1.2.0
-langgraph>=1.1.0
-langchain-core>=1.2.0
-langchain-ollama>=1.0.0
+langchain>=1.2.15
+langgraph>=1.1.6
+langchain-core>=1.2.28
+langchain-ollama>=1.1.0
 langchain-milvus>=0.3.0
 langchain-anthropic>=1.4.0
 langchain-mcp-adapters>=0.2.0
@@ -43,7 +43,9 @@ python-docx>=1.1.0
 openpyxl>=3.1.0
 
 # Utilities
+orjson>=3.11.0
 async-lru>=2.3.0
 loguru>=0.7.0
 pathlib>=1.0.0
 setuptools==81.0.0
+contextvars>=2.4

@@ -3,7 +3,7 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel
 
-from src.models import Module
+from src.models.module import Module
 
 
 class ModuleCreate(BaseModel):
@@ -63,6 +63,22 @@ class ModuleRepository:
         ).first()
         return Module(**result) if result else None
 
+    async def list_by_ids_and_project(self,project_id: str, module_ids: List[str]) -> List[Module]:
+        """根据 module_id 列表和项目 ID 批量查询模块
+
+        Args:
+            project_id: 项目 ID
+            module_ids: module_id 列表
+
+        Returns:
+            存在的模块列表
+        """
+        results = await self.model.select().where(
+            self.model.id.in_(module_ids),
+            self.model.project_id == project_id
+        )
+        return [Module(**item) for item in results]
+
     async def list_by_project(self, project_id: str) -> List[Module]:
         """获取项目的所有模块"""
         results = await self.model.select().where(
@@ -96,6 +112,35 @@ class ModuleRepository:
         return await self.model.delete().where(
             self.model.project_id == project_id
         )
+
+    async def bulk_update(self, project_id: str, modules: List[ModuleCreate]) -> List[str]:
+        """批量更新模块（先删除项目下所有模块再插入）
+
+        Args:
+            project_id: 项目ID
+            modules: 模块更新参数列表
+
+        Returns:
+            插入的模块ID列表
+        """
+        # 先删除项目下所有模块
+        await self.delete_by_project(project_id)
+
+        now = datetime.now()
+        instances = [
+            self.model(
+                id=str(uuid.uuid4()),
+                project_id=project_id,
+                parent_id=item.parent_id,
+                name=item.name,
+                description=item.description,
+                created_at=now,
+                updated_at=now,
+            )
+            for item in modules
+        ]
+        results = await self.model.insert(*instances)
+        return [item["id"] for item in results]
 
 
 # 全局单例实例

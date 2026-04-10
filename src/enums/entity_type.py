@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class EntityType(str, Enum):
+class EntityType(StrEnum):
     """实体类型枚举，与数据库 operation_logs.entity_type 字段一致"""
 
     PROJECT = "project"

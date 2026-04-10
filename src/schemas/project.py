@@ -2,7 +2,8 @@ from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from src.enums import CreatorType, ProjectProgress
+from src.enums.creator_type import CreatorType
+from src.enums.project_progress import ProjectProgress
 
 
 class ProjectCreate(BaseModel):

@@ -1,24 +1,19 @@
-from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from src.enums import ConversationRole
+from src.enums.conversation_role import ConversationRole
 
 
-class ConversationMessageBase(BaseModel):
-    """对话消息基础字段"""
-    project_id: str = Field(..., description="所属项目ID")
-    role: ConversationRole = Field(..., description="角色: user/assistant/system")
-    content: Optional[str] = Field(None, description="消息内容")
-    metadata: Optional[str] = Field(None, description="额外元数据")
-
-
-class ConversationMessageCreate(ConversationMessageBase):
+class ConversationMessageCreate():
     """创建对话消息"""
     pass
 
 
-class ConversationMessageResponse(ConversationMessageBase):
+class ConversationMessageResponse(BaseModel):
     """对话消息响应"""
-    id: str
-    created_at: Optional[datetime] = None
+    id: str = Field(description="对话ID")
+    project_id: str = Field(description="项目ID")
+    role: ConversationRole = Field(description="角色: user/assistant/system")
+    content: str = Field(description="消息内容")
+    metadata: str = Field(default=None, description="额外元数据")
+    created_at: datetime = Field(default=datetime.now(), description="创建时间")

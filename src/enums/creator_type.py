@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class CreatorType(str, Enum):
+class CreatorType(StrEnum):
     """项目创建者类型枚举，与数据库 projects.creator_type 字段一致"""
 
     SYSTEM = "system"

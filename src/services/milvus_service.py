@@ -3,11 +3,36 @@ from pathlib import Path
 from typing import Any
 from loguru import logger
 from datetime import datetime
+from pydantic import BaseModel, Field
 from transformers import AutoTokenizer
 from optimum.onnxruntime import ORTModelForCustomTasks
 from pymilvus import AsyncMilvusClient, AnnSearchRequest, WeightedRanker, DataType
 
 from src.config import settings
+
+
+class ProjectFileSearchResult(BaseModel):
+    """项目文件搜索结果"""
+    id: int = Field(description="搜索结果ID")
+    distance: float = Field(description="与查询向量的距离/相似度")
+    project_id: str = Field(description="所属项目ID")
+    name: str = Field(description="文件名")
+    path: str = Field(description="文件路径")
+    type: str = Field(description="文件类型")
+    content: str = Field(description="文件内容")
+    summary: str = Field(description="文件摘要")
+    create_time: str = Field(description="创建时间")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="额外元数据")
+
+
+class ProjectContextSearchResult(BaseModel):
+    """项目上下文搜索结果"""
+    id: int = Field(description="搜索结果ID")
+    distance: float = Field(description="与查询向量的距离/相似度")
+    project_id: str = Field(description="所属项目ID")
+    content: str = Field(description="对话上下文内容")
+    create_time: str = Field(description="创建时间")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="额外元数据")
 
 
 class BGE3ONNXModel:
@@ -151,6 +176,7 @@ class MilvusService:
             schema.add_field(field_name="path", datatype=DataType.VARCHAR, max_length=1024)
             schema.add_field(field_name="type", datatype=DataType.VARCHAR, max_length=32)
             schema.add_field(field_name="content", datatype=DataType.VARCHAR, max_length=65535)
+            schema.add_field(field_name="summary", datatype=DataType.VARCHAR, max_length=4096)
             schema.add_field(field_name="content_dense_vector", datatype=DataType.FLOAT_VECTOR, dim=1024)
             schema.add_field(field_name="content_sparse_vector", datatype=DataType.SPARSE_FLOAT_VECTOR)
             schema.add_field(field_name="create_time", datatype=DataType.VARCHAR, max_length=32)
@@ -216,6 +242,7 @@ class MilvusService:
             path: str,
             type: str,
             content: str,
+            summary: str,
             metadata: dict[str, Any] | None = None
     ) -> int:
         """
@@ -227,6 +254,7 @@ class MilvusService:
             path: 文件路径
             type: 文件类型/扩展名
             content: 文件内容
+            summary: 文件摘要
             metadata: 额外元数据
 
         Returns:
@@ -244,6 +272,7 @@ class MilvusService:
             "path": path,
             "type": type,
             "content": content,
+            "summary": summary,
             "create_time": datetime.now().isoformat(),
             "metadata": metadata or {}
         }]
@@ -299,7 +328,7 @@ class MilvusService:
             query: str,
             project_id: str | None = None,
             limit: int = 5
-    ) -> list[dict[str, Any]]:
+    ) -> list[ProjectFileSearchResult]:
         """
         混合搜索项目文件
 
@@ -344,19 +373,21 @@ class MilvusService:
         )
 
         # 格式化结果
-        formatted = []
-        for hit in results[0]:
-            formatted.append({
-                "id": hit["id"],
-                "distance": hit["distance"],
-                "project_id": hit["entity"].get("project_id"),
-                "name": hit["entity"].get("name"),
-                "path": hit["entity"].get("path"),
-                "type": hit["entity"].get("type"),
-                "content": hit["entity"].get("content"),
-                "create_time": hit["entity"].get("create_time"),
-                "metadata": hit["entity"].get("metadata", {})
-            })
+        formatted = [
+            ProjectFileSearchResult(
+                id=hit["id"],
+                distance=hit["distance"],
+                project_id=hit["entity"].get("project_id", ""),
+                name=hit["entity"].get("name", ""),
+                path=hit["entity"].get("path", ""),
+                type=hit["entity"].get("type", ""),
+                content=hit["entity"].get("content", ""),
+                summary=hit["entity"].get("summary", ""),
+                create_time=hit["entity"].get("create_time", ""),
+                metadata=hit["entity"].get("metadata", {})
+            )
+            for hit in results[0]
+        ]
 
         logger.info(f"项目文件搜索完成，返回 {len(formatted)} 条结果")
         return formatted
@@ -366,7 +397,7 @@ class MilvusService:
             project_id: str,
             query: str,
             limit: int = 5
-    ) -> list[dict[str, Any]]:
+    ) -> list[ProjectContextSearchResult]:
         """
         混合搜索项目对话历史
 
@@ -408,16 +439,17 @@ class MilvusService:
         )
 
         # 格式化结果
-        formatted = []
-        for hit in results[0]:
-            formatted.append({
-                "id": hit["id"],
-                "distance": hit["distance"],
-                "project_id": hit["entity"].get("project_id"),
-                "content": hit["entity"].get("content"),
-                "create_time": hit["entity"].get("create_time"),
-                "metadata": hit["entity"].get("metadata", {})
-            })
+        formatted = [
+            ProjectContextSearchResult(
+                id=hit["id"],
+                distance=hit["distance"],
+                project_id=hit["entity"].get("project_id", ""),
+                content=hit["entity"].get("content", ""),
+                create_time=hit["entity"].get("create_time", ""),
+                metadata=hit["entity"].get("metadata", {})
+            )
+            for hit in results[0]
+        ]
 
         logger.info(f"项目上下文搜索完成，项目: {project_id}，返回 {len(formatted)} 条结果")
         return formatted

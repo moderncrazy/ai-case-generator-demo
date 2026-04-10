@@ -27,10 +27,7 @@ erDiagram
         string id PK
         string name UK
         string description
-        string requirement_content
-        string requirement_optimized_content
-        string requirement_risks
-        string requirement_unclear_points
+        string requirement_design
         string architecture_design
         string database_design
         string progress
@@ -107,6 +104,8 @@ erDiagram
         string path
         string type
         integer size
+        string content 
+        string summary 
         string metadata
         datetime created_at
     }
@@ -123,10 +122,7 @@ erDiagram
 | id                            | TEXT     | PRIMARY KEY               | UUID                                                                     |
 | name                          | TEXT     | NOT NULL, UNIQUE          | 项目名称（唯一）                                                                 |
 | description                   | TEXT     |                           | 项目描述                                                                     |
-| requirement_content           | TEXT     |                           | 需求内容原文                                                                   |
-| requirement_optimized_content | TEXT     |                           | AI 优化后的需求内容                                                              |
-| requirement_risks             | TEXT     |                           | 识别的风险点 (JSON)                                                            |
-| requirement_unclear_points    | TEXT     |                           | 不明确点 (JSON)                                                              |
+| requirement_design            | TEXT     |                           | 需求设计内容                                                                   |
 | architecture_design           | TEXT     |                           | 架构设计内容                                                                   |
 | database_design               | TEXT     |                           | 数据库设计内容                                                                  |
 | progress                      | TEXT     | DEFAULT 'init'            | 项目进度: init/requirement/system_design/api/test_case/stress_test/completed |
@@ -155,9 +151,9 @@ erDiagram
 | module_id       | TEXT     | FOREIGN KEY               | 所属模块ID                               |
 | title           | TEXT     | NOT NULL                  | 用例标题                                 |
 | precondition    | TEXT     |                           | 前置条件                                 |
-| test_steps      | TEXT     |                           | 测试步骤 (JSON)                          |
-| expected_result | TEXT     |                           | 预期结果                                 |
-| test_data       | TEXT     |                           | 测试数据 (JSON)                          |
+| test_steps      | TEXT     | NOT NULL                  | 测试步骤 (JSON)                          |
+| expected_result | TEXT     | NOT NULL                  | 预期结果                                 |
+| test_data       | TEXT     | NOT NULL                  | 测试数据 (JSON)                          |
 | level           | TEXT     | DEFAULT 'P2'              | 用例等级: P0/P1/P2/P3                    |
 | type            | TEXT     | DEFAULT 'functional'      | 类型: functional/interface/performance |
 | created_at      | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间                                 |
@@ -174,9 +170,9 @@ erDiagram
 | method          | TEXT     | NOT NULL                  | HTTP 方法: GET/POST/PUT/DELETE |
 | path            | TEXT     | NOT NULL                  | 接口路径                         |
 | description     | TEXT     |                           | 接口描述                         |
-| request_params  | TEXT     |                           | 请求参数 (JSON)                  |
-| request_body    | TEXT     |                           | 请求体 (JSON)                   |
-| response_schema | TEXT     |                           | 响应结构 (JSON)                  |
+| request_params  | TEXT     | NOT NULL                  | 请求参数 (JSON)                  |
+| request_body    | TEXT     | NOT NULL                  | 请求体 (JSON)                   |
+| response_schema | TEXT     | NOT NULL                  | 响应结构 (JSON)                  |
 | test_script     | TEXT     |                           | Locust 压测脚本                  |
 | created_at      | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间                         |
 | updated_at      | DATETIME |                           | 更新时间                         |
@@ -200,84 +196,48 @@ erDiagram
 | id         | TEXT     | PRIMARY KEY               | UUID                      |
 | project_id | TEXT     | FOREIGN KEY               | 所属项目ID                    |
 | role       | TEXT     | NOT NULL                  | 角色: user/assistant/system |
-| content    | TEXT     |                           | 消息内容                      |
-| metadata   | TEXT     |                           | 额外元数据 (JSON)              |
+| content    | TEXT     | NOT NULL                  | 消息内容                      |
+| metadata   | TEXT     | NOT NULL                  | 额外元数据 (JSON)              |
 | created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间                      |
 
 ### 7. 项目文件表 (project_file)
 
-| 字段                      | 类型       | 约束                        | 说明           |
-|-------------------------|----------|---------------------------|--------------|
-| id                      | TEXT     | PRIMARY KEY               | UUID         |
-| project_id              | TEXT     | FOREIGN KEY               | 所属项目ID       |
-| conversation_message_id | TEXT     | FOREIGN KEY               | 上传该文件的对话消息ID |
-| name                    | TEXT     | NOT NULL                  | 文件名          |
-| path                    | TEXT     | NOT NULL                  | 文件路径         |
-| type                    | TEXT     |                           | 文件类型/扩展名     |
-| size                    | INTEGER  |                           | 文件大小(字节)     |
-| metadata                | TEXT     |                           | 额外元数据 (JSON) |
-| created_at              | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间         |
+| 字段                      | 类型       | 约束          | 说明           |
+|-------------------------|----------|-------------|--------------|
+| id                      | TEXT     | PRIMARY KEY | UUID         |
+| project_id              | TEXT     | FOREIGN KEY | 所属项目ID       |
+| conversation_message_id | TEXT     | FOREIGN KEY | 上传该文件的对话消息ID |
+| name                    | TEXT     | NOT NULL    | 文件名          |
+| path                    | TEXT     | NOT NULL    | 文件路径         |
+| type                    | TEXT     | NOT NULL    | 文件类型/扩展名     |
+| size                    | INTEGER  | NOT NULL    | 文件大小(字节)     |
+| content                 | TEXT     |             | 文件内容         |
+| summary                 | TEXT     |             | 文件摘要         |
+| metadata                | TEXT     |             | 额外元数据 (JSON) |
+| created_at              | DATETIME | NOT NULL    | 创建时间         |
 
 ---
 
 ## SQL 建表脚本
 
-```sql
+```sqlite
 -- 项目表
 CREATE TABLE IF NOT EXISTS project
 (
-    id
-    TEXT
-    PRIMARY
-    KEY,
-    name
-    TEXT
-    NOT
-    NULL
-    UNIQUE,
-    description
-    TEXT,
-    requirement_content
-    TEXT,
-    requirement_optimized_content
-    TEXT,
-    requirement_risks
-    TEXT,
-    requirement_unclear_points
-    TEXT,
-    architecture_design
-    TEXT,
-    database_design
-    TEXT,
-    progress
-    TEXT
-    DEFAULT
-    'init'
-    CHECK (
-    progress
-    IN
-(
-    'init',
-    'requirement',
-    'system_design',
-    'api',
-    'test_case',
-    'stress_test',
-    'completed'
-)),
-    creator_type TEXT DEFAULT 'user' CHECK
-(
-    creator_type
-    IN
-(
-    'system',
-    'user'
-)),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME
-    );
+    id                            TEXT PRIMARY KEY,
+    name                          TEXT NOT NULL UNIQUE,
+    description                   TEXT,
+    requirement_design            TEXT,
+    architecture_design           TEXT,
+    database_design               TEXT,
+    progress                      TEXT     DEFAULT 'init'
+        CHECK (progress IN ('init', 'requirement', 'system_design', 'api', 'test_case', 'stress_test', 'completed')),
+    creator_type                  TEXT     DEFAULT 'user'
+        CHECK (creator_type IN ('system', 'user')),
+    created_at                    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at                    DATETIME
+);
 
--- 项目表索引
 CREATE UNIQUE INDEX idx_project_name ON project (name);
 CREATE INDEX idx_project_progress ON project (progress);
 CREATE INDEX idx_project_created ON project (created_at);
@@ -285,115 +245,41 @@ CREATE INDEX idx_project_created ON project (created_at);
 -- 模块表
 CREATE TABLE IF NOT EXISTS module
 (
-    id
-    TEXT
-    PRIMARY
-    KEY,
-    project_id
-    TEXT
-    NOT
-    NULL,
-    parent_id
-    TEXT,
-    name
-    TEXT
-    NOT
-    NULL,
-    description
-    TEXT,
-    created_at
-    DATETIME
-    DEFAULT
-    CURRENT_TIMESTAMP,
-    updated_at
-    DATETIME,
-    FOREIGN
-    KEY
-(
-    project_id
-) REFERENCES project
-(
-    id
-),
-    FOREIGN KEY
-(
-    parent_id
-) REFERENCES module
-(
-    id
-)
-    );
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL,
+    parent_id   TEXT,
+    name        TEXT NOT NULL,
+    description TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME,
+    FOREIGN KEY (project_id) REFERENCES project (id),
+    FOREIGN KEY (parent_id) REFERENCES module (id)
+);
 
--- 模块表索引
 CREATE INDEX idx_module_project ON module (project_id);
 CREATE INDEX idx_module_parent ON module (parent_id);
 
 -- 测试用例表
 CREATE TABLE IF NOT EXISTS test_case
 (
-    id
-    TEXT
-    PRIMARY
-    KEY,
-    project_id
-    TEXT
-    NOT
-    NULL,
-    module_id
-    TEXT,
-    title
-    TEXT
-    NOT
-    NULL,
-    precondition
-    TEXT,
-    test_steps
-    TEXT,
-    expected_result
-    TEXT,
-    test_data
-    TEXT,
-    level
-    TEXT
-    DEFAULT
-    'P2'
-    CHECK (
-    level
-    IN
-(
-    'P0',
-    'P1',
-    'P2',
-    'P3'
-)),
-    type TEXT DEFAULT 'functional' CHECK
-(
-    type
-    IN
-(
-    'functional',
-    'interface',
-    'performance'
-)),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME,
-    FOREIGN KEY
-(
-    project_id
-) REFERENCES project
-(
-    id
-),
-    FOREIGN KEY
-(
-    module_id
-) REFERENCES module
-(
-    id
-)
-    );
+    id              TEXT PRIMARY KEY,
+    project_id      TEXT NOT NULL,
+    module_id       TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    precondition    TEXT,
+    test_steps      TEXT NOT NULL,
+    expected_result TEXT NOT NULL,
+    test_data       TEXT NOT NULL,
+    level           TEXT     DEFAULT 'P2'
+        CHECK (level IN ('P0', 'P1', 'P2', 'P3')),
+    type            TEXT     DEFAULT 'functional'
+        CHECK (type IN ('functional', 'interface', 'performance')),
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME,
+    FOREIGN KEY (project_id) REFERENCES project (id),
+    FOREIGN KEY (module_id) REFERENCES module (id)
+);
 
--- 测试用例表索引
 CREATE INDEX idx_test_case_project ON test_case (project_id);
 CREATE INDEX idx_test_case_module ON test_case (module_id);
 CREATE INDEX idx_test_case_level ON test_case (level);
@@ -401,59 +287,24 @@ CREATE INDEX idx_test_case_level ON test_case (level);
 -- 接口表
 CREATE TABLE IF NOT EXISTS api
 (
-    id
-    TEXT
-    PRIMARY
-    KEY,
-    project_id
-    TEXT
-    NOT
-    NULL,
-    module_id
-    TEXT,
-    name
-    TEXT
-    NOT
-    NULL,
-    method
-    TEXT
-    NOT
-    NULL
-    CHECK (
-    method
-    IN
-(
-    'GET',
-    'POST',
-    'PUT',
-    'DELETE',
-    'PATCH'
-)),
-    path TEXT NOT NULL,
-    description TEXT,
-    request_params TEXT,
-    request_body TEXT,
-    response_schema TEXT,
-    test_script TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME,
-    FOREIGN KEY
-(
-    project_id
-) REFERENCES project
-(
-    id
-),
-    FOREIGN KEY
-(
-    module_id
-) REFERENCES module
-(
-    id
-)
-    );
+    id              TEXT PRIMARY KEY,
+    project_id      TEXT NOT NULL,
+    module_id       TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    method          TEXT NOT NULL
+        CHECK (method IN ('GET', 'POST', 'PUT', 'DELETE', 'PATCH')),
+    path            TEXT NOT NULL,
+    description     TEXT,
+    request_params  TEXT NOT NULL,
+    request_body    TEXT NOT NULL,
+    response_schema TEXT NOT NULL,
+    test_script     TEXT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME,
+    FOREIGN KEY (project_id) REFERENCES project (id),
+    FOREIGN KEY (module_id) REFERENCES module (id)
+);
 
--- 接口表索引
 CREATE INDEX idx_api_project ON api (project_id);
 CREATE INDEX idx_api_module ON api (module_id);
 CREATE UNIQUE INDEX idx_api_path_method ON api (project_id, path, method);
@@ -461,43 +312,16 @@ CREATE UNIQUE INDEX idx_api_path_method ON api (project_id, path, method);
 -- 操作日志表
 CREATE TABLE IF NOT EXISTS operation_log
 (
-    id
-    TEXT
-    PRIMARY
-    KEY,
-    project_id
-    TEXT
-    NOT
-    NULL,
-    entity_type
-    TEXT
-    NOT
-    NULL,
-    entity_id
-    TEXT
-    NOT
-    NULL,
-    action
-    TEXT
-    NOT
-    NULL,
-    detail
-    TEXT,
-    created_at
-    DATETIME
-    DEFAULT
-    CURRENT_TIMESTAMP,
-    FOREIGN
-    KEY
-(
-    project_id
-) REFERENCES project
-(
-    id
-)
-    );
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id   TEXT NOT NULL,
+    action      TEXT NOT NULL,
+    detail      TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES project (id)
+);
 
--- 操作日志表索引
 CREATE INDEX idx_logs_project ON operation_log (project_id);
 CREATE INDEX idx_logs_entity ON operation_log (entity_type, entity_id);
 CREATE INDEX idx_logs_created ON operation_log (created_at);
@@ -505,94 +329,39 @@ CREATE INDEX idx_logs_created ON operation_log (created_at);
 -- 对话记录表
 CREATE TABLE IF NOT EXISTS conversation_message
 (
-    id
-    TEXT
-    PRIMARY
-    KEY,
-    project_id
-    TEXT
-    NOT
-    NULL,
-    role
-    TEXT
-    NOT
-    NULL
-    CHECK (
-    role
-    IN
-(
-    'user',
-    'assistant',
-    'system'
-)),
-    content TEXT,
-    metadata TEXT,
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    role       TEXT NOT NULL
+        CHECK (role IN ('user', 'assistant', 'system')),
+    content    TEXT NOT NULL,
+    metadata   TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY
-(
-    project_id
-) REFERENCES project
-(
-    id
-)
-    );
+    FOREIGN KEY (project_id) REFERENCES project (id)
+);
 
--- 对话记录表索引
 CREATE INDEX idx_messages_project ON conversation_message (project_id);
 CREATE INDEX idx_messages_created ON conversation_message (created_at);
 
 -- 项目文件表
 CREATE TABLE IF NOT EXISTS project_file
 (
-    id
-    TEXT
-    PRIMARY
-    KEY,
-    project_id
-    TEXT
-    NOT
-    NULL,
-    conversation_message_id
-    TEXT
-    NOT
-    NULL,
-    name
-    TEXT
-    NOT
-    NULL,
-    path
-    TEXT
-    NOT
-    NULL,
-    type
-    TEXT,
-    size
-    INTEGER,
-    metadata
-    TEXT,
-    created_at
-    DATETIME
-    DEFAULT
-    CURRENT_TIMESTAMP,
-    FOREIGN
-    KEY
-(
-    project_id
-) REFERENCES project
-(
-    id
-),
-    FOREIGN KEY
-(
-    conversation_message_id
-) REFERENCES conversation_message
-(
-    id
-)
-    );
+    id                      TEXT PRIMARY KEY,
+    project_id              TEXT    NOT NULL,
+    conversation_message_id TEXT    NOT NULL,
+    name                    TEXT    NOT NULL,
+    path                    TEXT    NOT NULL,
+    type                    TEXT    NOT NULL,
+    size                    INTEGER NOT NULL,
+    content                 TEXT,
+    summary                 TEXT,
+    metadata                TEXT,
+    created_at              DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES project (id),
+    FOREIGN KEY (conversation_message_id) REFERENCES conversation_message (id)
+);
 
--- 项目文件表索引
 CREATE INDEX idx_files_project ON project_file (project_id);
+CREATE INDEX idx_files_name ON project_file (name);
 CREATE INDEX idx_files_message ON project_file (conversation_message_id);
 ```
 

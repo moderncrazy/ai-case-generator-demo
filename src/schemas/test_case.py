@@ -2,7 +2,8 @@ from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from src.enums import TestCaseLevel, TestCaseType
+from src.enums.test_case_level import TestCaseLevel
+from src.enums.test_case_type import TestCaseType
 
 
 class TestCaseBase(BaseModel):

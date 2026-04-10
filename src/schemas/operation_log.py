@@ -2,7 +2,8 @@ from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from src.enums import EntityType, OperationAction
+from src.enums.entity_type import EntityType
+from src.enums.operation_action import OperationAction
 
 
 class OperationLogBase(BaseModel):

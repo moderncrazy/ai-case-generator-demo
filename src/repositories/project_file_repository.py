@@ -1,10 +1,10 @@
 import uuid
-from typing import List
+from typing import List, Any
 from datetime import datetime
 from pydantic import BaseModel
 from piccolo.query.functions.aggregate import Sum
 
-from src.models import ProjectFile
+from src.models.project_file import ProjectFile
 
 
 class ProjectFileCreate(BaseModel):
@@ -14,6 +14,8 @@ class ProjectFileCreate(BaseModel):
     path: str
     type: str
     size: int
+    content: str = None
+    summary: str = None
     metadata: str = None
 
 
@@ -34,6 +36,8 @@ class ProjectFileRepository:
                 path=project_file.path,
                 type=project_file.type,
                 size=project_file.size,
+                content=project_file.content,
+                summary=project_file.summary,
                 metadata=project_file.metadata,
                 created_at=datetime.now(),
             )
@@ -52,6 +56,8 @@ class ProjectFileRepository:
                 path=item.path,
                 type=item.type,
                 size=item.size,
+                content=item.content,
+                summary=item.summary,
                 metadata=item.metadata,
                 created_at=now,
             )
@@ -99,6 +105,16 @@ class ProjectFileRepository:
                         .where(self.model.project_id == project_id)
                         .first())
         return result["sum"] or 0
+
+    async def update_summary_by_project_and_name(self, project_id: str, name: str, summary: str) -> list[Any]:
+        """更新文件摘要"""
+        result = await self.model.update(
+            self.model.summary == summary
+        ).where(
+            self.model.name == name,
+            self.model.project_id == project_id
+        )
+        return result
 
     async def delete_by_project(self, project_id: str) -> int:
         """删除项目的所有文件记录"""

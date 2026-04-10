@@ -3,8 +3,9 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel
 
-from src.models import TestCase
-from src.enums import TestCaseLevel, TestCaseType
+from src.models.test_case import TestCase
+from src.enums.test_case_level import TestCaseLevel
+from src.enums.test_case_type import TestCaseType
 
 
 class TestCaseCreate(BaseModel):
@@ -12,7 +13,7 @@ class TestCaseCreate(BaseModel):
     project_id: str
     title: str
     module_id: str
-    precondition: str
+    precondition: Optional[str]
     test_steps: str
     expected_result: str
     test_data: str
@@ -48,16 +49,16 @@ class TestCaseRepository:
         return results[0]["id"] if results else None
 
     async def update(
-        self,
-        id: str,
-        title: Optional[str] = None,
-        module_id: Optional[str] = None,
-        precondition: Optional[str] = None,
-        test_steps: Optional[str] = None,
-        expected_result: Optional[str] = None,
-        test_data: Optional[str] = None,
-        level: Optional[TestCaseLevel] = None,
-        type: Optional[TestCaseType] = None,
+            self,
+            id: str,
+            title: Optional[str] = None,
+            module_id: Optional[str] = None,
+            precondition: Optional[str] = None,
+            test_steps: Optional[str] = None,
+            expected_result: Optional[str] = None,
+            test_data: Optional[str] = None,
+            level: Optional[TestCaseLevel] = None,
+            type: Optional[TestCaseType] = None,
     ) -> None:
         """更新测试用例"""
         update_data = {self.model.updated_at: datetime.now()}
@@ -128,6 +129,40 @@ class TestCaseRepository:
         return await self.model.delete().where(
             self.model.project_id == project_id
         )
+
+    async def bulk_update(self, project_id: str, test_cases: List[TestCaseCreate]) -> List[str]:
+        """批量更新测试用例（先删除项目下所有测试用例再插入）
+
+        Args:
+            project_id: 项目ID
+            test_cases: 测试用例更新参数列表
+
+        Returns:
+            插入的测试用例ID列表
+        """
+        # 先删除项目下所有测试用例
+        await self.delete_by_project(project_id)
+
+        now = datetime.now()
+        instances = [
+            self.model(
+                id=str(uuid.uuid4()),
+                project_id=project_id,
+                module_id=item.module_id,
+                title=item.title,
+                precondition=item.precondition,
+                test_steps=item.test_steps,
+                expected_result=item.expected_result,
+                test_data=item.test_data,
+                level=item.level.value,
+                type=item.type.value,
+                created_at=now,
+                updated_at=now,
+            )
+            for item in test_cases
+        ]
+        results = await self.model.insert(*instances)
+        return [item["id"] for item in results]
 
 
 # 全局单例实例

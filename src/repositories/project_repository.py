@@ -1,9 +1,22 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List
+from pydantic import BaseModel
 
-from src.models import Project
-from src.enums import CreatorType, ProjectProgress
+from src.models.project import Project
+from src.enums.creator_type import CreatorType
+from src.enums.project_progress import ProjectProgress
+
+
+class ProjectUpdate(BaseModel):
+    """更新项目参数"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    requirement_design: Optional[str] = None
+    architecture_design: Optional[str] = None
+    database_design: Optional[str] = None
+    progress: Optional[ProjectProgress] = None
+    creator_type: Optional[CreatorType] = None
 
 
 class ProjectRepository:
@@ -36,39 +49,24 @@ class ProjectRepository:
     async def update(
             self,
             id: str,
-            name: Optional[str] = None,
-            description: Optional[str] = None,
-            requirement_content: Optional[str] = None,
-            requirement_optimized_content: Optional[str] = None,
-            requirement_risks: Optional[str] = None,
-            requirement_unclear_points: Optional[str] = None,
-            architecture_design: Optional[str] = None,
-            database_design: Optional[str] = None,
-            progress: Optional[str] = None,
-            creator_type: Optional[str] = None,
+            project_update: ProjectUpdate,
     ) -> None:
         """更新项目"""
         update_data = {self.model.updated_at: datetime.now()}
-        if name is not None:
-            update_data[self.model.name] = name
-        if description is not None:
-            update_data[self.model.description] = description
-        if requirement_content is not None:
-            update_data[self.model.requirement_content] = requirement_content
-        if requirement_optimized_content is not None:
-            update_data[self.model.requirement_optimized_content] = requirement_optimized_content
-        if requirement_risks is not None:
-            update_data[self.model.requirement_risks] = requirement_risks
-        if requirement_unclear_points is not None:
-            update_data[self.model.requirement_unclear_points] = requirement_unclear_points
-        if architecture_design is not None:
-            update_data[self.model.architecture_design] = architecture_design
-        if database_design is not None:
-            update_data[self.model.database_design] = database_design
-        if progress is not None:
-            update_data[self.model.progress] = progress
-        if creator_type is not None:
-            update_data[self.model.creator_type] = creator_type
+        if project_update.name is not None:
+            update_data[self.model.name] = project_update.name
+        if project_update.description is not None:
+            update_data[self.model.description] = project_update.description
+        if project_update.requirement_design is not None:
+            update_data[self.model.requirement_design] = project_update.requirement_design
+        if project_update.architecture_design is not None:
+            update_data[self.model.architecture_design] = project_update.architecture_design
+        if project_update.database_design is not None:
+            update_data[self.model.database_design] = project_update.database_design
+        if project_update.progress is not None:
+            update_data[self.model.progress] = project_update.progress.value
+        if project_update.creator_type is not None:
+            update_data[self.model.creator_type] = project_update.creator_type.value
 
         await self.model.update(update_data).where(
             self.model.id == id
@@ -108,16 +106,16 @@ class ProjectRepository:
             total = await (self.model.count()
                            .where(self.model.progress == progress.value))
             results = await (self.model.select()
-                              .where(self.model.progress == progress.value)
-                              .order_by(self.model.created_at, ascending=False)
-                              .offset((page - 1) * page_size)
-                              .limit(page_size))
+                             .where(self.model.progress == progress.value)
+                             .order_by(self.model.created_at, ascending=False)
+                             .offset((page - 1) * page_size)
+                             .limit(page_size))
         else:
             total = await self.model.count()
             results = await (self.model.select()
-                              .order_by(self.model.created_at, ascending=False)
-                              .offset((page - 1) * page_size)
-                              .limit(page_size))
+                             .order_by(self.model.created_at, ascending=False)
+                             .offset((page - 1) * page_size)
+                             .limit(page_size))
 
         projects = [Project(**item) for item in results]
         return projects, total

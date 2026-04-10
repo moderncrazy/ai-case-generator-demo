@@ -1,8 +1,8 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class PMNextStep(Enum):
-    """项目经理下一步执行的操作"""
+class PMNextStep(StrEnum):
+    """产品经理下一步执行的操作"""
 
     END = "end"
     """结束对话"""

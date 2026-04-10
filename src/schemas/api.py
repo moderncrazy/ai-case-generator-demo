@@ -2,7 +2,7 @@ from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from src.enums import HttpMethod
+from src.enums.http_method import HttpMethod
 
 
 class ApiBase(BaseModel):

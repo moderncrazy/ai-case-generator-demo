@@ -1,8 +1,10 @@
+import traceback
 from loguru import logger
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from src.enums import ErrorMessage
+from src.constant import TRANSACTION_ID
+from src.enums.error_message import ErrorMessage
 
 
 class BusinessException(Exception):
@@ -21,7 +23,7 @@ class BusinessException(Exception):
 
 async def business_exception_handler(request: Request, e: BusinessException):
     """业务异常处理"""
-    transaction_id = request.headers.get('X-Transaction-Id')
+    transaction_id = request.headers.get(TRANSACTION_ID)
     logger.warning(f"trance_id:{transaction_id} error_type:{type(e).__name__} error:{str(e)}")
     return JSONResponse(
         status_code=400,
@@ -35,13 +37,14 @@ async def business_exception_handler(request: Request, e: BusinessException):
 
 async def general_exception_handler(request: Request, e: Exception):
     """通用异常处理"""
-    transaction_id = request.headers.get('X-Transaction-Id')
-    logger.warning(f"trance_id:{transaction_id} error_type:{type(e).__name__} error:{str(e)}")
+    transaction_id = request.headers.get(TRANSACTION_ID)
+    logger.error(
+        f"trance_id:{transaction_id} error_type:{type(e).__name__} error:{str(e)}\nerror_stack:{traceback.format_exc()}")
     return JSONResponse(
         status_code=500,
         content={
             "code": 500,
             "message": "服务器内部错误",
-            "error": str(e),
+            "error": None,
         },
     )

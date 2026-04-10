@@ -3,8 +3,9 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import List, Optional
 
-from src.models import OperationLog
-from src.enums import EntityType, OperationAction
+from src.models.operation_log import OperationLog
+from src.enums.entity_type import EntityType
+from src.enums.operation_action import OperationAction
 
 
 class OperationLogCreate(BaseModel):

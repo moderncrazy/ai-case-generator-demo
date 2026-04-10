@@ -1,12 +1,14 @@
 from typing import Annotated, Optional
 from fastapi import APIRouter, Form, UploadFile, HTTPException, Query, Depends
 
-from src.models import Project
-from src.enums import ProjectProgress
-from src.exceptions import BusinessException
-from src.dependencies import get_project_or_404
-from src.schemas import ApiResponse, ProjectCreate
-from src.services import project_service, milvus_service
+from src.models.project import Project
+from src.enums.project_progress import ProjectProgress
+from src.exceptions.exceptions import BusinessException
+from src.dependencies.dependencies import get_project_or_404
+from src.schemas.response import ApiResponse, ApiListResponse, ListData
+from src.schemas.project import ProjectCreate
+from src.services.project_service import project_service
+from src.services.milvus_service import milvus_service
 
 router = APIRouter(prefix="/api/v1/project", tags=["项目"])
 
@@ -18,7 +20,7 @@ async def create_project(data: ProjectCreate):
     return ApiResponse(data=result)
 
 
-@router.get("", response_model=ApiResponse[list[dict]])
+@router.get("", response_model=ApiListResponse[dict])
 async def list_projects(
         page: int = 1,
         page_size: int = 20,
@@ -26,8 +28,8 @@ async def list_projects(
 ):
     """查询项目列表"""
     projects, total = await project_service.list_projects(page, page_size, progress)
-    items = [project_service.to_response(p) for p in projects]
-    return ApiResponse(data=items, total=total, page=page, page_size=page_size)
+    list_data = ListData(items=projects, total=total, page=page, page_size=page_size)
+    return ApiListResponse(data=list_data)
 
 
 @router.post("/{project_id}/query", response_model=ApiResponse[dict])

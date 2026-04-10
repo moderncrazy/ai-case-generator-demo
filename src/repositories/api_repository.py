@@ -3,8 +3,8 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional, List
 
-from src.models import Api
-from src.enums import HttpMethod
+from src.models.api import Api
+from src.enums.http_method import HttpMethod
 
 
 class ApiCreate(BaseModel):
@@ -131,6 +131,41 @@ class ApiRepository:
         return await self.model.delete().where(
             self.model.project_id == project_id
         )
+
+    async def bulk_update(self, project_id: str, apis: List[ApiCreate]) -> List[str]:
+        """批量更新接口（先删除项目下所有接口再插入）
+
+        Args:
+            project_id: 项目ID
+            apis: 接口更新参数列表
+
+        Returns:
+            插入的接口ID列表
+        """
+        # 先删除项目下所有接口
+        await self.delete_by_project(project_id)
+
+        now = datetime.now()
+        instances = [
+            self.model(
+                id=str(uuid.uuid4()),
+                project_id=project_id,
+                module_id=item.module_id,
+                name=item.name,
+                method=item.method.value,
+                path=item.path,
+                description=item.description,
+                request_params=item.request_params,
+                request_body=item.request_body,
+                response_schema=item.response_schema,
+                test_script=item.test_script,
+                created_at=now,
+                updated_at=now,
+            )
+            for item in apis
+        ]
+        results = await self.model.insert(*instances)
+        return [item["id"] for item in results]
 
 
 # 全局单例实例

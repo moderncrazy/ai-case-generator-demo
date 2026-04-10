@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ConversationRole(str, Enum):
+class ConversationRole(StrEnum):
     """对话角色枚举，与数据库 conversation_messages.role 字段一致"""
 
     USER = "user"

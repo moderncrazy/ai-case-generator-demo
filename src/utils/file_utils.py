@@ -4,6 +4,8 @@ import pymupdf
 import pyclamd
 from PIL import Image
 from pathlib import Path
+from loguru import logger
+
 from src.config import settings
 
 
@@ -24,16 +26,17 @@ def scan_file_with_clamav(file_path: str | Path) -> bool:
 
     try:
         cd = pyclamd.ClamdNetworkSocket(host=settings.clam_av_host, port=settings.clam_av_port, timeout=30)
-        
+
         # 读取文件内容并发送给 ClamAV 扫描
         with open(file_path, "rb") as f:
             file_content = f.read()
-        
+
         result = cd.scan_stream(file_content)
-        
+
         # None 表示安全
         return result is None
-    except Exception:
+    except Exception as e:
+        logger.error(f"scan_file_with_clamav error:{str(e)}")
         return False
 
 

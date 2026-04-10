@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class OperationAction(str, Enum):
+class OperationAction(StrEnum):
     """操作类型枚举，与数据库 operation_logs.action 字段一致"""
 
     CREATE = "create"

@@ -168,10 +168,10 @@ GET /api/v1/project/{project_id}
       "req1.pdf",
       "req2.docx"
     ],
-    "requirement_risks": [
+    "risks": [
       "验证码有效期未定义"
     ],
-    "requirement_unclear_points": [
+    "unclear_points": [
       "是否支持第三方登录"
     ],
     "progress": "init",
@@ -311,10 +311,10 @@ Content-Type: application/pdf
     "context": {
       "current_progress": "requirement",
       "requirement_content": "支持手机号注册、验证码登录...",
-      "requirement_risks": [
+      "risks": [
         "验证码有效期未定义"
       ],
-      "requirement_unclear_points": [
+      "unclear_points": [
         "是否支持第三方登录"
       ],
       "suggested_requirement_content": "更新后的需求内容...",
@@ -346,8 +346,8 @@ Content-Type: application/pdf
     "context": {
       "current_progress": "system_design",
       "requirement_content": "支持手机号注册、验证码登录...",
-      "requirement_risks": [],
-      "requirement_unclear_points": [],
+      "risks": [],
+      "unclear_points": [],
       "suggested_requirement_content": null,
       "suggested_requirement_risks": null,
       "suggested_requirement_unclear_points": null,
@@ -401,8 +401,8 @@ Content-Type: application/pdf
     "context": {
       "current_progress": "test_case",
       "requirement_content": "...",
-      "requirement_risks": [],
-      "requirement_unclear_points": [],
+      "risks": [],
+      "unclear_points": [],
       "suggested_requirement_content": null,
       "suggested_requirement_risks": null,
       "suggested_requirement_unclear_points": null,
@@ -509,8 +509,8 @@ Content-Type: application/pdf
     "context": {
       "current_progress": "api",
       "requirement_content": "...",
-      "requirement_risks": [],
-      "requirement_unclear_points": [],
+      "risks": [],
+      "unclear_points": [],
       "suggested_requirement_content": null,
       "suggested_requirement_risks": null,
       "suggested_requirement_unclear_points": null,
@@ -585,8 +585,8 @@ Content-Type: application/pdf
     "context": {
       "current_progress": "stress_test",
       "requirement_content": "...",
-      "requirement_risks": [],
-      "requirement_unclear_points": [],
+      "risks": [],
+      "unclear_points": [],
       "suggested_requirement_content": null,
       "suggested_requirement_risks": null,
       "suggested_requirement_unclear_points": null,

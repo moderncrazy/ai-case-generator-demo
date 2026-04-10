@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ProjectProgress(str, Enum):
+class ProjectProgress(StrEnum):
     """项目进度枚举，与数据库 projects.progress 字段一致"""
 
     INIT = "init"

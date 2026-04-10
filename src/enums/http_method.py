@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class HttpMethod(str, Enum):
+class HttpMethod(StrEnum):
     """HTTP 方法枚举，与数据库 apis.method 字段一致"""
 
     GET = "GET"

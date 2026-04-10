@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class TestCaseType(str, Enum):
+class TestCaseType(StrEnum):
     """测试用例类型枚举，与数据库 test_cases.type 字段一致"""
 
     FUNCTIONAL = "functional"

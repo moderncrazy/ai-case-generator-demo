@@ -1,6 +1,8 @@
 import time
+
 from loguru import logger
 from fastapi import Request
+from src.constant import TRANSACTION_ID
 from starlette.middleware.base import BaseHTTPMiddleware
 
 
@@ -8,7 +10,7 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         start_time = time.perf_counter()
-        transaction_id = request.headers.get('X-Transaction-Id')
+        transaction_id = request.headers.get(TRANSACTION_ID)
         try:
             response = await call_next(request)
             process_time = time.perf_counter() - start_time

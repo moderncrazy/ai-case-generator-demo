@@ -10,7 +10,9 @@ class ProjectFileBase(BaseModel):
     name: str = Field(..., description="文件名")
     path: str = Field(..., description="文件路径")
     type: Optional[str] = Field(None, description="文件类型/扩展名")
-    size: Optional[int] = Field(None, description="文件大小(字节)")
+    size: int = Field(..., description="文件大小(字节)")
+    content: Optional[str] = Field(None, description="文件摘要")
+    summary: Optional[str] = Field(None, description="文件摘要")
     metadata: Optional[str] = Field(None, description="额外元数据")
 
 
@@ -25,6 +27,7 @@ class ProjectFileUpdate(BaseModel):
     path: Optional[str] = None
     type: Optional[str] = None
     size: Optional[int] = None
+    summary: Optional[str] = None
     metadata: Optional[str] = None
 
 

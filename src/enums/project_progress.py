@@ -7,20 +7,29 @@ class ProjectProgress(StrEnum):
     INIT = "init"
     """初始化"""
 
-    REQUIREMENT = "requirement"
-    """需求设计"""
+    REQUIREMENT_OUTLINE_DESIGN = "requirement_outline_design"
+    """需求大纲设计"""
 
-    SYSTEM_DESIGN = "system_design"
-    """系统设计"""
+    REQUIREMENT_MODULE_DESIGN = "requirement_module_design"
+    """需求模块设计"""
 
-    API = "api"
-    """接口设计"""
+    REQUIREMENT_OVERALL_DESIGN = "requirement_overall_design"
+    """需求总体（PRD）设计"""
 
-    TEST_CASE = "test_case"
+    SYSTEM_ARCHITECTURE_DESIGN = "system_architecture_design"
+    """系统架构设计设计"""
+
+    SYSTEM_MODULES_DESIGN = "system_modules_design"
+    """系统模块设计"""
+
+    SYSTEM_DATABASE_DESIGN = "system_database_design"
+    """系统数据库设计"""
+
+    SYSTEM_API_DESIGN = "system_api_design"
+    """系统接口设计"""
+
+    TEST_CASE_DESIGN = "test_case_design"
     """测试用例设计"""
-
-    STRESS_TEST = "stress_test"
-    """压测脚本设计"""
 
     COMPLETED = "completed"
     """完成"""

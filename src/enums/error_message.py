@@ -15,6 +15,7 @@ class ErrorMessage(Enum):
     PROJECT_FILE_EXIST_ERROR = (4007, "项目文件已存在")
     PROJECT_NAME_EXIST_ERROR = (4008, "项目名称已存在")
     LLM_ERROR = (4100, "模型调用异常")
+    FLOW_VALIDATE_FAILED = (4101, "流程验证失败")
 
     def __init__(self, code: int, message: str):
         self.code = code

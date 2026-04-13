@@ -69,6 +69,7 @@ erDiagram
         string method
         string path
         string description
+        string request_headers
         string request_params
         string request_body
         string response_schema
@@ -117,18 +118,18 @@ erDiagram
 
 ### 1. 项目表 (project)
 
-| 字段                            | 类型       | 约束                        | 说明                                                                       |
-|-------------------------------|----------|---------------------------|--------------------------------------------------------------------------|
-| id                            | TEXT     | PRIMARY KEY               | UUID                                                                     |
-| name                          | TEXT     | NOT NULL, UNIQUE          | 项目名称（唯一）                                                                 |
-| description                   | TEXT     |                           | 项目描述                                                                     |
-| requirement_design            | TEXT     |                           | 需求设计内容                                                                   |
-| architecture_design           | TEXT     |                           | 架构设计内容                                                                   |
-| database_design               | TEXT     |                           | 数据库设计内容                                                                  |
-| progress                      | TEXT     | DEFAULT 'init'            | 项目进度: init/requirement/system_design/api/test_case/stress_test/completed |
-| creator_type                  | TEXT     | DEFAULT 'user'            | 创建者类型: system 系统创建, user 用户创建                                            |
-| created_at                    | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间                                                                     |
-| updated_at                    | DATETIME |                           | 更新时间                                                                     |
+| 字段                  | 类型       | 约束                        | 说明                            |
+|---------------------|----------|---------------------------|-------------------------------|
+| id                  | TEXT     | PRIMARY KEY               | UUID                          |
+| name                | TEXT     | NOT NULL, UNIQUE          | 项目名称（唯一）                      |
+| description         | TEXT     |                           | 项目描述                          |
+| requirement_design  | TEXT     |                           | 需求设计内容                        |
+| architecture_design | TEXT     |                           | 架构设计内容                        |
+| database_design     | TEXT     |                           | 数据库设计内容                       |
+| progress            | TEXT     | DEFAULT 'init'            | 项目进度                          |
+| creator_type        | TEXT     | DEFAULT 'user'            | 创建者类型: system 系统创建, user 用户创建 |
+| created_at          | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间                          |
+| updated_at          | DATETIME |                           | 更新时间                          |
 
 ### 2. 模块表 (module)
 
@@ -170,8 +171,9 @@ erDiagram
 | method          | TEXT     | NOT NULL                  | HTTP 方法: GET/POST/PUT/DELETE |
 | path            | TEXT     | NOT NULL                  | 接口路径                         |
 | description     | TEXT     |                           | 接口描述                         |
-| request_params  | TEXT     | NOT NULL                  | 请求参数 (JSON)                  |
-| request_body    | TEXT     | NOT NULL                  | 请求体 (JSON)                   |
+| request_headers | TEXT     |                           | 请求头 (JSON Array)             |
+| request_params  | TEXT     |                           | 请求参数 (JSON Array)            |
+| request_body    | TEXT     |                           | 请求体 (JSON Array)             |
 | response_schema | TEXT     | NOT NULL                  | 响应结构 (JSON)                  |
 | test_script     | TEXT     |                           | Locust 压测脚本                  |
 | created_at      | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间                         |
@@ -224,18 +226,21 @@ erDiagram
 -- 项目表
 CREATE TABLE IF NOT EXISTS project
 (
-    id                            TEXT PRIMARY KEY,
-    name                          TEXT NOT NULL UNIQUE,
-    description                   TEXT,
-    requirement_design            TEXT,
-    architecture_design           TEXT,
-    database_design               TEXT,
-    progress                      TEXT     DEFAULT 'init'
-        CHECK (progress IN ('init', 'requirement', 'system_design', 'api', 'test_case', 'stress_test', 'completed')),
-    creator_type                  TEXT     DEFAULT 'user'
+    id                  TEXT PRIMARY KEY,
+    name                TEXT NOT NULL UNIQUE,
+    description         TEXT,
+    requirement_design  TEXT,
+    architecture_design TEXT,
+    database_design     TEXT,
+    progress            TEXT     DEFAULT 'init'
+        CHECK (progress IN
+               ('init', 'requirement_outline_design', 'requirement_module_design', 'requirement_overall_design',
+                'sys_architecture_design', 'sys_modules_design', 'sys_database_design', 'sys_api_design',
+                'test_case_design', 'completed')),
+    creator_type        TEXT     DEFAULT 'user'
         CHECK (creator_type IN ('system', 'user')),
-    created_at                    DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at                    DATETIME
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME
 );
 
 CREATE UNIQUE INDEX idx_project_name ON project (name);
@@ -295,8 +300,9 @@ CREATE TABLE IF NOT EXISTS api
         CHECK (method IN ('GET', 'POST', 'PUT', 'DELETE', 'PATCH')),
     path            TEXT NOT NULL,
     description     TEXT,
-    request_params  TEXT NOT NULL,
-    request_body    TEXT NOT NULL,
+    request_headers TEXT,
+    request_params  TEXT,
+    request_body    TEXT,
     response_schema TEXT NOT NULL,
     test_script     TEXT,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -370,18 +376,22 @@ CREATE INDEX idx_files_message ON project_file (conversation_message_id);
 ## 项目进度流转
 
 ```
-init ──> requirement ──> system_design ──> api ──> test_case ──> stress_test ──> completed
+init ──> requirement_outline_design ──> requirement_module_design ──> requirement_overall_design ──> 
+sys_architecture_design ──> sys_modules_design ──> sys_database_design ──> sys_api_design ──> test_case_design ──> completed
 ```
 
-| 进度值           | 说明     |
-|---------------|--------|
-| init          | 初始化    |
-| requirement   | 需求设计   |
-| system_design | 系统设计   |
-| api           | 接口设计   |
-| test_case     | 测试用例设计 |
-| stress_test   | 压测脚本设计 |
-| completed     | 完成     |
+| 进度值                        | 说明          |
+|----------------------------|-------------|
+| init                       | 初始化         |
+| requirement_outline_design | 需求大纲设计      |
+| requirement_module_design  | 需求模块设计      |
+| requirement_overall_design | 需求总体（PRD）设计 |
+| sys_architecture_design    | 系统架构设计设计    |
+| sys_modules_design         | 系统模块设计      |
+| sys_database_design        | 系统数据库设计     |
+| sys_api_design             | 系统接口设计      |
+| test_case_design           | 测试用例设计      |
+| completed                  | 完成          |
 
 ---
 

@@ -14,6 +14,13 @@ class ModuleCreate(BaseModel):
     description: Optional[str] = None
 
 
+class ModuleUpdate(BaseModel):
+    """创建模块参数"""
+    name: str
+    parent_id: Optional[str] = None
+    description: Optional[str] = None
+
+
 class ModuleRepository:
     """模块 Repository"""
 
@@ -37,11 +44,11 @@ class ModuleRepository:
         return results[0]["id"] if results else None
 
     async def update(
-        self,
-        id: str,
-        name: Optional[str] = None,
-        parent_id: Optional[str] = None,
-        description: Optional[str] = None,
+            self,
+            id: str,
+            name: Optional[str] = None,
+            parent_id: Optional[str] = None,
+            description: Optional[str] = None,
     ) -> None:
         """更新模块"""
         update_data = {self.model.updated_at: datetime.now()}
@@ -63,7 +70,7 @@ class ModuleRepository:
         ).first()
         return Module(**result) if result else None
 
-    async def list_by_ids_and_project(self,project_id: str, module_ids: List[str]) -> List[Module]:
+    async def list_by_ids_and_project(self, project_id: str, module_ids: List[str]) -> List[Module]:
         """根据 module_id 列表和项目 ID 批量查询模块
 
         Args:
@@ -113,7 +120,7 @@ class ModuleRepository:
             self.model.project_id == project_id
         )
 
-    async def bulk_update(self, project_id: str, modules: List[ModuleCreate]) -> List[str]:
+    async def bulk_update(self, project_id: str, modules: List[ModuleUpdate]) -> List[str]:
         """批量更新模块（先删除项目下所有模块再插入）
 
         Args:

@@ -19,7 +19,6 @@ minimax_llm = init_chat_model(
     max_tokens=settings.minimax_max_tokens,
     temperature=settings.minimax_temperature,
     max_retries=settings.model_output_retry,
-    thinking={"type": "disable", "budget_tokens": 2000},
 )
 
 default_model = minimax_llm

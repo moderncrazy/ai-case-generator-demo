@@ -8,7 +8,9 @@ from transformers import AutoTokenizer
 from optimum.onnxruntime import ORTModelForCustomTasks
 from pymilvus import AsyncMilvusClient, AnnSearchRequest, WeightedRanker, DataType
 
+from src.utils import utils
 from src.config import settings
+from src.context import trans_id_ctx
 
 
 class ProjectFileSearchResult(BaseModel):
@@ -69,7 +71,7 @@ class BGE3ONNXModel:
             file_name="model_quantized.onnx",
             cache_dir=str(self.local_path)
         )
-        logger.info(f"BGE-M3 ONNX INT8 模型加载完成")
+        logger.info(f"{self.model_name} 模型加载完成")
 
     def encode(self, texts: list[str], batch_size: int = 8) -> dict[str, Any]:
         """
@@ -156,14 +158,14 @@ class MilvusService:
 
         # 初始化 Milvus 客户端
         self._client = AsyncMilvusClient(uri=str(settings.milvus_database_path))
-        logger.info(f"Milvus 客户端初始化完成，数据库路径: {settings.milvus_database_path}")
+        logger.info(f"Milvus 客户端初始化完成，数据库路径:{settings.milvus_database_path}")
 
         # 初始化 BGE-M3 INT8 量化模型（优先使用本地路径）
         self._embedding_fn = BGE3ONNXModel(
             model_name=settings.embedding_model_name,
             local_path=settings.embedding_model_local_path
         )
-        logger.info("BGE-M3 INT8 量化模型初始化完成")
+        logger.info(f"{settings.embedding_model_name} 量化模型初始化完成")
 
     async def _init_collections(self) -> None:
         """初始化两个 Collection"""
@@ -171,6 +173,7 @@ class MilvusService:
         if not await self._client.has_collection(settings.milvus_project_file_collection_name):
             schema = self._client.create_schema(auto_id=True, enable_dynamic_field=False)
             schema.add_field(field_name="id", datatype=DataType.INT64, is_primary=True)
+            schema.add_field(field_name="sql_db_id", datatype=DataType.VARCHAR, max_length=64)
             schema.add_field(field_name="project_id", datatype=DataType.VARCHAR, max_length=64)
             schema.add_field(field_name="name", datatype=DataType.VARCHAR, max_length=256)
             schema.add_field(field_name="path", datatype=DataType.VARCHAR, max_length=1024)
@@ -192,9 +195,9 @@ class MilvusService:
                 schema=schema,
                 index_params=index_params
             )
-            logger.info(f"Collection '{settings.milvus_project_file_collection_name}' 创建完成")
+            logger.info(f"Collection:{settings.milvus_project_file_collection_name} 创建完成")
         else:
-            logger.info(f"Collection '{settings.milvus_project_file_collection_name}' 已存在")
+            logger.info(f"Collection:{settings.milvus_project_file_collection_name} 已存在")
 
         # project_context Collection
         if not await self._client.has_collection(settings.milvus_project_context_collection_name):
@@ -217,9 +220,9 @@ class MilvusService:
                 schema=schema,
                 index_params=index_params
             )
-            logger.info(f"Collection '{settings.milvus_project_context_collection_name}' 创建完成")
+            logger.info(f"Collection:{settings.milvus_project_context_collection_name} 创建完成")
         else:
-            logger.info(f"Collection '{settings.milvus_project_context_collection_name}' 已存在")
+            logger.info(f"Collection:{settings.milvus_project_context_collection_name} 已存在")
 
     def _embed_texts(self, texts: list[str]) -> dict[str, Any]:
         """
@@ -237,6 +240,7 @@ class MilvusService:
 
     async def add_project_file(
             self,
+            sql_db_id: str,
             project_id: str,
             name: str,
             path: str,
@@ -249,6 +253,7 @@ class MilvusService:
         添加项目文件到 project_file Collection
 
         Args:
+            sql_db_id: 业务数据库 ID
             project_id: 项目 ID
             name: 文件名
             path: 文件路径
@@ -267,6 +272,7 @@ class MilvusService:
         data = [{
             "content_dense_vector": embeddings["dense"][0],
             "content_sparse_vector": embeddings["sparse"][0],
+            "sql_db_id": sql_db_id,
             "project_id": project_id,
             "name": name,
             "path": path,
@@ -282,7 +288,8 @@ class MilvusService:
             collection_name=settings.milvus_project_file_collection_name,
             data=data
         )
-        logger.info(f"项目文件 '{name}' 已插入，ID: {result}")
+        logger.info(
+            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 项目Id:{project_id} 插入项目文件:{name}")
         return result["ids"][0]
 
     async def add_project_context(
@@ -320,7 +327,8 @@ class MilvusService:
             collection_name=settings.milvus_project_context_collection_name,
             data=data
         )
-        logger.info(f"对话上下文已插入，项目: {project_id}, ID: {result}")
+        logger.info(
+            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 项目Id:{project_id} 插入上下文对话:{content}")
         return result["ids"][0]
 
     async def search_project_files(
@@ -389,7 +397,8 @@ class MilvusService:
             for hit in results[0]
         ]
 
-        logger.info(f"项目文件搜索完成，返回 {len(formatted)} 条结果")
+        logger.info(
+            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 项目Id:{project_id} 返回文件条目:{len(formatted)}")
         return formatted
 
     async def search_project_context(
@@ -450,9 +459,24 @@ class MilvusService:
             )
             for hit in results[0]
         ]
-
-        logger.info(f"项目上下文搜索完成，项目: {project_id}，返回 {len(formatted)} 条结果")
+        logger.info(
+            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 项目Id:{project_id} 返回上下文条目:{len(formatted)}")
         return formatted
+
+    async def delete_project_file(self, sql_db_id: str) -> None:
+        """
+        删除项目的所有数据（文件 + 上下文）
+
+        Args:
+            sql_db_id: 业务数据库 ID
+        """
+        # 删除项目文件
+        await self._client.delete(
+            collection_name=settings.milvus_project_file_collection_name,
+            filter=f'sql_db_id == "{sql_db_id}"'
+        )
+        logger.info(
+            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 文件Id:{sql_db_id} 删除项目文件向量数据")
 
     async def delete_project(self, project_id: str) -> None:
         """
@@ -471,7 +495,8 @@ class MilvusService:
             collection_name=settings.milvus_project_context_collection_name,
             filter=f'project_id == "{project_id}"'
         )
-        logger.info(f"项目数据已删除: {project_id}")
+        logger.info(
+            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 项目Id:{project_id} 删除项目向量数据")
 
     async def close(self) -> None:
         """关闭连接"""

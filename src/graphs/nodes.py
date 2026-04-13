@@ -10,17 +10,14 @@ from src.graphs.state import State
 from src.context import trans_id_ctx
 from src.utils import utils as gutils
 from src.graphs.llms import default_model
+from src.graphs.tools import tool_list, product_manager_output
 from src.graphs.schemas import CustomMessage, FileSummaryOutput, StateProjectFile
-from src.graphs.tools import (
-    get_project_info, get_project_file_by_id, search_project_files,
-    search_project_history_conversation, product_manager_output
-)
 from src.utils import file_utils, mcp_utils
+from src.services.api_service import api_service
 from src.services.milvus_service import milvus_service
-from src.services.project_file_service import project_file_service
 from src.enums.system_prompt import SystemPrompt
 from src.enums.project_progress import ProjectProgress
-from src.repositories.api_repository import api_repository
+from src.enums.requirement_module_status import RequirementModuleStatus
 from src.repositories.module_repository import module_repository
 from src.repositories.project_repository import project_repository
 from src.repositories.test_case_repository import test_case_repository
@@ -68,8 +65,7 @@ async def load_project_node(state: State) -> State:
     project = await project_repository.get_by_id(project_id)
     modules = await module_repository.list_by_project(project_id)
     modules = [item.to_dict() for item in modules]
-    apis = await api_repository.list_by_project(project_id)
-    apis = [item.to_dict() for item in apis]
+    apis = await api_service.list_by_project_to_state_api(project_id)
     test_cases = await test_case_repository.list_by_project(project_id)
     test_cases = [item.to_dict() for item in test_cases]
     project_files = await project_file_repository.list_by_project(project_id)
@@ -101,10 +97,10 @@ async def understand_image_node(state: State) -> State:
     支持 PDF、图片等格式，自动转为图片后调用 OCR/理解接口。
 
     Args:
-        state: LangGraph 状态，包含 new_file_list (文件名列表)
+        state: LangGraph 状态
 
     Returns:
-        更新后的状态，包含 new_files_content (文件名到解析内容的映射)
+        更新后的状态
     """
     logger.info(f"trans_id:{trans_id_ctx.get()} 主图节点:{gutils.get_func_name()} 进入")
     writer = get_stream_writer()
@@ -170,54 +166,89 @@ async def product_manager_node(state: State, runtime: Runtime, config: RunnableC
         config: LangGraph 运行时配置
 
     Returns:
-        更新后的状态，包含 new_files_content (文件名到解析内容的映射)
+        更新后的状态
     """
     logger.info(f"trans_id:{trans_id_ctx.get()} 主图节点:{gutils.get_func_name()} 进入")
     messages = []
     project_id = state["project_id"]
     writer = get_stream_writer()
     writer(CustomMessage(message=f"需求理解中..."))
-    project_files_summary = await project_file_service.get_project_files_summary_to_str(project_id)
     # 若用户上传文件则提取至提示词
-    new_files_content = utils.format_state_new_project_files_to_str(state["new_file_list"]) if state.get(
-        "new_file_list") else "（空）"
+    new_files_content = utils.format_state_new_project_files_to_str(state.get("new_file_list"))
     # 根据项目阶段匹配 Prompt
     match state["project_progress"]:
         case ProjectProgress.INIT:
             messages.append(SystemMessage(content=SystemPrompt.PROJECT_INIT_PM.template.format(
-                project_files_summary=project_files_summary,
                 new_files_content=new_files_content
             )))
-        case ProjectProgress.REQUIREMENT:
-            messages.append(SystemMessage(content=SystemPrompt.PROJECT_REQUIREMENT_PM.template.format(
-                project_files_summary=project_files_summary,
-                optimized_requirement=state.get("optimized_requirement") or "（空）",
-                risks=state.get("risks") or "（空）",
-                unclear_points=state.get("unclear_points") or "（空）",
+        case ProjectProgress.REQUIREMENT_OUTLINE_DESIGN:
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_REQUIREMENT_OUTLINE_PM.template.format(
+                requirement_outline=state["requirement_outline"],
+                requirement_module=utils.format_state_requirement_modules_to_str(state.get("requirement_modules")),
                 new_files_content=new_files_content
             )))
-            pass
-        case ProjectProgress.SYSTEM_DESIGN:
-            pass
-        case ProjectProgress.API:
-            pass
-        case ProjectProgress.TEST_CASE:
-            pass
-        case ProjectProgress.STRESS_TEST:
-            pass
-        case _:
-            pass
+        case ProjectProgress.REQUIREMENT_MODULE_DESIGN:
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_REQUIREMENT_MODULE_PM.template.format(
+                requirement_outline=state["requirement_outline"],
+                completed_module=utils.format_state_requirement_modules_to_str(
+                    state.get("requirement_modules"), RequirementModuleStatus.COMPLETED),
+                pending_module=utils.format_state_requirement_modules_to_str(
+                    state.get("requirement_modules"), RequirementModuleStatus.PENDING),
+                current_module=utils.format_current_state_requirement_module_to_str(
+                    state["metadata"]["module"], state.get("requirement_modules")),
+                risk=utils.format_issues_to_str(state.get("risks")),
+                unclear_point=utils.format_issues_to_str(state.get("unclear_points")),
+                new_files_content=new_files_content
+            )))
+        case ProjectProgress.REQUIREMENT_OVERALL_DESIGN:
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_REQUIREMENT_OVERALL_PM.template.format(
+                original_requirement=state["original_requirement"],
+                optimized_requirement=state["optimized_requirement"],
+                risk=utils.format_issues_to_str(state.get("risks")),
+                unclear_point=utils.format_issues_to_str(state.get("unclear_points")),
+                new_files_content=new_files_content
+            )))
+        case ProjectProgress.SYSTEM_ARCHITECTURE_DESIGN:
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYS_ARCHITECTURE_PM.template.format(
+                original_architecture=state["original_architecture"],
+                optimized_architecture=state["optimized_architecture"],
+                risk=utils.format_issues_to_str(state.get("risks")),
+                unclear_point=utils.format_issues_to_str(state.get("unclear_points")),
+                new_files_content=new_files_content
+            )))
+        case ProjectProgress.SYSTEM_MODULES_DESIGN:
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYS_MODULES_PM.template.format(
+                original_module=utils.format_state_modules_to_str(state.get("original_modules")),
+                optimized_module=utils.format_state_modules_to_str(state.get("optimized_modules")),
+                new_files_content=new_files_content
+            )))
+        case ProjectProgress.SYSTEM_DATABASE_DESIGN:
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYS_DATABASE_PM.template.format(
+                original_database=state["original_database"],
+                optimized_database=state["optimized_database"],
+                new_files_content=new_files_content
+            )))
+        case ProjectProgress.SYSTEM_API_DESIGN:
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYS_API_PM.template.format(
+                original_api=utils.format_state_apis_to_str(state.get("original_apis")),
+                optimized_api=utils.format_state_apis_to_str(state.get("optimized_apis")),
+                new_files_content=new_files_content
+            )))
+        case ProjectProgress.TEST_CASE_DESIGN:
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_TEST_CASE_PM.template.format(
+                original_test_case=utils.format_state_test_cases_to_str(state.get("original_test_cases")),
+                optimized_test_case=utils.format_state_test_cases_to_str(state.get("optimized_test_cases")),
+                new_files_content=new_files_content
+            )))
+        case ProjectProgress.COMPLETED:
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_COMPLETED_PM.template.format(
+                new_files_content=new_files_content
+            )))
     messages += state["messages"]
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 主图节点:{gutils.get_func_name()} 项目进度:{state["project_progress"]} 用户问题:{state["messages"][-1].content}")
     # 绑定查询方法和结构化输出方法
-    llm_with_tool = default_model.bind_tools([
-        get_project_info,
-        get_project_file_by_id,
-        search_project_files,
-        search_project_history_conversation,
-        product_manager_output
-    ])
+    llm_with_tool = default_model.bind_tools(tool_list)
     result = await utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
                                                     product_manager_output)
     logger.info(

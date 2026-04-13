@@ -13,6 +13,9 @@ class GroupMemberRole(StrEnum):
     ARCHITECT = "architect"
     """架构师"""
 
+    DBA = "dba"
+    """数据库专家"""
+
     FRONTEND = "frontend"
     """前端"""
 
@@ -21,3 +24,6 @@ class GroupMemberRole(StrEnum):
 
     TEST = "test"
     """测试"""
+
+    SRE = "sre"
+    """运维"""

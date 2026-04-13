@@ -62,18 +62,22 @@
 项目进度由统一字段管理，流转如下：
 
 ```
-init ──> requirement ──> system_design ──> api ──> test_case ──> stress_test ──> completed
+init ──> requirement_outline_design ──> requirement_module_design ──> requirement_overall_design ──> 
+sys_architecture_design ──> sys_modules_design ──> sys_database_design ──> sys_api_design ──> test_case_design ──> completed
 ```
 
-| 进度值           | 说明     |
-|---------------|--------|
-| init          | 初始化    |
-| requirement   | 需求设计   |
-| system_design | 系统设计   |
-| api           | 接口设计   |
-| test_case     | 测试用例设计 |
-| stress_test   | 压测脚本设计 |
-| completed     | 完成     |
+| 进度值                        | 说明          |
+|----------------------------|-------------|
+| init                       | 初始化         |
+| requirement_outline_design | 需求大纲设计      |
+| requirement_module_design  | 需求模块设计      |
+| requirement_overall_design | 需求总体（PRD）设计 |
+| sys_architecture_design    | 系统架构设计设计    |
+| sys_modules_design         | 系统模块设计      |
+| sys_database_design        | 系统数据库设计     |
+| sys_api_design             | 系统接口设计      |
+| test_case_design           | 测试用例设计      |
+| completed                  | 完成          |
 
 **注意：** 项目流程通过用户与 AI 的交互自然推进，无需手动确认或切换状态。
 
@@ -924,13 +928,30 @@ GET /api/v1/project/{project_id}/apis
         "method": "POST",
         "path": "/api/v1/auth/send-code",
         "description": "发送注册验证码",
-        "request_params": {
-          "phone": {
+        "request_headers": [
+          {
+            "name": "X-Transaction-Id",
+            "type": "string",
+            "required": true,
+            "description": "追踪Id"
+          }
+        ],
+        "request_params": [
+          {
+            "name": "phone",
             "type": "string",
             "required": true,
             "description": "手机号"
           }
-        },
+        ],
+        "request_body": [
+          {
+            "name": "code",
+            "type": "string",
+            "required": true,
+            "description": "验证码"
+          }
+        ],
         "response_schema": {
           "code": 200,
           "message": "success",
@@ -975,13 +996,30 @@ GET /api/v1/project/{project_id}/apis/tree
           "method": "POST",
           "path": "/api/v1/auth/send-code",
           "description": "发送注册验证码",
-          "request_params": {
-            "phone": {
+          "request_headers": [
+            {
+              "name": "X-Transaction-Id",
+              "type": "string",
+              "required": true,
+              "description": "追踪Id"
+            }
+          ],
+          "request_params": [
+            {
+              "name": "phone",
               "type": "string",
               "required": true,
               "description": "手机号"
             }
-          },
+          ],
+          "request_body": [
+            {
+              "name": "code",
+              "type": "string",
+              "required": true,
+              "description": "验证码"
+            }
+          ],
           "response_schema": {
             "code": 200,
             "message": "success",
@@ -1083,11 +1121,4 @@ GET /api/v1/project/{project_id}/logs
 
 - 所有 ID 使用 UUID 格式
 - 时间使用 ISO 8601 格式 (UTC)
-- 文件上传使用 `multipart/form-data`
-- 大文件导出异步处理，返回任务ID
 - 使用硬删除机制，直接物理删除数据
-- 项目流程通过用户与 AI 的交互自然推进
-- 进度由项目统一管理，流转：init → requirement → system_design → api → test_case → stress_test → completed
-- api、test_case、stress_test 阶段 modules_tree 返回空数组
-- stress_test 阶段 test_cases_tree 返回空数组
-- 测试用例、API、压测脚本均按模块树形结构返回，支持嵌套子模块

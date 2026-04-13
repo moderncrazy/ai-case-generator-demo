@@ -1,5 +1,6 @@
 import json
 import uuid
+from loguru import logger
 from typing import Optional
 from datetime import datetime
 from fastapi import UploadFile
@@ -7,8 +8,9 @@ from sqlite3 import IntegrityError
 from langchain.messages import AIMessage
 from fastapi.responses import StreamingResponse
 
-from src.utils import file_utils
 from src.config import settings
+from src.context import trans_id_ctx
+from src.utils import utils, file_utils
 from src.models.project import Project
 from src.agents.main_agent import main_agent
 from src.graphs.schemas import StateNewProjectFile
@@ -108,58 +110,61 @@ class ProjectService:
 
         # 进行项目对话
         async def event_generator():
-            async for chunk in await main_agent.astream(project.id, message, graph_file_list):
-                # # 将 chunk 转为 SSE 格式
-                match chunk["type"]:
-                    case "custom":
-                        msg = chunk["data"]["message"]
-                        # 创建对话
-                        msg_id = await conversation_message_repository.create(
-                            project_id=project.id,
-                            role=ConversationRole.SYSTEM,
-                            content=msg)
-                        response = ConversationMessageResponse(
-                            id=msg_id,
-                            project_id=project.id,
-                            role=ConversationRole.SYSTEM,
-                            content=msg)
-                        # 响应用户
-                        yield f"data: {response.model_dump_json()}\n\n"
-                    case "updates":
-                        # 检查节点返回是否包含对话
-                        for node_name, state in chunk["data"].items():
-                            # if state.get("messages") and isinstance(state["messages"][-1], AIMessage):
-                            if state.get("messages"):
-                                for msg in state["messages"]:
-                                    if isinstance(msg, AIMessage):
-                                        msg_content = msg.content
-                                        # 返回思考内容 但不记录
-                                        if isinstance(msg_content, list) and msg_content[0].get("thinking"):
-                                            response = ConversationMessageResponse(
-                                                id="",
-                                                project_id=project.id,
-                                                role=ConversationRole.SYSTEM,
-                                                content=msg_content[0]["thinking"])
-                                            # 响应用户
-                                            yield f"data: {response.model_dump_json()}\n\n"
-                                        # 如果是正式回话 则记录并返回
-                                        if msg_content and not msg.tool_calls:
-                                            # 创建对话
-                                            msg_id = await conversation_message_repository.create(
-                                                project_id=project.id,
-                                                role=ConversationRole.ASSISTANT,
-                                                content=msg_content)
-                                            response = ConversationMessageResponse(
-                                                id=msg_id,
-                                                project_id=project.id,
-                                                role=ConversationRole.ASSISTANT,
-                                                content=msg_content)
-                                            # 响应用户
-                                            yield f"data: {response.model_dump_json()}\n\n"
-                    case _:
-                        print(chunk)
-                        yield f"data: \n\n"
-                pass
+            try:
+                async for chunk in await main_agent.astream(project.id, message, graph_file_list):
+                    # # 将 chunk 转为 SSE 格式
+                    match chunk["type"]:
+                        case "custom":
+                            msg = chunk["data"]["message"]
+                            # 创建对话
+                            msg_id = await conversation_message_repository.create(
+                                project_id=project.id,
+                                role=ConversationRole.SYSTEM,
+                                content=msg)
+                            response = ConversationMessageResponse(
+                                id=msg_id,
+                                project_id=project.id,
+                                role=ConversationRole.SYSTEM,
+                                content=msg)
+                            # 响应用户
+                            yield f"data: {response.model_dump_json()}\n\n"
+                        case "updates":
+                            # 检查节点返回是否包含对话
+                            for node_name, state in chunk["data"].items():
+                                # if state.get("messages") and isinstance(state["messages"][-1], AIMessage):
+                                if state.get("messages"):
+                                    for msg in state["messages"]:
+                                        if isinstance(msg, AIMessage):
+                                            msg_content = msg.content
+                                            # 返回思考内容 但不记录
+                                            if isinstance(msg_content, list) and msg_content[0].get("thinking"):
+                                                response = ConversationMessageResponse(
+                                                    id="",
+                                                    project_id=project.id,
+                                                    role=ConversationRole.SYSTEM,
+                                                    content=msg_content[0]["thinking"])
+                                                # 响应用户
+                                                yield f"data: {response.model_dump_json()}\n\n"
+                                            # 如果是正式回话 则记录并返回
+                                            if msg_content and not msg.tool_calls:
+                                                # 创建对话
+                                                msg_id = await conversation_message_repository.create(
+                                                    project_id=project.id,
+                                                    role=ConversationRole.ASSISTANT,
+                                                    content=msg_content)
+                                                response = ConversationMessageResponse(
+                                                    id=msg_id,
+                                                    project_id=project.id,
+                                                    role=ConversationRole.ASSISTANT,
+                                                    content=msg_content)
+                                                # 响应用户
+                                                yield f"data: {response.model_dump_json()}\n\n"
+                        case _:
+                            print(chunk)
+                            yield f"data: \n\n"
+            except Exception as e:
+                logger.error(f"trans_id:{trans_id_ctx.get()} 方法:{utils.get_func_name()} 异常:{str(e)}")
+                yield f"data: 系统异常，亲稍后再试\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 

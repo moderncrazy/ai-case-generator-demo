@@ -14,9 +14,24 @@ class ApiCreate(BaseModel):
     method: HttpMethod
     path: str
     module_id: str
-    description: str
-    request_params: str
-    request_body: str
+    description: Optional[str] = None
+    request_headers: Optional[str] = None
+    request_params: Optional[str] = None
+    request_body: Optional[str] = None
+    response_schema: str
+    test_script: Optional[str] = None
+
+
+class ApiUpdate(BaseModel):
+    """更新接口参数"""
+    name: str
+    method: HttpMethod
+    path: str
+    module_id: str
+    description: Optional[str] = None
+    request_headers: Optional[str] = None
+    request_params: Optional[str] = None
+    request_body: Optional[str] = None
     response_schema: str
     test_script: Optional[str] = None
 
@@ -39,6 +54,7 @@ class ApiRepository:
                 method=api.method.value,
                 path=api.path,
                 description=api.description,
+                request_headers=api.request_headers,
                 request_params=api.request_params,
                 request_body=api.request_body,
                 response_schema=api.response_schema,
@@ -50,17 +66,18 @@ class ApiRepository:
         return results[0]["id"] if results else None
 
     async def update(
-        self,
-        id: str,
-        name: Optional[str] = None,
-        method: Optional[HttpMethod] = None,
-        path: Optional[str] = None,
-        module_id: Optional[str] = None,
-        description: Optional[str] = None,
-        request_params: Optional[str] = None,
-        request_body: Optional[str] = None,
-        response_schema: Optional[str] = None,
-        test_script: Optional[str] = None,
+            self,
+            id: str,
+            name: Optional[str] = None,
+            method: Optional[HttpMethod] = None,
+            path: Optional[str] = None,
+            module_id: Optional[str] = None,
+            description: Optional[str] = None,
+            request_headers: Optional[str] = None,
+            request_params: Optional[str] = None,
+            request_body: Optional[str] = None,
+            response_schema: Optional[str] = None,
+            test_script: Optional[str] = None,
     ) -> None:
         """更新接口"""
         update_data = {self.model.updated_at: datetime.now()}
@@ -74,6 +91,8 @@ class ApiRepository:
             update_data[self.model.module_id] = module_id
         if description is not None:
             update_data[self.model.description] = description
+        if request_headers is not None:
+            update_data[self.model.request_headers] = request_headers
         if request_params is not None:
             update_data[self.model.request_params] = request_params
         if request_body is not None:
@@ -132,7 +151,7 @@ class ApiRepository:
             self.model.project_id == project_id
         )
 
-    async def bulk_update(self, project_id: str, apis: List[ApiCreate]) -> List[str]:
+    async def bulk_update(self, project_id: str, apis: List[ApiUpdate]) -> List[str]:
         """批量更新接口（先删除项目下所有接口再插入）
 
         Args:
@@ -155,6 +174,7 @@ class ApiRepository:
                 method=item.method.value,
                 path=item.path,
                 description=item.description,
+                request_headers=item.request_headers,
                 request_params=item.request_params,
                 request_body=item.request_body,
                 response_schema=item.response_schema,

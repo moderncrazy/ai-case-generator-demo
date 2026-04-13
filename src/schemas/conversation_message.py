@@ -4,11 +4,6 @@ from pydantic import BaseModel, Field
 from src.enums.conversation_role import ConversationRole
 
 
-class ConversationMessageCreate():
-    """创建对话消息"""
-    pass
-
-
 class ConversationMessageResponse(BaseModel):
     """对话消息响应"""
     id: str = Field(description="对话ID")

@@ -21,6 +21,18 @@ class TestCaseCreate(BaseModel):
     type: TestCaseType = TestCaseType.FUNCTIONAL
 
 
+class TestCaseUpdate(BaseModel):
+    """创建测试用例参数"""
+    title: str
+    module_id: str
+    precondition: Optional[str]
+    test_steps: str
+    expected_result: str
+    test_data: str
+    level: TestCaseLevel = TestCaseLevel.P2
+    type: TestCaseType = TestCaseType.FUNCTIONAL
+
+
 class TestCaseRepository:
     """测试用例 Repository"""
 
@@ -130,7 +142,7 @@ class TestCaseRepository:
             self.model.project_id == project_id
         )
 
-    async def bulk_update(self, project_id: str, test_cases: List[TestCaseCreate]) -> List[str]:
+    async def bulk_update(self, project_id: str, test_cases: List[TestCaseUpdate]) -> List[str]:
         """批量更新测试用例（先删除项目下所有测试用例再插入）
 
         Args:

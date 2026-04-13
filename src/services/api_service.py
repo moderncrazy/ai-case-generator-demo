@@ -1,39 +1,54 @@
+import orjson
 from typing import List
 
-from src.models.api import Api
-from src.repositories.module_repository import module_repository
+from src.utils import utils
+from src.graphs.schemas import StateApi
+from src.repositories.api_repository import api_repository, ApiUpdate
 
 
 class ApiService:
     """API 服务"""
 
     @staticmethod
-    async def validate_module_ids(project_id: str, apis: List[Api]) -> dict:
-        # 收集所有 module_id（排除 None 值）
-        module_ids = set([api.module_id for api in apis if api.module_id is not None])
-        existing_module_ids = []
-        if module_ids:
-            existing_modules = await module_repository.list_by_ids_and_project(project_id, [*module_ids])
-            existing_module_ids = [module.id for module in existing_modules]
-        # 找出无效的 API
-        module_id_none = []
-        module_id_not_found = []
-        for api in apis:
-            if api.module_id is None:
-                module_id_none.append(api.id)
-            elif api.module_id not in existing_module_ids:
-                module_id_not_found.append(api.id)
-        return {"module_id_none": module_id_none, "module_id_not_found": module_id_not_found}
+    async def bulk_update_by_state_apis(project_id: str, apis: List[StateApi]):
+        await api_repository.bulk_update(
+            project_id,
+            [
+                ApiUpdate(
+                    name=item["name"],
+                    method=item["method"],
+                    path=item["path"],
+                    module_id=item["module_id"],
+                    description=item.get("description"),
+                    request_headers=utils.to_json(item.get("request_headers") or []),
+                    request_params=utils.to_json(item.get("request_params") or []),
+                    request_body=utils.to_json(item.get("request_body") or []),
+                    response_schema=item["response_schema"],
+                    test_script=item.get("test_script"),
+                )
+                for item in apis
+            ]
+        )
 
     @staticmethod
-    async def validate_module_ids_to_str(project_id: str, apis: List[Api]) -> str:
-        error_message = ""
-        result = await api_service.validate_module_ids(project_id, apis)
-        if result.get("module_id_none"):
-            error_message += f"模块Id为空：{",".join(result["module_id_none"])}\n"
-        if result.get("module_id_not_found"):
-            error_message += f"模块Id不存在：{",".join(result["module_id_not_found"])}\n"
-        return error_message
+    async def list_by_project_to_state_api(project_id: str):
+        results = await api_repository.list_by_project(project_id)
+        return [
+            StateApi(
+                id=item.id,
+                name=item.name,
+                method=item.method,
+                path=item.path,
+                module_id=item.module_id,
+                description=item.description,
+                request_headers=orjson.loads(item.request_headers),
+                request_params=orjson.loads(item.request_params),
+                request_body=orjson.loads(item.request_body),
+                response_schema=item.response_schema,
+                test_script=item.test_script,
+            )
+            for item in results
+        ]
 
 
 # 导出单例

@@ -49,3 +49,4 @@ loguru>=0.7.0
 pathlib>=1.0.0
 setuptools==81.0.0
 contextvars>=2.4
+typing-extensions>=4.15.0

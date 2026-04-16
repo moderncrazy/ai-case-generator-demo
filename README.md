@@ -14,7 +14,7 @@
 > 
 > **关于作者**：一名拥有 Java & Node.js 资深背景的开发者，目前正深度投入于 Python AI 生态与 Agent 编排架构的落地实践
 >   - 🔭 **职业状态**：处于开放的技术探索与职业转型期，欢迎关于 **Python 架构**、**测试开发工程化** 或 **模型评测** 相关的职位邀约与技术交流
->   - 🤝 **联系我**：[BOSS 直聘/51Job](https://m.zhipin.com/mpa/html/resume-detail?sid=self&securityId=h8YXVQQMWPA6Z-k1DhC4kAgh5DfVVnP7pBYPmsnfwxkw9JgK8E4m8reqINEIJRfX-g5Fz4Zxz2qxlQu1N65F1dNpY2jMD28InXp75LXmguCT8Ao9K0okHcdarTfNMPuTI0ifgMFyZC9lDWxw2xB4q6LJKI5mu3q9XTWL7A~~) | [GitHub Issues](https://www.google.com/search?q=https://github.com/moderncrazy/ai-case-generator-demo/issues)
+>   - 🤝 **联系我**：[BOSS 直聘/51Job](https://m.zhipin.com/mpa/html/resume-detail?sid=self&securityId=h8YXVQQMWPA6Z-k1DhC4kAgh5DfVVnP7pBYPmsnfwxkw9JgK8E4m8reqINEIJRfX-g5Fz4Zxz2qxlQu1N65F1dNpY2jMD28InXp75LXmguCT8Ao9K0okHcdarTfNMPuTI0ifgMFyZC9lDWxw2xB4q6LJKI5mu3q9XTWL7A~~) | [GitHub Issues](https://github.com/moderncrazy/ai-case-generator-demo/issues)
 
 ---
 

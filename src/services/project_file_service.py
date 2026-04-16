@@ -2,11 +2,25 @@ from src.repositories.project_file_repository import project_file_repository
 
 
 class ProjectFileService:
-    """项目文件服务"""
+    """项目文件服务
+    
+    提供项目文件相关的业务逻辑处理，
+    包括提取文件摘要等功能。
+    """
 
     @staticmethod
     async def get_project_files_summary_to_str(project_id: str) -> str:
-        """提取项目文件摘要转为str"""
+        """提取项目文件摘要转为字符串
+        
+        将项目中所有文件的摘要信息整合为一个字符串，
+        用于提供给 AI 作为上下文信息。
+        
+        Args:
+            project_id: 项目 ID
+            
+        Returns:
+            包含所有文件摘要的字符串
+        """
         content = ""
         project_files = await project_file_repository.list_by_project(project_id)
         for item in project_files:

@@ -20,6 +20,18 @@ from src.graphs.test.case import graph as test_case_graph
 
 
 async def create_agent() -> CompiledStateGraph:
+    """创建主图 Agent
+    
+    构建完整的主图工作流，包含以下阶段：
+    - 状态修复：处理消息状态异常
+    - 项目加载：初始化项目数据
+    - 图片理解：解析用户上传的文档文件
+    - 产品经理：与用户沟通的核心节点
+    - 子图调用：需求大纲/需求模块/整体设计/系统架构/系统模块/数据库/API设计/测试用例设计
+    
+    Returns:
+        CompiledStateGraph: 编译后的完整 agent
+    """
     agent_builder = StateGraph(State)
 
     agent_builder.add_node("fix_state_messages_node", nodes.fix_state_messages_node)

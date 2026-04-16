@@ -4,9 +4,8 @@ from src.graphs.requirement.outline.schemas import RequirementModuleCreate
 
 
 def validate_requirement_modules(modules: list[RequirementModuleCreate]) -> str:
-    """
-    验证需求模块列表的 name 和 order 是否合法。
-
+    """验证需求模块列表的合法性
+    
     检查项：
     1. name 是否重复
     2. order 是否重复

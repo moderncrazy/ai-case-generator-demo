@@ -6,15 +6,38 @@ from src.graphs.schemas import StateNewProjectFile
 
 
 class MainAgent:
+    """主代理类
+    
+    负责管理 LangGraph 主工作流的执行，协调项目加载、文件理解和产品经理对话等流程。
+    """
+
     def __init__(self):
+        """初始化主代理，agent 实例初始为 None（懒加载）"""
         self._agent: CompiledStateGraph | None = None
 
     async def _get_agent(self) -> CompiledStateGraph:
+        """获取或创建编译后的 LangGraph agent
+        
+        Returns:
+            CompiledStateGraph: 编译后的 LangGraph 状态图实例
+        """
         if self._agent is None:
             self._agent = await graph.create_agent()
         return self._agent
 
     async def astream(self, project_id: str, message: str, new_file_list: list[StateNewProjectFile] = None):
+        """异步流式执行主代理工作流
+        
+        处理用户消息和新上传文件，通过 LangGraph 工作流进行需求分析、任务分发等操作。
+        
+        Args:
+            project_id: 项目Id，用于线程隔离和状态追踪
+            message: 用户输入的消息内容
+            new_file_list: 用户新上传的文件列表（可选），包含文件路径、类型等信息
+        
+        Returns:
+            异步生成器，产生流式输出结果
+        """
         self._agent = await self._get_agent()
         if new_file_list:
             state = {
@@ -28,7 +51,7 @@ class MainAgent:
         return self._agent.astream(
             state,
             config={"configurable": {"thread_id": project_id}},
-            stream_mode=["updates", "custom"],
+            stream_mode=["values", "custom"],
             subgraphs=True,
             version="v2"
         )

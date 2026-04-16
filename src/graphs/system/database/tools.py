@@ -21,10 +21,11 @@ async def optimize_system_database_output(
         system_database_content: str,
         runtime: ToolRuntime
 ) -> Command:
-    """输出DBA优化系统数据库文档结果
-
-    用于在DBA优化系统数据库文档完成后，输出结构化的结果
-
+    """输出 DBA 优化系统数据库文档结果
+    
+    在 DBA 优化系统数据库文档完成后调用，输出结构化的优化结果。
+    更新状态中的数据库文档内容，并清空之前的问题记录，为评审做准备。
+    
     Args:
         message: 针对系统数据库文档优化的总结以及给团队成员接下来review的留言
         system_database_content: 输出优化后系统数据库文档内容
@@ -58,10 +59,11 @@ async def review_system_database_output(
         system_database_issues: list[Issue],
         runtime: ToolRuntime
 ) -> Command:
-    """输出审查系统数据库文档结果
-
-    用于在审查系统数据库文档完成后，输出结构化的结果
-
+    """输出评审系统数据库文档结果
+    
+    各角色评审完成后调用，输出结构化的评审意见。
+    根据是否发现问题设置不同的回复优先级。
+    
     Args:
         system_database_issues: 针对系统数据库文档提出的问题和建议方案
         runtime: 包含项目状态的工具运行时对象
@@ -99,7 +101,7 @@ async def review_system_database_output(
             ToolMessage(content=output, tool_call_id=tool_call_id),
             human_message
         ],
-        "system_database_issues": output.system_database_issues,
+        "system_database_issues": [item.model_dump() for item in (output.system_database_issues or [])],
     })
 
 

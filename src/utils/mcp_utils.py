@@ -9,7 +9,9 @@ from src.config import settings
 async def get_minimax_mcp_tools_by_name() -> dict[str, BaseTool]:
     """获取 MiniMax MCP 工具（带缓存）
     
-    连接 MiniMax MCP 服务器，获取可用工具列表并转为 {name: tool} 字典。
+    连接 MiniMax MCP 服务器，获取可用工具列表，
+    并转换为 {name: tool} 字典格式。
+    
     使用 @alru_cache 缓存，同一进程内只初始化一次 MCP 连接。
     
     Returns:

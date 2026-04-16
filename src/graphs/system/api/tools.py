@@ -25,9 +25,10 @@ async def optimize_system_api_output(
         runtime: ToolRuntime
 ) -> Command:
     """输出后端优化系统接口结果
-
-    用于在后端优化系统接口完成后，输出结构化的结果
-
+    
+    在后端优化系统接口完成后调用，输出结构化的优化结果。
+    验证接口列表合法性，更新状态中的接口列表。
+    
     Args:
         message: 针对系统接口优化的总结以及给团队成员接下来review的留言
         system_apis: 输出优化后系统接口列表
@@ -49,7 +50,8 @@ async def optimize_system_api_output(
         logger.warning(
             f"trans_id:{trans_id_ctx.get()} 子图工具:{gutils.get_func_name()} 输出:{output.model_dump_json()} 打回:{error_message}")
         return Command(
-            update={"private_messages": [tool_call_message, ToolMessage(content=error_message, tool_call_id=tool_call_id)]},
+            update={
+                "private_messages": [tool_call_message, ToolMessage(content=error_message, tool_call_id=tool_call_id)]},
             goto="optimize_system_api_node"
         )
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图工具:{gutils.get_func_name()} 输出:{output.model_dump_json()}")
@@ -60,7 +62,7 @@ async def optimize_system_api_output(
             HumanMessage(content=output.message, name="BACKEND")
         ],
         "review_reply_message_id": str(uuid.uuid4()),
-        "system_apis": system_apis,
+        "system_apis": [item.model_dump() for item in output.system_apis],
         "system_api_issues": ReducerActionType.RESET,
     })
 
@@ -70,10 +72,11 @@ async def review_system_api_output(
         system_api_issues: list[Issue],
         runtime: ToolRuntime
 ) -> Command:
-    """输出审查系统接口结果
-
-    用于在审查系统接口完成后，输出结构化的结果
-
+    """输出评审系统接口结果
+    
+    各角色评审完成后调用，输出结构化的评审意见。
+    根据是否发现问题设置不同的回复优先级。
+    
     Args:
         system_api_issues: 针对系统接口提出的问题和建议方案
         runtime: 包含项目状态的工具运行时对象
@@ -105,7 +108,7 @@ async def review_system_api_output(
             ToolMessage(content=output, tool_call_id=tool_call_id),
             *human_messages
         ],
-        "system_api_issues": output.system_api_issues,
+        "system_api_issues": [item.model_dump() for item in (output.system_api_issues or [])],
     })
 
 

@@ -17,7 +17,7 @@ class ProjectProgress(StrEnum):
     """需求总体（PRD）设计"""
 
     SYSTEM_ARCHITECTURE_DESIGN = "system_architecture_design"
-    """系统架构设计设计"""
+    """系统架构设计"""
 
     SYSTEM_MODULES_DESIGN = "system_modules_design"
     """系统模块设计"""

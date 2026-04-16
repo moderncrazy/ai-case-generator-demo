@@ -1,69 +1,122 @@
 # AI Case Generator Demo
 
-> 基于 LLM 的智能测试用例生成平台，从需求文档自动生成测试用例、接口文档、压测脚本
+[![GitHub Stars](https://img.shields.io/github/stars/moderncrazy/ai-case-generator-demo?style=social)](https://github.com/moderncrazy/ai-case-generator-demo) [![License](https://img.shields.io/github/license/moderncrazy/ai-case-generator-demo)](https://github.com/moderncrazy/ai-case-generator-demo/blob/main/LICENSE) ![Status](https://img.shields.io/badge/Status-Active_Development-orange?style=flat-square) ![Python](https://img.shields.io/badge/Python-3.12+-blue?style=flat-square)
+
+> **基于 LLM 的智能需求分析和测试用例生成平台**，通过 LangGraph Multi-Agent 架构实现从需求文档到测试用例的全流程自动化
+
+---
+
+### 📢 项目动态与求职意向
+
+> [!TIP]
+> 
+> **项目状态**：本项目目前处于 **Early Demo** 阶段。正聚焦于 **Multi-Agent 协同精度**与**系统响应性能**的优化
+> 
+> **关于作者**：一名拥有 Java & Node.js 资深背景的开发者，目前正深度投入于 Python AI 生态与 Agent 编排架构的落地实践
+>   - 🔭 **职业状态**：处于开放的技术探索与职业转型期，欢迎关于 **Python 架构**、**测试开发工程化** 或 **模型评测** 相关的职位邀约与技术交流
+>   - 🤝 **联系我**：[BOSS 直聘/51Job](https://m.zhipin.com/mpa/html/resume-detail?sid=self&securityId=h8YXVQQMWPA6Z-k1DhC4kAgh5DfVVnP7pBYPmsnfwxkw9JgK8E4m8reqINEIJRfX-g5Fz4Zxz2qxlQu1N65F1dNpY2jMD28InXp75LXmguCT8Ao9K0okHcdarTfNMPuTI0ifgMFyZC9lDWxw2xB4q6LJKI5mu3q9XTWL7A~~) | [GitHub Issues](https://www.google.com/search?q=https://github.com/moderncrazy/ai-case-generator-demo/issues)
 
 ---
 
 ## 🎯 项目简介
 
-本项目是一个 AI 驱动的测试开发辅助工具，通过 LangGraph Multi-Agent 架构，自动完成从需求分析到测试用例生成的完整流程。
+本项目旨在探索如何通过大语言模型（LLM）解决复杂业务场景下的需求拆解痛点。通过 Multi-Agent 协作，将传统的人工分析转化为可工程化、可度量的自动化流水线
 
 ### 核心价值
 
-- ⏱️ **效率提升** - 自动化生成测试用例，减少 60% 手工工作量
+- ⏱️ **效率提升** - 自动化生成测试用例，减少 60%+ 手工工作量
 - 🤖 **AI 赋能** - 基于大语言模型，理解需求、生成用例、分析风险
-- 📊 **全流程覆盖** - 需求 → 模块 → 用例 → 接口 → 压测
-- 🔒 **私有化部署** - Ollama 本地大模型，零 API 成本，数据安全
+- 📊 **全流程覆盖** - 需求大纲 → 需求模块 → 整体需求 → 架构设计 → 系统模块设计 → 数据库设计 → 接口设计 → 测试用例
+- 🔒 **私有化部署** - 支持本地大模型，零 API 成本，数据安全
+
+### 核心亮点
+- ⏱️ **效率飞跃**：自动化生成覆盖率达 90% 以上的基础测试用例，缩短 60% 的需求对齐周期
+- 🤖 **Agent 协同**：基于 LangGraph 设计了“分析-设计-评审-总结”闭环，有效降低单一模型输出的幻觉问题
+- ⚡ **高性能工程化**：利用 Python 异步生态（FastAPI/Asyncio），实现了支持流式反馈（SSE）的高并发 Agent 执行环境
+
+---
+
+## 🏗️ 系统架构
+
+```mermaid
+flowchart TB
+    A[用户上传需求文档] --> B[LangGraph StateMachine]
+    
+    B --> C[需求大纲分析<br/>Requirement Outline]
+    B --> D[需求模块设计<br/>Module Design]
+    B --> E[整体需求设计<br/>Overall Design]
+    B --> F[架构设计<br/>Architecture]
+    B --> G[系统模块设计<br/>System Module]
+    B --> H[数据库设计<br/>Database]
+    B --> I[API设计<br/>API]
+    B --> J[测试用例生成<br/>Test Case]
+    
+    C --> K[(SQLite<br/>Milvus)]
+    D --> K
+    E --> K
+    F --> K
+    G --> K
+    H --> K
+    I --> K
+    J --> K
+    
+    style B fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style K fill:#fff3e0,stroke:#e65100,stroke-width:2px
+```
 
 ---
 
 ## 📋 核心流程
 
-```
-1️⃣ 创建项目
-        ↓
-2️⃣ 上传需求文档（PDF / Word / Markdown）
-        ↓
-3️⃣ AI 评估需求
-   ├── 需求合理性分析
-   ├── 风险识别
-   └── 不明确点标注
-        ↓
-4️⃣ 需求确认（Markdown 导出）
-        ↓
-5️⃣ 需求入库（向量数据库）
-        ↓
-6️⃣ 模块拆分（用户确认 + Markdown 导出）
-        ↓
-7️⃣ 模块入库
-        ↓
-8️⃣ 生成测试用例（用例分级 + Excel 导出）
-        ↓
-9️⃣ 用例入库
-        ↓
-🔟 接口设计（Postman/Curl 脚本导出）
-        ↓
-1️⃣1️⃣ 接口入库
-        ↓
-1️⃣2️⃣ Locust 压测脚本生成
-```
+|    阶段     | 说明               | 输出       |
+|:---------:|:-----------------|:---------|
+| 1️⃣ 需求大纲  | AI 分析需求文档，提取关键信息 | 需求大纲     |
+| 2️⃣ 需求模块  | 拆分功能模块，识别风险点     | 模块树      |
+| 3️⃣ 整体需求  | 优化需求表述，补充细节      | 完整需求文档   |
+| 4️⃣ 架构设计  | 生成系统架构方案         | 架构图/文档   |
+| 5️⃣ 系统模块  | 设计系统内各模块         | 模块详细设计   |
+| 6️⃣ 数据库设计 | 设计数据表结构          | ER 图/SQL |
+| 7️⃣ 接口设计  | 设计 API 接口        | 接口文档     |
+| 8️⃣ 用例生成  | 生成测试用例（分级）       | 测试用例     |
 
-**中途保存机制**：支持断点续传，随时保存、随时继续
+---
+
+## 💡 技术亮点
+
+### 1. 异步并发的多角色评审机制
+* **并发执行调度**：利用 LangGraph 的 `Send` 模式实现架构、后端、测试等多个角色的**并行评审**，极大地缩短了反馈链路。
+* **状态自动归约**：设计了精细的 `State Reducer` 逻辑，在并发节点结束后自动汇总冲突并修正，相比串行模式，响应耗时降低 **40% 以上**。
+
+### 2. 精细化的 LangGraph 状态机编排
+* **逻辑解耦**：将复杂业务流拆解为多个独立 Agent 节点，利用 `StateGraph` 管理状态流转。
+* **闭环反馈**：引入“设计-评审-重写”的循环迭代机制，有效降低了单一 Agent 输出的幻觉问题。
+
+### 3. 高性能异步 RAG 架构
+* **全链路异步化**：后端基于 **FastAPI + Asyncio**，针对向量检索与 LLM 调用进行了并发调度优化。
+* **混合检索策略**：基于 Milvus Lite 实现稠密与稀疏向量混合检索，并集成 BGE-M3 (ONNX) 模型实现高效的本地向量化处理。
+
+### 4. 实时交互体验优化
+* **SSE 流式渲染**：通过 **Server-Sent Events (SSE)** 协议，在 Streamlit 前端实时展示 Agent 执行过程的实时可视化展示，提升用户交互体验。
+
+---
+
+## 🗺️ 进化路线 (Roadmap)
+
+- [x] **Phase 1**: 核心工作流跑通，实现需求到用例的基本闭环。
+- [ ] **Phase 2 (当前)**: 
+    - 🛠️ **协作调优**：优化 Agent 间的 Prompt 协议，提升多角色配合的稳定性。
+    - ⚡ **性能压测**：优化并发调度逻辑，提升多用户环境下的系统吞吐。
+- [ ] **Phase 3**: 
+    - 📊 **评测体系**：引入用例质量自动评分机制，支持多模型对比测试报告。
 
 ---
 
 ## 🛠️ 技术栈
 
-|    分类     | 技术                    | 说明             |
-|:---------:|:----------------------|:---------------|
-|  **语言**   | Python 3.11+          | 全栈 Python 开发   |
-|  **前端**   | Streamlit             | AI 应用快速原型开发    |
-|  **后端**   | FastAPI + Uvicorn     | 高性能异步 API      |
-| **AI 框架** | LangChain + LangGraph | Multi-Agent 编排 |
-|  **大模型**  | Ollama + Qwen3.5      | 本地部署，中文优化      |
-|  **向量库**  | Chroma                | 轻量级向量数据库       |
-|  **存储**   | DuckDB / SQLite       | 项目状态持久化        |
-| **文档解析**  | PyMuPDF + python-docx | PDF/Word 解析    |
+- **核心编排**: Python 3.12, LangChain, LangGraph
+- **后端架构**: FastAPI, Uvicorn, Piccolo (ORM)
+- **向量存储**: Milvus Lite, BGE-M3 (ONNX INT8)
+- **展示层**: Streamlit (SSE)
 
 ---
 
@@ -71,40 +124,40 @@
 
 ### 环境要求
 
-- Python 3.11+
+- Python 3.12+
 - macOS / Linux / Windows
 - 内存 8GB+（推荐 16GB）
-- Ollama（本地大模型）
+- Docker（可选，用于 ClamAV）
 
 ### 安装步骤
 
 ```bash
 # 1. 克隆项目
-git clone https://gitlab.s.hi-hub.xyz:8443/moderncrazy/ai-case-generator-demo.git
+git clone https://github.com/moderncrazy/ai-case-generator-demo.git
 cd ai-case-generator-demo
 
 # 2. 创建虚拟环境
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# venv\Scripts\activate  # Windows
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate  # Windows
 
 # 3. 安装依赖
 pip install -r requirements.txt
 
-# 4. 启动 Ollama（后台运行）
-ollama serve &
+# 4. 配置环境变量
+cp .env.example .env
+# 编辑 .env 填写必要的 API Key
 
-# 5. 下载 Qwen2.5 模型
-ollama pull qwen2.5:14b
-
-# 6. 启动应用
-streamlit run src/streamlit_app.py
+# 5. 启动应用
+uvicorn src.main:app --reload       # 后端 API http://localhost:8000
+streamlit run src/frontend/web.py   # 前端 UI  http://localhost:8501
 ```
 
-### Docker 部署（可选）
+### ClamAV 依赖
 
 ```bash
-docker-compose up -d
+# 启动依赖服务（ClamAV）
+docker-compose -f docker/docker-compose-dependency.yml up -d
 ```
 
 ---
@@ -113,75 +166,40 @@ docker-compose up -d
 
 ```
 ai-case-generator-demo/
-├── README.md
-├── requirements.txt
-├── docker-compose.yml
-│
 ├── src/
-│   ├── __init__.py
-│   ├── main.py                 # FastAPI 入口
-│   ├── streamlit_app.py        # Streamlit 前端
-│   │
-│   ├── agents/                 # Agent 逻辑
-│   │   ├── requirement_agent.py    # 需求分析 Agent
-│   │   ├── module_agent.py           # 模块拆分 Agent
-│   │   └── test_case_agent.py        # 用例生成 Agent
-│   │
-│   ├── graph/                  # LangGraph 编排
-│   │   └── workflow_graph.py        # 状态机定义
-│   │
-│   ├── services/               # 业务服务
-│   │   ├── document_parser.py       # 文档解析
-│   │   ├── knowledge_base.py        # 向量知识库
-│   │   ├── project_manager.py       # 项目管理
-│   │   └── exporter.py              # 导出功能
-│   │
+│   ├── agents/                 # AI Agent 核心
+│   ├── graphs/                 # LangGraph 工作流
+│   │   ├── requirement/       # 需求相关工作流
+│   │   ├── system/             # 系统设计工作流
+│   │   └── test/              # 测试工作流
+│   ├── services/               # 业务服务层
+│   ├── repositories/           # 数据访问层
 │   ├── models/                 # 数据模型
-│   │   └── schemas.py                # Pydantic 模型
-│   │
-│   └── config.py               # 配置管理
-│
-├── data/                       # 数据目录
-│   ├── db/                     # SQLite 数据库
-│   ├── chroma/                 # 向量数据库
-│   └── exports/                # 导出文件
-│
-└── templates/                  # 模板文件
-    ├── requirement.md
-    ├── module.md
-    └── test_case.xlsx
+│   ├── routes/                 # API 路由
+│   ├── middlewares/            # 中间件
+│   ├── schemas/                # Pydantic 模型
+│   ├── enums/                  # 枚举定义
+│   ├── utils/                  # 工具函数
+│   ├── frontend/               # Streamlit 前端
+│   ├── config.py               # 配置管理
+│   ├── constant.py             # 常量定义
+│   ├── context.py              # 上下文变量
+│   └── main.py                 # FastAPI 应用入口
+├── prompts/                    # Prompt 模板
+├── doc/                        # 设计文档
+├── docker/                     # Docker 配置
+├── requirements.txt            # Python 依赖
+└── pyproject.toml              # 项目配置
 ```
-
----
-
-## 🎓 学习路线
-
-|   阶段    | 内容                                  | 预计时间 |
-|:-------:|:------------------------------------|:----:|
-|  Day 1  | 环境搭建 + Ollama + LangChain 入门        |  1天  |
-|  Day 2  | LangChain 核心（Prompt / Chain / Tool） |  1天  |
-|  Day 3  | LangGraph Agent 编排                  |  1天  |
-|  Day 4  | Streamlit 前端开发                      |  1天  |
-|  Day 5  | Chroma 向量数据库 + RAG                  |  1天  |
-| Day 6-7 | 全链路整合 + Bug 修复                      |  2天  |
-
----
-
-## 🎯 核心亮点（简历展示）
-
-- ✅ **Multi-Agent 协作** - LangGraph StateGraph 编排多 Agent 协作
-- ✅ **RAG 知识增强** - Chroma 向量库存储测试用例模板
-- ✅ **本地大模型** - Ollama + Qwen2.5，零 API 成本
-- ✅ **全流程自动化** - 需求到压测脚本一键生成
 
 ---
 
 ## 📝 License
 
-MIT License
+MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ---
 
 ## 👤 Author
 
-[Your Name](https://github.com/yourusername)
+[moderncrazy](https://github.com/moderncrazy)

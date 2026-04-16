@@ -27,9 +27,10 @@ async def optimize_system_architecture_output(
         runtime: ToolRuntime
 ) -> Command:
     """输出架构优化系统架构结果
-
-    用于在架构优化系统架构完成后，输出结构化的结果
-
+    
+    在架构优化系统架构完成后调用，输出结构化的优化结果。
+    更新状态中的架构内容，并清空之前的问题记录，为评审做准备。
+    
     Args:
         message: 针对系统架构优化的总结以及给团队成员接下来review的留言
         system_architecture_content: 输出优化后系统架构内容
@@ -59,8 +60,8 @@ async def optimize_system_architecture_output(
         "review_reply_message_id": str(uuid.uuid4()),
         "system_architecture_content": system_architecture_content,
         "system_architecture_issues": ReducerActionType.RESET,
-        "risks": output.risks,
-        "unclear_points": output.unclear_points,
+        "risks": [item.model_dump() for item in (output.risks or [])],
+        "unclear_points": [item.model_dump() for item in (output.unclear_points or [])],
     })
 
 
@@ -71,10 +72,11 @@ async def review_system_architecture_output(
         unclear_points: list[Issue],
         runtime: ToolRuntime
 ) -> Command:
-    """输出审查系统架构结果
-
-    用于在审查系统架构完成后，输出结构化的结果
-
+    """输出评审系统架构结果
+    
+    各角色评审完成后调用，输出结构化的评审意见。
+    根据是否发现问题设置不同的回复优先级。
+    
     Args:
         system_architecture_issues: 针对系统架构提出的问题和建议方案
         risks: 给客户提出的风险和建议方案
@@ -116,9 +118,9 @@ async def review_system_architecture_output(
             ToolMessage(content=output, tool_call_id=tool_call_id),
             human_message
         ],
-        "system_architecture_issues": output.system_architecture_issues,
-        "risks": output.risks,
-        "unclear_points": output.unclear_points,
+        "system_architecture_issues": [item.model_dump() for item in (output.system_architecture_issues or [])],
+        "risks": [item.model_dump() for item in (output.risks or [])],
+        "unclear_points": [item.model_dump() for item in (output.unclear_points or [])],
     })
 
 
@@ -129,10 +131,11 @@ async def optimize_system_architecture_issue_output(
         unclear_points: list[Issue],
         runtime: ToolRuntime
 ) -> Command:
-    """输出架构优化系统架构问题结果
-
-    用于在架构优化系统架构问题后，输出结构化的结果
-
+    """整理输出系统架构问题结果
+    
+    评审完成后汇总问题，输出结构化的风险点和不明确点，
+    并将最终架构文档保存到数据库。
+    
     Args:
         message: 给客户的会话
         risks: 给客户提出的风险和建议方案
@@ -140,7 +143,7 @@ async def optimize_system_architecture_issue_output(
         runtime: 包含项目状态的工具运行时对象
 
     Returns:
-        Command 更新项目状态
+        Command 更新项目状态并保存到数据库
     """
     tool_call_id = runtime.tool_call_id
     tool_name = gutils.get_func_name()
@@ -167,8 +170,8 @@ async def optimize_system_architecture_issue_output(
         "original_architecture": runtime.state.get("original_architecture")
                                  or runtime.state["system_architecture_content"],
         "optimized_architecture": runtime.state["system_architecture_content"],
-        "risks": output.risks,
-        "unclear_points": output.unclear_points,
+        "risks": [item.model_dump() for item in (output.risks or [])],
+        "unclear_points": [item.model_dump() for item in (output.unclear_points or [])],
     })
 
 

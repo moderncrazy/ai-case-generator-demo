@@ -17,7 +17,7 @@ from src.graphs.schemas import PMOutput, StateRequirementModule, StateModule, St
 from src.repositories.project_file_repository import project_file_repository
 from src.repositories.module_repository import module_repository, ModuleUpdate
 from src.repositories.project_repository import project_repository, ProjectUpdate
-from src.repositories.test_case_repository import test_case_repository, TestCaseUpdate
+from src.repositories.test_case_repository import test_case_repository, TestCaseBulkUpdate
 from src.services.api_service import api_service
 from src.services.project_file_service import project_file_service
 from src.services.milvus_service import milvus_service, ProjectContextSearchResult, ProjectFileSearchResult
@@ -74,7 +74,8 @@ async def get_project_files_summary(runtime: ToolRuntime) -> str:
     """
     project_id = runtime.state["project_id"]
     result = await project_file_service.get_project_files_summary_to_str(project_id)
-    logger.info(f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{result}")
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
 
 
@@ -113,7 +114,7 @@ async def get_requirement_outline(runtime: ToolRuntime[Any, State]) -> str:
     project_id = runtime.state["project_id"]
     result = runtime.state.get("requirement_outline", "")
     logger.info(
-        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{result}")
+        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
 
 
@@ -151,7 +152,7 @@ async def get_original_requirement(runtime: ToolRuntime[Any, State]) -> str:
     project_id = runtime.state["project_id"]
     result = runtime.state.get("original_requirement", "")
     logger.info(
-        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{result}")
+        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
 
 
@@ -170,7 +171,7 @@ async def get_current_requirement(runtime: ToolRuntime[Any, State]) -> str:
     project_id = runtime.state["project_id"]
     result = runtime.state.get("optimized_requirement", "")
     logger.info(
-        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{result}")
+        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
 
 
@@ -189,7 +190,7 @@ async def get_original_architecture(runtime: ToolRuntime[Any, State]) -> str:
     project_id = runtime.state["project_id"]
     result = runtime.state.get("original_architecture", "")
     logger.info(
-        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{result}")
+        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
 
 
@@ -208,7 +209,7 @@ async def get_current_architecture(runtime: ToolRuntime[Any, State]) -> str:
     project_id = runtime.state["project_id"]
     result = runtime.state.get("optimized_architecture", "")
     logger.info(
-        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{result}")
+        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
 
 
@@ -265,7 +266,7 @@ async def get_original_database(runtime: ToolRuntime[Any, State]) -> str:
     project_id = runtime.state["project_id"]
     result = runtime.state.get("original_database", "")
     logger.info(
-        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{result}")
+        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
 
 
@@ -284,7 +285,7 @@ async def get_current_database(runtime: ToolRuntime[Any, State]) -> str:
     project_id = runtime.state["project_id"]
     result = runtime.state.get("optimized_database", "")
     logger.info(
-        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{result}")
+        f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
 
 
@@ -502,7 +503,10 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                         metadata["module"], runtime.state["requirement_modules"])):
                     raise BusinessException(ErrorMessage.FLOW_VALIDATE_FAILED.code, "metadata.module不存在")
                 # 更新数据库状态
-                project_update = ProjectUpdate(progress=ProjectProgress.REQUIREMENT_MODULE_DESIGN)
+                project_update = ProjectUpdate(
+                    progress=ProjectProgress.REQUIREMENT_MODULE_DESIGN,
+                    requirement_outline_design=runtime.state["requirement_outline"]
+                )
                 # 更新 state
                 state_update["metadata"] = metadata
                 state_update["project_progress"] = ProjectProgress.REQUIREMENT_MODULE_DESIGN
@@ -517,11 +521,14 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                         runtime.state.get("requirement_modules")):
                     raise BusinessException(ErrorMessage.FLOW_VALIDATE_FAILED.code, msg)
                 # 更新数据库状态
-                project_update = ProjectUpdate(progress=ProjectProgress.REQUIREMENT_OVERALL_DESIGN)
+                project_update = ProjectUpdate(
+                    progress=ProjectProgress.REQUIREMENT_OVERALL_DESIGN,
+                    requirement_module_design=gutils.to_json(runtime.state["requirement_modules"])
+                )
                 # 更新state
                 state_update["project_progress"] = ProjectProgress.REQUIREMENT_OVERALL_DESIGN
             # 进入系统架构设计阶段
-            case PMNextStep.SYS_ARCHITECTURE_DESIGN:
+            case PMNextStep.SYSTEM_ARCHITECTURE_DESIGN:
                 # 检查需求文档是否完整且是否存在风险和问题
                 utils.validate_state_fields_to_exception(
                     runtime.state,
@@ -530,13 +537,13 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                 )
                 # 更新数据库状态
                 project_update = ProjectUpdate(
-                    progress=ProjectProgress.SYS_ARCHITECTURE_DESIGN,
-                    requirement_design=runtime.state["optimized_requirement"]
+                    progress=ProjectProgress.SYSTEM_ARCHITECTURE_DESIGN,
+                    requirement_overall_design=runtime.state["optimized_requirement"]
                 )
                 # 更新state
-                state_update["project_progress"] = ProjectProgress.SYS_ARCHITECTURE_DESIGN
+                state_update["project_progress"] = ProjectProgress.SYSTEM_ARCHITECTURE_DESIGN
             # 进入系统模块设计阶段
-            case PMNextStep.SYS_MODULES_DESIGN:
+            case PMNextStep.SYSTEM_MODULES_DESIGN:
                 # 检查系统架构是否完整且是否存在风险和问题
                 utils.validate_state_fields_to_exception(
                     runtime.state,
@@ -545,13 +552,13 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                 )
                 # 更新数据库状态
                 project_update = ProjectUpdate(
-                    progress=ProjectProgress.SYS_MODULES_DESIGN,
-                    requirement_design=runtime.state["optimized_architecture"]
+                    progress=ProjectProgress.SYSTEM_MODULES_DESIGN,
+                    architecture_design=runtime.state["optimized_architecture"]
                 )
                 # 更新state
-                state_update["project_progress"] = ProjectProgress.SYS_MODULES_DESIGN
+                state_update["project_progress"] = ProjectProgress.SYSTEM_MODULES_DESIGN
             # 进入系统数据库设计阶段
-            case PMNextStep.SYS_DATABASE_DESIGN:
+            case PMNextStep.SYSTEM_DATABASE_DESIGN:
                 # 检查系统模块是否完整
                 utils.validate_state_fields_to_exception(
                     runtime.state,
@@ -563,11 +570,11 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                     [ModuleUpdate(**item) for item in runtime.state["optimized_modules"]]
                 )
                 # 更新数据库状态
-                project_update = ProjectUpdate(progress=ProjectProgress.SYS_DATABASE_DESIGN)
+                project_update = ProjectUpdate(progress=ProjectProgress.SYSTEM_DATABASE_DESIGN)
                 # 更新state
-                state_update["project_progress"] = ProjectProgress.SYS_DATABASE_DESIGN
+                state_update["project_progress"] = ProjectProgress.SYSTEM_DATABASE_DESIGN
             # 进入系统接口设计阶段
-            case PMNextStep.SYS_API_DESIGN:
+            case PMNextStep.SYSTEM_API_DESIGN:
                 # 检查系统数据库是否完整
                 utils.validate_state_fields_to_exception(
                     runtime.state,
@@ -575,11 +582,11 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                 )
                 # 更新项目状态和数据库文档
                 project_update = ProjectUpdate(
-                    progress=ProjectProgress.SYS_API_DESIGN,
+                    progress=ProjectProgress.SYSTEM_API_DESIGN,
                     database_design=runtime.state["optimized_database"]
                 )
                 # 更新state
-                state_update["project_progress"] = ProjectProgress.SYS_API_DESIGN
+                state_update["project_progress"] = ProjectProgress.SYSTEM_API_DESIGN
             # 进入测试用例设计阶段
             case PMNextStep.TEST_CASE_DESIGN:
                 # 检查API设计是否完整
@@ -603,7 +610,7 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                 # 批量更新模块
                 await test_case_repository.bulk_update(
                     project_id,
-                    [TestCaseUpdate(**item) for item in runtime.state["optimized_test_cases"]]
+                    [TestCaseBulkUpdate(**item) for item in runtime.state["optimized_test_cases"]]
                 )
                 # 更新数据库状态
                 project_update = ProjectUpdate(progress=ProjectProgress.COMPLETED)
@@ -615,7 +622,7 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
             logger.info(
                 f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 下一步:{next_step.value} project更新:{project_update.model_dump_json()}")
         logger.info(
-            f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 下一步:{next_step.value} state更新:{gutils.to_json(state_update)}")
+            f"trans_id:{trans_id_ctx.get()} 工具:{gutils.get_func_name()} 下一步:{next_step.value} 完成")
         return Command(update=state_update)
     except BusinessException as e:
         error_message = f"{e.message}，执行失败回到上一阶段修复"
@@ -633,4 +640,5 @@ tool_list = [obj for name, obj in globals().items() if isinstance(obj, BaseTool)
 tool_by_name = {tool.name: tool for tool in tool_list}
 
 # 通用 tool 排除 pm 专用方法
-common_tool_list = [t for t in tool_list if t not in [confirm_requirement_module.name, product_manager_output.name]]
+common_tool_list = [t for t in tool_list if
+                    t.name not in [confirm_requirement_module.name, product_manager_output.name]]

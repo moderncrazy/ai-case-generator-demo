@@ -8,7 +8,8 @@ from src.enums.test_case_level import TestCaseLevel
 
 
 class TestCase(BaseModel):
-    id: Optional[str] = Field(default=str(uuid.uuid4()), description="测试用例Id，默认自动生成", min_length=1)
+    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()), description="测试用例Id，默认自动生成",
+                              min_length=1)
     module_id: str = Field(description="测试用例所属模块Id", min_length=1)
     title: str = Field(description="测试用例标题", min_length=1)
     precondition: Optional[str] = Field(description="前置条件")

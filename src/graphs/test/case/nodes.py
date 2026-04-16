@@ -18,11 +18,14 @@ from src.graphs.test.case.tools import (
 from src.enums.system_prompt import SystemPrompt
 from src.enums.group_member_role import GroupMemberRole
 from src.enums.reducer_action_type import ReducerActionType
-from src.repositories.test_case_repository import test_case_repository, TestCaseUpdate
+from src.repositories.test_case_repository import test_case_repository, TestCaseBulkUpdate
 
 
 async def optimize_test_case_node(state: State, runtime: Runtime, config: RunnableConfig) -> State:
     """优化测试用例节点
+    
+    调用 LLM 根据上下文优化测试用例列表，
+    支持通过工具查询项目历史文档等信息。
     
     Args:
         state: LangGraph 状态
@@ -30,7 +33,7 @@ async def optimize_test_case_node(state: State, runtime: Runtime, config: Runnab
         config: LangGraph 运行时配置
 
     Returns:
-        更新后的状态
+        更新后的状态（包含优化后的测试用例列表）
     """
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 进入")
     writer = get_stream_writer()
@@ -56,14 +59,17 @@ async def optimize_test_case_node(state: State, runtime: Runtime, config: Runnab
 
 async def review_test_case_node(state: GroupMemberState, runtime: Runtime, config: RunnableConfig) -> State:
     """评审测试用例节点
-
+    
+    根据成员角色使用不同提示词评审测试用例，
+    评审结果包含问题列表。
+    
     Args:
-        state: LangGraph 状态
+        state: 成员评审状态（包含角色标识）
         runtime: LangGraph 运行时
         config: LangGraph 运行时配置
 
     Returns:
-        更新后的状态
+        更新后的状态（包含评审意见）
     """
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 角色:{state["role"]} 进入")
     writer = get_stream_writer()
@@ -102,17 +108,21 @@ async def review_test_case_node(state: GroupMemberState, runtime: Runtime, confi
                    ))
                ] + state["private_messages"]
     # 绑定查询方法和结构化输出方法
+    metadata = {"role": state["role"]}
     llm_with_tool = default_model.bind_tools([*common_tool_list, review_test_case_output])
     result = await main_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
                                                          review_test_case_output,
-                                                         messages_key="private_messages")
+                                                         messages_key="private_messages", metadata=metadata)
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 角色:{state["role"]} 完成")
     return result
 
 
 async def review_test_case_aggregator_node(state: State) -> State:
     """评审测试用例聚合节点
-
+    
+    汇总各角色评审意见，判断是否需要返工。
+    若评审通过，使用测试工程师最后一次优化的消息返回客户。
+    
     Args:
         state: LangGraph 状态
 
@@ -126,7 +136,7 @@ async def review_test_case_aggregator_node(state: State) -> State:
     if not state["test_case_issues"]:
         # 如果原始测试用例内容为空 则保存当前版本为原始测试用例
         if not state.get("original_test_cases"):
-            await test_case_repository.bulk_update(project_id, [TestCaseUpdate(**item) for item in state["test_cases"]])
+            await test_case_repository.bulk_update(project_id, [TestCaseBulkUpdate(**item) for item in state["test_cases"]])
             logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 创建原始测试用例入库")
         # 使用测试最后一次优化的 message 返回客户
         message = [item.content for item in reversed(state["private_messages"]) if isinstance(item, HumanMessage)][0]

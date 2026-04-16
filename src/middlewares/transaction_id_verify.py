@@ -8,6 +8,13 @@ from src.enums.error_message import ErrorMessage
 
 
 class TransactionIdVerifyMiddleware(BaseHTTPMiddleware):
+    """事务ID验证中间件
+    
+    验证请求头中是否包含事务ID（Transaction-ID）。
+    若缺少事务ID，直接返回 400 错误响应，不再继续处理请求。
+    
+    这确保了每个请求都能被追踪和关联。
+    """
 
     async def dispatch(self, request: Request, call_next):
         transaction_id = request.headers.get(TRANSACTION_ID)

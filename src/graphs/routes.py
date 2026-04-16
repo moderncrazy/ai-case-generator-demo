@@ -10,7 +10,19 @@ from src.enums.pm_next_step import PMNextStep
 
 
 def load_project_router(state: State) -> Literal["load_project_node", "understand_image_node", "product_manager_node"]:
-    """决定是否走load_project_node节点"""
+    """项目加载路由
+    
+    判断项目是否需要加载或用户是否有新上传文件：
+    - 有新文件：进入文件理解节点
+    - 无项目信息：进入项目加载节点
+    - 其他情况：直接进入产品经理节点
+    
+    Args:
+        state: LangGraph 状态
+        
+    Returns:
+        目标节点名称
+    """
     destination_node = "product_manager_node"
     if not state.get("project_name"):
         destination_node = "load_project_node"
@@ -21,7 +33,18 @@ def load_project_router(state: State) -> Literal["load_project_node", "understan
 
 
 def understand_image_router(state: State) -> Literal["understand_image_node", "product_manager_node"]:
-    """决定是否走understand_image_node节点"""
+    """图片理解路由
+    
+    判断是否还有未处理的新上传文件：
+    - 有新文件：继续处理文件
+    - 无新文件：进入产品经理节点
+    
+    Args:
+        state: LangGraph 状态
+        
+    Returns:
+        目标节点名称
+    """
     destination_node = "product_manager_node"
     if state.get("new_file_list"):
         destination_node = "understand_image_node"
@@ -35,6 +58,19 @@ def product_manager_tool_router(state: State) -> Literal[
     "test_case_node",
     END
 ]:
+    """产品经理决策路由
+    
+    根据 PM 决策决定下一步操作：
+    - 调用工具：继续查询/输出
+    - 阶段决策：进入对应子图执行
+    - 结束：返回用户
+    
+    Args:
+        state: LangGraph 状态
+        
+    Returns:
+        目标节点名称或 END
+    """
     # 如果不是最终决策则放行
     destination_node = END
     if isinstance(state["messages"][-1], AIMessage) and state["messages"][-1].tool_calls:
@@ -47,13 +83,13 @@ def product_manager_tool_router(state: State) -> Literal[
                 destination_node = "requirement_module_node"
             case PMNextStep.REQUIREMENT_OVERALL_DESIGN:
                 destination_node = "requirement_overall_node"
-            case PMNextStep.SYS_ARCHITECTURE_DESIGN:
+            case PMNextStep.SYSTEM_ARCHITECTURE_DESIGN:
                 destination_node = "system_architecture_node"
-            case PMNextStep.SYS_MODULES_DESIGN:
+            case PMNextStep.SYSTEM_MODULES_DESIGN:
                 destination_node = "system_module_node"
-            case PMNextStep.SYS_DATABASE_DESIGN:
+            case PMNextStep.SYSTEM_DATABASE_DESIGN:
                 destination_node = "system_database_node"
-            case PMNextStep.SYS_API_DESIGN:
+            case PMNextStep.SYSTEM_API_DESIGN:
                 destination_node = "system_api_node"
             case PMNextStep.TEST_CASE_DESIGN:
                 destination_node = "test_case_node"

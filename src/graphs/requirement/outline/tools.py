@@ -12,6 +12,7 @@ from src.graphs.requirement.outline import utils
 from src.graphs.schemas import StateRequirementModule
 from src.enums.reducer_action_type import ReducerActionType
 from src.enums.requirement_module_status import RequirementModuleStatus
+from src.repositories.project_repository import project_repository, ProjectUpdate
 from src.graphs.requirement.outline.schemas import RequirementModuleCreate, OptimizeRequirementOutlineOutput
 
 
@@ -23,9 +24,10 @@ async def optimize_requirement_outline_output(
         runtime: ToolRuntime
 ) -> Command:
     """输出产品优化需求大纲结果
-
-    用于在产品优化需求大纲完成后，输出结构化的结果
-
+    
+    在需求大纲优化完成后调用，输出结构化的优化结果。
+    验证模块列表合法性，保存需求大纲到数据库。
+    
     Args:
         message: 针对需求大纲优化的总结以及给客户的回复
         requirement_outline: 输出优化后需求大纲
@@ -54,6 +56,12 @@ async def optimize_requirement_outline_output(
                 "messages": [tool_call_message, ToolMessage(content=error_message, tool_call_id=tool_call_id)]},
             goto="optimize_requirement_outline_node"
         )
+    # 保存需求大纲
+    await project_repository.update(
+        runtime.state["project_id"],
+        ProjectUpdate(requirement_outline_design=requirement_outline)
+    )
+    logger.info(f"trans_id:{trans_id_ctx.get()} 子图工具:{gutils.get_func_name()} 更新需求大纲入库")
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图工具:{gutils.get_func_name()} 输出:{output.model_dump_json()}")
     return Command(update={
         "messages": [
@@ -65,7 +73,7 @@ async def optimize_requirement_outline_output(
         "requirement_modules": sorted(
             [StateRequirementModule(status=RequirementModuleStatus.PENDING, **item.model_dump())
              for item in output.requirement_modules],
-            key=lambda m: m.order
+            key=lambda m: m["order"]
         ),
     })
 

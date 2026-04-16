@@ -25,9 +25,10 @@ async def optimize_system_module_output(
         runtime: ToolRuntime
 ) -> Command:
     """输出架构优化系统模块结果
-
-    用于在架构优化系统模块完成后，输出结构化的结果
-
+    
+    在架构优化系统模块完成后调用，输出结构化的优化结果。
+    验证模块列表合法性，更新状态中的模块列表。
+    
     Args:
         message: 针对系统模块优化的总结以及给团队成员接下来review的留言
         system_modules: 输出优化后系统模块列表
@@ -61,7 +62,7 @@ async def optimize_system_module_output(
             HumanMessage(content=output.message, name="ARCHITECT")
         ],
         "review_reply_message_id": str(uuid.uuid4()),
-        "system_modules": system_modules,
+        "system_modules": [item.model_dump() for item in output.system_modules],
         "system_module_issues": ReducerActionType.RESET,
     })
 
@@ -71,10 +72,11 @@ async def review_system_module_output(
         system_module_issues: list[Issue],
         runtime: ToolRuntime
 ) -> Command:
-    """输出审查系统模块结果
-
-    用于在审查系统模块完成后，输出结构化的结果
-
+    """输出评审系统模块结果
+    
+    各角色评审完成后调用，输出结构化的评审意见。
+    根据是否发现问题设置不同的回复优先级。
+    
     Args:
         system_module_issues: 针对系统模块提出的问题和建议方案
         runtime: 包含项目状态的工具运行时对象
@@ -112,7 +114,7 @@ async def review_system_module_output(
             ToolMessage(content=output, tool_call_id=tool_call_id),
             human_message
         ],
-        "system_module_issues": output.system_module_issues,
+        "system_module_issues": [item.model_dump() for item in (output.system_module_issues or [])],
     })
 
 

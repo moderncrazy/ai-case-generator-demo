@@ -4,7 +4,7 @@ from src.constant import TRANSACTION_ID
 
 
 class ErrorMessage(Enum):
-    """错误语"""
+    """错误消息枚举"""
 
     TRANSACTION_ID_NOT_FOUND = (4001, f"{TRANSACTION_ID} not found")
     PROJECT_NOT_FOUND_ERROR = (4002, "项目不存在")

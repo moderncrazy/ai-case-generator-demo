@@ -1,3 +1,4 @@
+import orjson
 from loguru import logger
 from langgraph.runtime import Runtime
 from langgraph.config import get_stream_writer
@@ -63,6 +64,7 @@ async def load_project_node(state: State) -> State:
     writer(CustomMessage(message="项目加载中..."))
     project_id = state["project_id"]
     project = await project_repository.get_by_id(project_id)
+    requirement_module = orjson.loads(project.requirement_module_design or "[]")
     modules = await module_repository.list_by_project(project_id)
     modules = [item.to_dict() for item in modules]
     apis = await api_service.list_by_project_to_state_api(project_id)
@@ -75,8 +77,10 @@ async def load_project_node(state: State) -> State:
         "project_name": project.name,
         "project_progress": ProjectProgress(project.progress),
         "project_file_list": project_files,
-        "original_requirement": project.requirement_design,
-        "optimized_requirement": project.requirement_design,
+        "requirement_outline": project.requirement_outline_design,
+        "requirement_modules": requirement_module,
+        "original_requirement": project.requirement_overall_design,
+        "optimized_requirement": project.requirement_overall_design,
         "original_architecture": project.architecture_design,
         "optimized_architecture": project.architecture_design,
         "original_database": project.database_design,
@@ -183,53 +187,53 @@ async def product_manager_node(state: State, runtime: Runtime, config: RunnableC
             )))
         case ProjectProgress.REQUIREMENT_OUTLINE_DESIGN:
             messages.append(SystemMessage(content=SystemPrompt.PROJECT_REQUIREMENT_OUTLINE_PM.template.format(
-                requirement_outline=state["requirement_outline"],
+                requirement_outline=state.get("requirement_outline") or "（空）",
                 requirement_module=utils.format_state_requirement_modules_to_str(state.get("requirement_modules")),
                 new_files_content=new_files_content
             )))
         case ProjectProgress.REQUIREMENT_MODULE_DESIGN:
             messages.append(SystemMessage(content=SystemPrompt.PROJECT_REQUIREMENT_MODULE_PM.template.format(
-                requirement_outline=state["requirement_outline"],
+                requirement_outline=state.get("requirement_outline") or "（空）",
                 completed_module=utils.format_state_requirement_modules_to_str(
                     state.get("requirement_modules"), RequirementModuleStatus.COMPLETED),
                 pending_module=utils.format_state_requirement_modules_to_str(
                     state.get("requirement_modules"), RequirementModuleStatus.PENDING),
                 current_module=utils.format_current_state_requirement_module_to_str(
-                    state["metadata"]["module"], state.get("requirement_modules")),
+                    state.get("metadata", {}).get("module"), state.get("requirement_modules")),
                 risk=utils.format_issues_to_str(state.get("risks")),
                 unclear_point=utils.format_issues_to_str(state.get("unclear_points")),
                 new_files_content=new_files_content
             )))
         case ProjectProgress.REQUIREMENT_OVERALL_DESIGN:
             messages.append(SystemMessage(content=SystemPrompt.PROJECT_REQUIREMENT_OVERALL_PM.template.format(
-                original_requirement=state["original_requirement"],
-                optimized_requirement=state["optimized_requirement"],
+                original_requirement=state.get("original_requirement") or "（空）",
+                optimized_requirement=state.get("optimized_requirement") or "（空）",
                 risk=utils.format_issues_to_str(state.get("risks")),
                 unclear_point=utils.format_issues_to_str(state.get("unclear_points")),
                 new_files_content=new_files_content
             )))
         case ProjectProgress.SYSTEM_ARCHITECTURE_DESIGN:
-            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYS_ARCHITECTURE_PM.template.format(
-                original_architecture=state["original_architecture"],
-                optimized_architecture=state["optimized_architecture"],
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYSTEM_ARCHITECTURE_PM.template.format(
+                original_architecture=state.get("original_architecture") or "（空）",
+                optimized_architecture=state.get("optimized_architecture") or "（空）",
                 risk=utils.format_issues_to_str(state.get("risks")),
                 unclear_point=utils.format_issues_to_str(state.get("unclear_points")),
                 new_files_content=new_files_content
             )))
         case ProjectProgress.SYSTEM_MODULES_DESIGN:
-            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYS_MODULES_PM.template.format(
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYSTEM_MODULES_PM.template.format(
                 original_module=utils.format_state_modules_to_str(state.get("original_modules")),
                 optimized_module=utils.format_state_modules_to_str(state.get("optimized_modules")),
                 new_files_content=new_files_content
             )))
         case ProjectProgress.SYSTEM_DATABASE_DESIGN:
-            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYS_DATABASE_PM.template.format(
-                original_database=state["original_database"],
-                optimized_database=state["optimized_database"],
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYSTEM_DATABASE_PM.template.format(
+                original_database=state.get("original_database") or "（空）",
+                optimized_database=state.get("optimized_database") or "（空）",
                 new_files_content=new_files_content
             )))
         case ProjectProgress.SYSTEM_API_DESIGN:
-            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYS_API_PM.template.format(
+            messages.append(SystemMessage(content=SystemPrompt.PROJECT_SYSTEM_API_PM.template.format(
                 original_api=utils.format_state_apis_to_str(state.get("original_apis")),
                 optimized_api=utils.format_state_apis_to_str(state.get("optimized_apis")),
                 new_files_content=new_files_content

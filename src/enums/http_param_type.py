@@ -10,6 +10,9 @@ class HttpParamType(StrEnum):
     NUMBER = "number"
     """数值类型"""
 
+    BOOLEAN = "boolean"
+    """布尔类型"""
+
     OBJECT = "object"
     """对象类型"""
 

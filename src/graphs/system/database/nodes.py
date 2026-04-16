@@ -24,13 +24,16 @@ from src.repositories.project_repository import project_repository, ProjectUpdat
 async def optimize_system_database_node(state: State, runtime: Runtime, config: RunnableConfig) -> State:
     """优化系统数据库文档节点
     
+    调用 LLM 根据上下文优化系统数据库文档内容，
+    支持通过工具查询项目历史文档等信息。
+    
     Args:
         state: LangGraph 状态
         runtime: LangGraph 运行时
         config: LangGraph 运行时配置
 
     Returns:
-        更新后的状态
+        更新后的状态（包含优化后的数据库文档）
     """
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 进入")
     writer = get_stream_writer()
@@ -57,14 +60,17 @@ async def optimize_system_database_node(state: State, runtime: Runtime, config: 
 
 async def review_system_database_node(state: GroupMemberState, runtime: Runtime, config: RunnableConfig) -> State:
     """评审系统数据库文档节点
-
+    
+    根据成员角色使用不同提示词评审系统数据库文档，
+    评审结果包含问题列表。
+    
     Args:
-        state: LangGraph 状态
+        state: 成员评审状态（包含角色标识）
         runtime: LangGraph 运行时
         config: LangGraph 运行时配置
 
     Returns:
-        更新后的状态
+        更新后的状态（包含评审意见）
     """
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 角色:{state["role"]} 进入")
     writer = get_stream_writer()
@@ -103,17 +109,21 @@ async def review_system_database_node(state: GroupMemberState, runtime: Runtime,
                    ))
                ] + state["private_messages"]
     # 绑定查询方法和结构化输出方法
+    metadata = {"role": state["role"]}
     llm_with_tool = default_model.bind_tools([*common_tool_list, review_system_database_output])
     result = await main_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
                                                          review_system_database_output,
-                                                         messages_key="private_messages")
+                                                         messages_key="private_messages", metadata=metadata)
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 角色:{state["role"]} 完成")
     return result
 
 
 async def review_system_database_aggregator_node(state: State) -> State:
     """评审系统数据库文档聚合节点
-
+    
+    汇总各角色评审意见，判断是否需要返工。
+    若评审通过，使用 DBA 最后一次优化的消息返回客户。
+    
     Args:
         state: LangGraph 状态
 

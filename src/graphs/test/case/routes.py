@@ -7,14 +7,44 @@ from langchain.messages import AIMessage
 from src import constant as const
 from src.context import trans_id_ctx
 from src.utils import utils as gutils
-from src.graphs.test.case.state import State
 from src.enums.group_member_role import GroupMemberRole
+from src.graphs.test.case.state import State, GroupMemberState
+
+
+def review_test_case_tool_router(state: GroupMemberState) -> Literal["review_test_case_tool_node", END]:
+    """评审工具调用路由
+    
+    判断评审节点最后一条消息是否为工具调用，决定继续调用工具或结束评审。
+    
+    Args:
+        state: 组员状态
+        
+    Returns:
+        目标节点名称或 END
+    """
+    destination_node = END
+    if isinstance(state["private_messages"][-1], AIMessage) and state["private_messages"][-1].tool_calls:
+        destination_node = "review_test_case_tool_node"
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 子图路由:{gutils.get_func_name()} 角色:{state["role"]} 路由至:{destination_node}")
+    return destination_node
 
 
 def optimize_test_case_tool_router(state: State) -> Literal[
-                                                         "optimize_test_case_tool_node",
-                                                         "review_test_case_node"] | list[Send]:
-    """决定调用 tool 或 生成不同角色的项目成员评审测试用例"""
+                                                        "optimize_test_case_tool_node",
+                                                        "review_test_case_node"] | list[Send]:
+    """优化工具调用路由（并发多角色评审）
+    
+    判断优化节点最后一条消息是否为工具调用：
+    - 是：继续调用工具
+    - 否：并发生成多个角色进行评审
+    
+    Args:
+        state: 状态
+        
+    Returns:
+        工具节点名称或 Send 对象列表（并发评审）
+    """
     if isinstance(state["private_messages"][-1], AIMessage) and state["private_messages"][-1].tool_calls:
         logger.info(
             f"trans_id:{trans_id_ctx.get()} 子图路由:{gutils.get_func_name()} 路由至:optimize_test_case_tool_node")
@@ -28,20 +58,22 @@ def optimize_test_case_tool_router(state: State) -> Literal[
                  GroupMemberRole.TEST]
         logger.info(
             f"trans_id:{trans_id_ctx.get()} 子图路由:{gutils.get_func_name()} 路由至:review_test_case_node")
-        return [Send("review_test_case_node", {"role": role}) for role in roles]
-
-
-def review_test_case_tool_router(state: State) -> Literal[
-    "review_test_case_tool_node", "review_test_case_aggregator_node"]:
-    """决定是调用 tool 或 优化测试用例 或 总结测试用例问题"""
-    destination_node = "review_test_case_aggregator_node"
-    if isinstance(state["private_messages"][-1], AIMessage) and state["private_messages"][-1].tool_calls:
-        destination_node = "review_test_case_tool_node"
-    logger.info(f"trans_id:{trans_id_ctx.get()} 子图路由:{gutils.get_func_name()} 路由至:{destination_node}")
-    return destination_node
+        return [Send("review_test_case_node", {"role": role, **state}) for role in roles]
 
 
 def review_test_case_aggregator_router(state: State) -> Literal["optimize_test_case_node", END]:
+    """评审聚合路由
+    
+    根据评审发现的问题数量决定后续流程：
+    - 有问题：返回优化节点继续修改
+    - 无问题：结束子图返回主图
+    
+    Args:
+        state: 状态
+        
+    Returns:
+        目标节点名称
+    """
     destination_node = END
     if state["test_case_issues"]:
         destination_node = "optimize_test_case_node"

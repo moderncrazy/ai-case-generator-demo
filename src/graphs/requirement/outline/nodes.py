@@ -19,13 +19,16 @@ from src.services.project_file_service import project_file_service
 async def optimize_requirement_outline_node(state: State, runtime: Runtime, config: RunnableConfig) -> State:
     """优化需求大纲节点
     
+    调用 LLM 根据上下文生成需求大纲和模块划分，
+    支持通过工具查询项目历史文档等信息。
+    
     Args:
-        state: LangGraph 状态，包含
+        state: LangGraph 状态
         runtime: LangGraph 运行时
         config: LangGraph 运行时配置
 
     Returns:
-        更新后的状态
+        更新后的状态（包含生成的需求大纲和模块列表）
     """
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 进入")
     writer = get_stream_writer()

@@ -5,20 +5,62 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 from src import constant as const
 from src.graphs import tools as main_tools
-from src.graphs.requirement.overall.state import State
+from src.graphs.requirement.overall.state import State, GroupMemberState
 from src.graphs.requirement.overall import routes, nodes, tools
 
 
+def create_group_member_review_agent() -> CompiledStateGraph:
+    """创建评审子图（供多角色并发评审使用）
+    
+    该子图用于单角色评审需求文档，包含：
+    - 评审节点：根据角色使用不同提示词评审文档
+    - 工具节点：提供查询上下文等工具支持
+    
+    Returns:
+        CompiledStateGraph: 编译后的评审子图
+    """
+    agent_builder = StateGraph(GroupMemberState)
+
+    agent_builder.add_node("review_requirement_overall_node", nodes.review_requirement_overall_node)
+    agent_builder.add_node("review_requirement_overall_tool_node",
+                           ToolNode(main_tools.tool_list + tools.tool_list, messages_key="private_messages"))
+
+    agent_builder.add_edge(START, "review_requirement_overall_node")
+    agent_builder.add_conditional_edges(
+        "review_requirement_overall_node",
+        routes.review_requirement_overall_tool_router,
+        ["review_requirement_overall_tool_node", END]
+    )
+    agent_builder.add_edge("review_requirement_overall_tool_node", "review_requirement_overall_node")
+
+    agent = agent_builder.compile()
+    return agent
+
+
 def create_agent() -> CompiledStateGraph:
+    """创建完整的需求文档优化 Agent
+    
+    工作流程：优化 → 评审（多角色并发）→ 聚合 → 问题整理
+    - 优化节点：根据上下文优化需求文档内容
+    - Review 子图：团队成员分别评审
+    - 聚合节点：汇总评审结果，判断是否需要返工或进入下一阶段
+    - 问题整理节点：整理风险点和待确认问题
+    
+    Returns:
+        CompiledStateGraph: 编译后的完整 agent
+    """
     agent_builder = StateGraph(State)
 
     agent_builder.add_node("optimize_requirement_overall_node", nodes.optimize_requirement_overall_node)
     agent_builder.add_node("optimize_requirement_overall_tool_node",
                            ToolNode(main_tools.tool_list + tools.tool_list, messages_key="private_messages"))
-    agent_builder.add_node("review_requirement_overall_node", nodes.review_requirement_overall_node)
-    agent_builder.add_node("review_requirement_overall_tool_node",
-                           ToolNode(main_tools.tool_list + tools.tool_list, messages_key="private_messages"))
+
+    # review 子图
+    agent_builder.add_node("review_requirement_overall_node", create_group_member_review_agent())
+
+    # 聚合节点
     agent_builder.add_node("review_requirement_overall_aggregator_node", lambda state: state)
+
     agent_builder.add_node("optimize_requirement_overall_issue_node", nodes.optimize_requirement_overall_issue_node)
     agent_builder.add_node("optimize_requirement_overall_issue_tool_node",
                            ToolNode(main_tools.tool_list + tools.tool_list, messages_key="private_messages"))
@@ -31,12 +73,7 @@ def create_agent() -> CompiledStateGraph:
     )
     agent_builder.add_edge("optimize_requirement_overall_tool_node", "optimize_requirement_overall_node")
 
-    agent_builder.add_conditional_edges(
-        "review_requirement_overall_node",
-        routes.review_requirement_overall_tool_router,
-        ["review_requirement_overall_tool_node", "review_requirement_overall_aggregator_node"]
-    )
-    agent_builder.add_edge("review_requirement_overall_tool_node", "review_requirement_overall_node")
+    agent_builder.add_edge("review_requirement_overall_node", "review_requirement_overall_aggregator_node")
 
     agent_builder.add_conditional_edges(
         "review_requirement_overall_aggregator_node",

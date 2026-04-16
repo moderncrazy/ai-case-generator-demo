@@ -25,9 +25,10 @@ async def optimize_test_case_output(
         runtime: ToolRuntime
 ) -> Command:
     """输出测试优化测试用例结果
-
-    用于在测试优化测试用例完成后，输出结构化的结果
-
+    
+    在测试优化测试用例完成后调用，输出结构化的优化结果。
+    验证测试用例合法性，更新状态中的测试用例列表。
+    
     Args:
         message: 针对测试用例优化的总结以及给团队成员接下来review的留言
         test_cases: 输出优化后测试用例列表
@@ -61,7 +62,7 @@ async def optimize_test_case_output(
             HumanMessage(content=output.message, name="TEST")
         ],
         "review_reply_message_id": str(uuid.uuid4()),
-        "test_cases": test_cases,
+        "test_cases": [item.model_dump() for item in output.test_cases],
         "test_case_issues": ReducerActionType.RESET,
     })
 
@@ -71,10 +72,11 @@ async def review_test_case_output(
         test_case_issues: list[Issue],
         runtime: ToolRuntime
 ) -> Command:
-    """输出审查测试用例结果
-
-    用于在审查测试用例完成后，输出结构化的结果
-
+    """输出评审测试用例结果
+    
+    各角色评审完成后调用，输出结构化的评审意见。
+    根据是否发现问题设置不同的回复优先级。
+    
     Args:
         test_case_issues: 针对测试用例提出的问题和建议方案
         runtime: 包含项目状态的工具运行时对象
@@ -106,7 +108,7 @@ async def review_test_case_output(
             ToolMessage(content=output, tool_call_id=tool_call_id),
             *human_messages
         ],
-        "test_case_issues": output.test_case_issues,
+        "test_case_issues": [item.model_dump() for item in (output.test_case_issues or [])],
     })
 
 

@@ -27,13 +27,13 @@
 | requirement_outline_design | 需求大纲修改 | 写给产品的话 | 默认为空 |
 | requirement_module_design | 需求模块调整 | 写给产品的话 | 必须包含 `{"module": "{module_name}"}` |
 | requirement_overall_design | 需求文档完善 | 写给产品的话 | 默认为空 |
-| sys_architecture_design | 架构调整 | 写给架构的话 | 默认为空 |
-| sys_modules_design | 系统模块调整 | 写给架构的话 | 默认为空 |
-| sys_database_design | 进入数据库设计阶段 | 写给数据库专家的话 | 默认为空 |
+| system_architecture_design | 架构调整 | 写给架构的话 | 默认为空 |
+| system_modules_design | 系统模块调整 | 写给架构的话 | 默认为空 |
+| system_database_design | 进入数据库设计阶段 | 写给数据库专家的话 | 默认为空 |
 
-## 进入 sys_database_design 的硬性条件
+## 进入 system_database_design 的硬性条件
 
-**必须满足以下全部条件才能进入 sys_database_design：**
+**必须满足以下全部条件才能进入 system_database_design：**
 
 | 序号 | 条件 | 说明 |
 |-----|------|------|
@@ -65,7 +65,7 @@ PM必须整理完整的上下文信息：
 2. **征询意见**：询问客户对模块设计的看法
 3. **推动流程**：确认无误后推动进入下一阶段
 
-### 不满足 sys_database_design 进入条件的处理
+### 不满足 system_database_design 进入条件的处理
 
 #### 情况1：有需求大纲需要修改
 - 调用 `requirement_outline_design`
@@ -77,10 +77,10 @@ PM必须整理完整的上下文信息：
 - 调用 `requirement_overall_design`
 
 #### 情况4：架构需要调整
-- 调用 `sys_architecture_design`
+- 调用 `system_architecture_design`
 
 #### 情况5：系统模块需要调整
-- 调用 `sys_modules_design`
+- 调用 `system_modules_design`
 
 ### 交互示例
 
@@ -91,10 +91,10 @@ PM必须整理完整的上下文信息：
 `product_manager_output(output={"next_step": "requirement_module_design", "message": "客户认为【支付模块】的业务流程需要调整，请产品修改该模块内容。", "metadata": {"module": "支付模块"}})`
 
 **场景3：系统模块需要调整**
-`product_manager_output(output={"next_step": "sys_modules_design", "message": "客户确认将订单模块拆分为下单模块和支付模块，请架构重新设计系统模块。", "metadata": {}})`
+`product_manager_output(output={"next_step": "system_modules_design", "message": "客户确认将订单模块拆分为下单模块和支付模块，请架构重新设计系统模块。", "metadata": {}})`
 
 **场景4：所有条件满足，进入数据库设计**
-`product_manager_output(output={"next_step": "sys_database_design", "message": "系统模块设计已完善，现在进入数据库设计阶段。", "metadata": {}})`
+`product_manager_output(output={"next_step": "system_database_design", "message": "系统模块设计已完善，现在进入数据库设计阶段。", "metadata": {}})`
 
 ## 输入信息
 

@@ -6,7 +6,10 @@ from src.graphs.reduce import priority_message_reducer
 
 
 class State(BaseState):
-    """LangGraph 工作流状态定义"""
+    """需求大纲子图状态定义
+    
+    继承主图状态，添加私聊消息字段用于子图内部通信。
+    """
 
     private_messages: Annotated[list[AnyMessage], priority_message_reducer]
-    """用于子图私聊"""
+    """子图内部私聊消息（不暴露给主图）"""

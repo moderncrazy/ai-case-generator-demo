@@ -1,3 +1,5 @@
+import traceback
+
 from loguru import logger
 from langgraph.runtime import Runtime
 from langchain.messages import SystemMessage
@@ -24,13 +26,16 @@ from src.enums.requirement_module_status import RequirementModuleStatus
 async def optimize_requirement_module_node(state: State, runtime: Runtime, config: RunnableConfig) -> State:
     """优化需求模块节点
     
+    调用 LLM 根据上下文优化当前需求模块内容，
+    支持通过工具查询项目历史文档等信息。
+    
     Args:
         state: LangGraph 状态
         runtime: LangGraph 运行时
         config: LangGraph 运行时配置
 
     Returns:
-        更新后的状态
+        更新后的状态（包含优化后的模块内容）
     """
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 进入")
     writer = get_stream_writer()
@@ -38,7 +43,7 @@ async def optimize_requirement_module_node(state: State, runtime: Runtime, confi
     module_name = state["metadata"]["module"]
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 模块:{module_name}")
     # 发送自定义消息
-    writer(CustomMessage(message=f"产品优化{module_name}模块中..."))
+    writer(CustomMessage(message=f"产品优化{module_name}中..."))
     messages = [
                    SystemMessage(content=SystemPrompt.OPTIMIZED_REQUIREMENT_MODULE.template.format(
                        requirement_outline=state.get("requirement_outline") or "（空）",
@@ -60,16 +65,22 @@ async def optimize_requirement_module_node(state: State, runtime: Runtime, confi
 
 async def review_requirement_module_node(state: GroupMemberState, runtime: Runtime, config: RunnableConfig) -> State:
     """评审需求模块节点
-
+    
+    根据成员角色使用不同提示词评审需求模块，
+    评审结果包含问题列表、风险点和不明确点。
+    
     Args:
-        state: LangGraph 状态
+        state: 成员评审状态（包含角色标识）
         runtime: LangGraph 运行时
         config: LangGraph 运行时配置
 
     Returns:
-        更新后的状态
+        更新后的状态（包含评审意见）
     """
-    logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 角色:{state["role"]} 进入")
+    try:
+        logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 角色:{state["role"]} 进入")
+    except Exception as e:
+        logger.error(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 角色:{state["role"]} 进入")
     writer = get_stream_writer()
     project_id = state["project_id"]
     module_name = state["metadata"]["module"]
@@ -113,24 +124,35 @@ async def review_requirement_module_node(state: GroupMemberState, runtime: Runti
                    ))
                ] + state["private_messages"]
     # 绑定查询方法和结构化输出方法
+    metadata = {"role": state["role"]}
     llm_with_tool = default_model.bind_tools([*common_tool_list, review_requirement_module_output])
-    result = await main_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
-                                                         review_requirement_module_output,
-                                                         messages_key="private_messages")
+    try:
+        result = await main_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
+                                                             review_requirement_module_output,
+                                                             messages_key="private_messages", metadata=metadata)
+    except Exception as e:
+        # 如果异常则跳过这个review 避免影响整个流程
+        result = state
+        logger.error(
+            f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 角色:{state["role"]} 异常:{str(e)}\n异常栈:{traceback.format_exc()}")
+
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 角色:{state["role"]} 完成")
     return result
 
 
 async def optimize_requirement_module_issue_node(state: State, runtime: Runtime, config: RunnableConfig) -> State:
-    """优化需求模块问题节点
-
+    """整理需求模块问题节点
+    
+    收集汇总各角色评审意见，整理出风险点和不明确点，
+    最终将优化后的需求模块内容保存到数据库。
+    
     Args:
         state: LangGraph 状态
         runtime: LangGraph 运行时
         config: LangGraph 运行时配置
 
     Returns:
-        更新后的状态
+        更新后的状态（包含最终风险点和不明确点）
     """
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 进入")
     writer = get_stream_writer()

@@ -27,10 +27,10 @@
 | requirement_outline_design | 需求大纲变更 | 写给产品的话 | 默认为空 |
 | requirement_module_design | 需求模块变更 | 写给产品的话 | 必须包含 `{"module": "{module_name}"}` |
 | requirement_overall_design | 需求文档变更 | 写给产品的话 | 默认为空 |
-| sys_architecture_design | 架构变更 | 写给架构的话 | 默认为空 |
-| sys_modules_design | 系统模块变更 | 写给架构的话 | 默认为空 |
-| sys_database_design | 数据库设计变更 | 写给数据库专家的话 | 默认为空 |
-| sys_api_design | 接口设计变更 | 写给后端开发的话 | 默认为空 |
+| system_architecture_design | 架构变更 | 写给架构的话 | 默认为空 |
+| system_modules_design | 系统模块变更 | 写给架构的话 | 默认为空 |
+| system_database_design | 数据库设计变更 | 写给数据库专家的话 | 默认为空 |
+| system_api_design | 接口设计变更 | 写给后端开发的话 | 默认为空 |
 | test_case_design | 测试用例变更 | 写给测试工程师的话 | 默认为空 |
 | monitoring_change | 变更完成/继续监控 | 写给客户的话 | 默认为空 |
 
@@ -77,16 +77,16 @@ PM必须整理完整的上下文信息：
 - 调用 `requirement_overall_design`
 
 #### 情况5：有架构变更
-- 调用 `sys_architecture_design`
+- 调用 `system_architecture_design`
 
 #### 情况6：有系统模块变更
-- 调用 `sys_modules_design`
+- 调用 `system_modules_design`
 
 #### 情况7：有数据库设计变更
-- 调用 `sys_database_design`
+- 调用 `system_database_design`
 
 #### 情况8：有接口设计变更
-- 调用 `sys_api_design`
+- 调用 `system_api_design`
 
 #### 情况9：有测试用例变更
 - 调用 `test_case_design`
@@ -97,7 +97,7 @@ PM必须整理完整的上下文信息：
 `product_manager_output(output={"next_step": "monitoring_change", "message": "感谢您的信任，项目已进入持续监控阶段。如有任何需求变更或新的想法，请随时告知，我会协调团队及时响应。", "metadata": {}})`
 
 **场景2：客户提出接口变更**
-`product_manager_output(output={"next_step": "sys_api_design", "message": "客户确认需要在用户模块增加第三方登录接口，请后端开发评估并修改接口设计。", "metadata": {}})`
+`product_manager_output(output={"next_step": "system_api_design", "message": "客户确认需要在用户模块增加第三方登录接口，请后端开发评估并修改接口设计。", "metadata": {}})`
 
 **场景3：客户提出多项变更**
 `product_manager_output(output={"next_step": "requirement_module_design", "message": "客户确认增加商品推荐模块，并修改现有用户模块的积分规则。请先调整需求模块设计。", "metadata": {"module": "用户模块"}})`

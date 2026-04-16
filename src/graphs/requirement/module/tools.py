@@ -16,6 +16,7 @@ from src.graphs.requirement.module.schemas import (
     ReviewRequirementModuleOutput,
     OptimizeRequirementModuleIssueOutput
 )
+from src.repositories.project_repository import project_repository, ProjectUpdate
 
 
 @tool(args_schema=OptimizeRequirementModuleOutput)
@@ -27,9 +28,10 @@ async def optimize_requirement_module_output(
         runtime: ToolRuntime
 ) -> Command:
     """输出产品优化需求模块结果
-
-    用于在产品优化需求模块完成后，输出结构化的结果
-
+    
+    在产品优化需求模块完成后调用，输出结构化的优化结果。
+    更新状态中的模块内容，并清空之前的问题记录，为评审做准备。
+    
     Args:
         message: 针对需求模块优化的总结以及给团队成员接下来review的留言
         requirement_module_content: 输出优化后需求模块内容
@@ -59,8 +61,8 @@ async def optimize_requirement_module_output(
         "review_reply_message_id": str(uuid.uuid4()),
         "requirement_module_content": requirement_module_content,
         "requirement_module_issues": ReducerActionType.RESET,
-        "risks": output.risks,
-        "unclear_points": output.unclear_points,
+        "risks": [item.model_dump() for item in (output.risks or [])],
+        "unclear_points": [item.model_dump() for item in (output.unclear_points or [])],
     })
 
 
@@ -71,10 +73,11 @@ async def review_requirement_module_output(
         unclear_points: list[Issue],
         runtime: ToolRuntime
 ) -> Command:
-    """输出审查需求模块结果
-
-    用于在审查需求模块完成后，输出结构化的结果
-
+    """输出评审需求模块结果
+    
+    各角色评审完成后调用，输出结构化的评审意见。
+    根据是否发现问题设置不同的回复优先级。
+    
     Args:
         requirement_module_issues: 针对需求模块提出的问题和建议方案
         risks: 给客户提出的风险和建议方案
@@ -108,17 +111,21 @@ async def review_requirement_module_output(
             content="需求文档评审通过，请整理风险和不确定的问题点反馈给客户。",
             additional_kwargs={"priority": 0}
         )
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 子图工具:{gutils.get_func_name()} 角色:{runtime.state["role"]} 输出:{output.model_dump_json()}")
+    try:
+        logger.info(
+            f"trans_id:{trans_id_ctx.get()} 子图工具:{gutils.get_func_name()} 角色:{runtime.state["role"]} 输出:{output.model_dump_json()}")
+    except Exception as e:
+        logger.error(
+            f"trans_id:{trans_id_ctx.get()} 子图工具:{gutils.get_func_name()} 输出:{output.model_dump_json()}")
     return Command(update={
         "private_messages": [
             tool_call_message,
             ToolMessage(content=output, tool_call_id=tool_call_id),
             human_message
         ],
-        "requirement_module_issues": output.requirement_module_issues,
-        "risks": output.risks,
-        "unclear_points": output.unclear_points,
+        "requirement_module_issues": [item.model_dump() for item in (output.requirement_module_issues or [])],
+        "risks": [item.model_dump() for item in (output.risks or [])],
+        "unclear_points": [item.model_dump() for item in (output.unclear_points or [])],
     })
 
 
@@ -129,10 +136,11 @@ async def optimize_requirement_module_issue_output(
         unclear_points: list[Issue],
         runtime: ToolRuntime
 ) -> Command:
-    """输出产品优化需求模块问题结果
-
-    用于在产品优化需求模块问题后，输出结构化的结果
-
+    """整理输出需求模块问题结果
+    
+    评审完成后汇总问题，输出结构化的风险点和不明确点，
+    并将最终需求模块内容保存到数据库。
+    
     Args:
         message: 给客户的会话
         risks: 给客户提出的风险和建议方案
@@ -140,7 +148,7 @@ async def optimize_requirement_module_issue_output(
         runtime: 包含项目状态的工具运行时对象
 
     Returns:
-        Command 更新项目状态
+        Command 更新项目状态并保存到数据库
     """
     tool_call_id = runtime.tool_call_id
     tool_name = gutils.get_func_name()
@@ -154,6 +162,12 @@ async def optimize_requirement_module_issue_output(
     module_name = runtime.state["metadata"]["module"]
     module_content = runtime.state["requirement_module_content"]
     utils.update_module_content_by_name(module_name, module_content, runtime.state["requirement_modules"])
+    # 保存需求模块
+    await project_repository.update(
+        runtime.state["project_id"],
+        ProjectUpdate(requirement_module_design=gutils.to_json(runtime.state["requirement_modules"]))
+    )
+    logger.info(f"trans_id:{trans_id_ctx.get()} 子图工具:{gutils.get_func_name()} 更新需求模块入库")
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图工具:{gutils.get_func_name()} 输出:{output.model_dump_json()}")
     return Command(update={
         "private_messages": ReducerActionType.RESET,
@@ -161,8 +175,8 @@ async def optimize_requirement_module_issue_output(
             AIMessage(content=output.message, name="PRODUCT")
         ],
         "requirement_modules": runtime.state["requirement_modules"],
-        "risks": output.risks,
-        "unclear_points": output.unclear_points,
+        "risks": [item.model_dump() for item in (output.risks or [])],
+        "unclear_points": [item.model_dump() for item in (output.unclear_points or [])],
     })
 
 

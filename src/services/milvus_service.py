@@ -14,7 +14,10 @@ from src.context import trans_id_ctx
 
 
 class ProjectFileSearchResult(BaseModel):
-    """项目文件搜索结果"""
+    """项目文件搜索结果
+    
+    包含文件 ID、相似度距离、项目 ID、文件信息等。
+    """
     id: int = Field(description="搜索结果ID")
     distance: float = Field(description="与查询向量的距离/相似度")
     project_id: str = Field(description="所属项目ID")
@@ -28,7 +31,10 @@ class ProjectFileSearchResult(BaseModel):
 
 
 class ProjectContextSearchResult(BaseModel):
-    """项目上下文搜索结果"""
+    """项目上下文搜索结果
+    
+    包含对话上下文 ID、相似度距离、项目 ID、内容等。
+    """
     id: int = Field(description="搜索结果ID")
     distance: float = Field(description="与查询向量的距离/相似度")
     project_id: str = Field(description="所属项目ID")
@@ -38,12 +44,15 @@ class ProjectContextSearchResult(BaseModel):
 
 
 class BGE3ONNXModel:
-    """BGE-M3 ONNX INT8 量化模型封装"""
+    """BGE-M3 ONNX INT8 量化模型封装
+    
+    使用 BGE-M3 模型生成稠密和稀疏向量，
+    支持 ONNX 推理加速和 INT8 量化。
+    """
 
     def __init__(self, model_name: str, local_path: Path | None = None):
-        """
-        初始化 ONNX 模型
-
+        """初始化 ONNX 模型
+        
         Args:
             model_name: HuggingFace 模型名称
             local_path: 本地模型路径（优先使用）
@@ -65,7 +74,7 @@ class BGE3ONNXModel:
             cache_dir=str(self.local_path)
         )
 
-        # 加载 ONNX 模型（指定非标准文件名）
+        # 加载 ONNX 模型
         self.model = ORTModelForCustomTasks.from_pretrained(
             self.model_name,
             file_name="model_quantized.onnx",
@@ -74,13 +83,12 @@ class BGE3ONNXModel:
         logger.info(f"{self.model_name} 模型加载完成")
 
     def encode(self, texts: list[str], batch_size: int = 8) -> dict[str, Any]:
-        """
-        生成文本的稠密和稀疏向量
-
+        """生成文本的稠密和稀疏向量
+        
         Args:
             texts: 文本列表
             batch_size: 批处理大小
-
+            
         Returns:
             {"dense": [[...], ...], "sparse": [{token_id: weight, ...}, ...]}
         """
@@ -110,7 +118,7 @@ class BGE3ONNXModel:
             for j in range(len(batch_texts)):
                 dense_embeddings.append(dense_vecs[j].tolist())
 
-            # 获取稀疏向量（从 sparse_vecs 转换）
+            # 获取稀疏向量
             # sparse_vecs.shape=(batch, seq_len, 1)
             # input_ids.shape=(batch, seq_len)
             sparse_vecs = outputs.sparse_vecs
@@ -139,7 +147,12 @@ class BGE3ONNXModel:
 
 
 class MilvusService:
-    """Milvus-lite 混合搜索服务（BGE-M3 INT8 量化）"""
+    """Milvus-lite 混合搜索服务
+    
+    使用 BGE-M3 INT8 量化模型进行混合检索，
+    支持稠密向量和稀疏向量的加权搜索。
+    提供项目文件和对话上下文的向量存储和检索功能。
+    """
 
     def __init__(self):
         """初始化 Milvus 服务"""
@@ -147,7 +160,10 @@ class MilvusService:
         self._embedding_fn: BGE3ONNXModel | None = None
 
     async def initialize(self) -> None:
-        """初始化数据库"""
+        """初始化数据库
+        
+        初始化 Milvus 客户端、嵌入模型和 Collection。
+        """
         self._init_database()
         await self._init_collections()
 
@@ -160,7 +176,7 @@ class MilvusService:
         self._client = AsyncMilvusClient(uri=str(settings.milvus_database_path))
         logger.info(f"Milvus 客户端初始化完成，数据库路径:{settings.milvus_database_path}")
 
-        # 初始化 BGE-M3 INT8 量化模型（优先使用本地路径）
+        # 初始化 BGE-M3 INT8 量化模型
         self._embedding_fn = BGE3ONNXModel(
             model_name=settings.embedding_model_name,
             local_path=settings.embedding_model_local_path
@@ -168,7 +184,11 @@ class MilvusService:
         logger.info(f"{settings.embedding_model_name} 量化模型初始化完成")
 
     async def _init_collections(self) -> None:
-        """初始化两个 Collection"""
+        """初始化两个 Collection
+        
+        创建 project_file 和 project_context 两个 Collection，
+        用于存储文件向量和对话上下文向量。
+        """
         # project_file Collection
         if not await self._client.has_collection(settings.milvus_project_file_collection_name):
             schema = self._client.create_schema(auto_id=True, enable_dynamic_field=False)
@@ -225,14 +245,16 @@ class MilvusService:
             logger.info(f"Collection:{settings.milvus_project_context_collection_name} 已存在")
 
     def _embed_texts(self, texts: list[str]) -> dict[str, Any]:
-        """
-        使用 BGE-M3 ONNX 生成稠密和稀疏向量
-
+        """使用 BGE-M3 ONNX 生成稠密和稀疏向量
+        
         Args:
             texts: 文本列表
-
+            
         Returns:
             {"dense": [[...]], "sparse": [{token_id: weight}, ...]}
+            
+        Raises:
+            RuntimeError: 服务未正确初始化
         """
         if self._embedding_fn is None:
             raise RuntimeError("MilvusService 未正确初始化")
@@ -249,19 +271,18 @@ class MilvusService:
             summary: str,
             metadata: dict[str, Any] | None = None
     ) -> int:
-        """
-        添加项目文件到 project_file Collection
-
+        """添加项目文件到向量数据库
+        
         Args:
             sql_db_id: 业务数据库 ID
             project_id: 项目 ID
             name: 文件名
             path: 文件路径
-            type: 文件类型/扩展名
+            type: 文件类型
             content: 文件内容
             summary: 文件摘要
             metadata: 额外元数据
-
+            
         Returns:
             插入的实体 ID
         """
@@ -298,14 +319,13 @@ class MilvusService:
             content: str,
             metadata: dict[str, Any] | None = None
     ) -> int:
-        """
-        添加对话上下文到 project_context Collection（存储总结后的内容）
-
+        """添加对话上下文到向量数据库
+        
         Args:
             project_id: 项目 ID
             content: 总结后的对话内容
             metadata: 额外元数据
-
+            
         Returns:
             插入的实体 ID
         """
@@ -337,14 +357,15 @@ class MilvusService:
             project_id: str | None = None,
             limit: int = 5
     ) -> list[ProjectFileSearchResult]:
-        """
-        混合搜索项目文件
-
+        """混合搜索项目文件
+        
+        使用稠密和稀疏向量进行混合检索。
+        
         Args:
             query: 查询文本
             project_id: 可选，按项目 ID 过滤
             limit: 返回数量
-
+            
         Returns:
             搜索结果列表
         """
@@ -407,14 +428,13 @@ class MilvusService:
             query: str,
             limit: int = 5
     ) -> list[ProjectContextSearchResult]:
-        """
-        混合搜索项目对话历史
-
+        """混合搜索项目对话历史
+        
         Args:
             project_id: 项目 ID（必填）
             query: 查询文本
             limit: 返回数量
-
+            
         Returns:
             搜索结果列表
         """
@@ -464,13 +484,11 @@ class MilvusService:
         return formatted
 
     async def delete_project_file(self, sql_db_id: str) -> None:
-        """
-        删除项目的所有数据（文件 + 上下文）
-
+        """删除项目文件向量数据
+        
         Args:
             sql_db_id: 业务数据库 ID
         """
-        # 删除项目文件
         await self._client.delete(
             collection_name=settings.milvus_project_file_collection_name,
             filter=f'sql_db_id == "{sql_db_id}"'
@@ -479,9 +497,10 @@ class MilvusService:
             f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 文件Id:{sql_db_id} 删除项目文件向量数据")
 
     async def delete_project(self, project_id: str) -> None:
-        """
-        删除项目的所有数据（文件 + 上下文）
-
+        """删除项目的所有向量数据
+        
+        删除项目文件和对话上下文的所有向量数据。
+        
         Args:
             project_id: 项目 ID
         """

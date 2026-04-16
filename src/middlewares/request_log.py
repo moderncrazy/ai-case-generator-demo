@@ -7,6 +7,18 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 
 class RequestLogMiddleware(BaseHTTPMiddleware):
+    """请求日志中间件
+    
+    记录每个 HTTP 请求的详细信息，包括：
+    - 请求方法、路径、查询参数
+    - 事务ID（Transaction-ID）
+    - 响应状态码和响应时间
+    
+    日志级别根据响应状态码划分：
+    - 5xx：ERROR 级别
+    - 4xx：WARNING 级别
+    - 2xx：INFO 级别
+    """
 
     async def dispatch(self, request: Request, call_next):
         start_time = time.perf_counter()

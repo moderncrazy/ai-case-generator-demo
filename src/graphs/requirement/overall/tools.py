@@ -26,9 +26,10 @@ async def optimize_requirement_overall_output(
         runtime: ToolRuntime
 ) -> Command:
     """输出产品优化需求文档结果
-
-    用于在产品优化需求文档完成后，输出结构化的结果
-
+    
+    在产品优化需求文档完成后调用，输出结构化的优化结果。
+    更新状态中的文档内容，并清空之前的问题记录，为评审做准备。
+    
     Args:
         message: 针对需求文档优化的总结以及给团队成员接下来review的留言
         requirement_overall_content: 输出优化后需求文档内容
@@ -58,8 +59,8 @@ async def optimize_requirement_overall_output(
         "review_reply_message_id": str(uuid.uuid4()),
         "requirement_overall_content": output.requirement_overall_content,
         "requirement_issues": ReducerActionType.RESET,
-        "risks": output.risks,
-        "unclear_points": output.unclear_points,
+        "risks": [item.model_dump() for item in (output.risks or [])],
+        "unclear_points": [item.model_dump() for item in (output.unclear_points or [])],
     })
 
 
@@ -70,10 +71,11 @@ async def review_requirement_overall_output(
         unclear_points: list[Issue],
         runtime: ToolRuntime
 ) -> Command:
-    """输出审查需求文档结果
-
-    用于在审查需求文档完成后，输出结构化的结果
-
+    """输出评审需求文档结果
+    
+    各角色评审完成后调用，输出结构化的评审意见。
+    根据是否发现问题设置不同的回复优先级。
+    
     Args:
         requirement_overall_issues: 针对需求文档提出的问题和建议方案
         risks: 给客户提出的风险和建议方案
@@ -115,9 +117,9 @@ async def review_requirement_overall_output(
             ToolMessage(content=output, tool_call_id=tool_call_id),
             human_message
         ],
-        "requirement_overall_issues": output.requirement_overall_issues,
-        "risks": output.risks,
-        "unclear_points": output.unclear_points,
+        "requirement_overall_issues": [item.model_dump() for item in (output.requirement_overall_issues or [])],
+        "risks": [item.model_dump() for item in (output.risks or [])],
+        "unclear_points": [item.model_dump() for item in (output.unclear_points or [])],
     })
 
 
@@ -128,10 +130,11 @@ async def optimize_requirement_overall_issue_output(
         unclear_points: list[Issue],
         runtime: ToolRuntime
 ) -> Command:
-    """输出产品优化需求文档问题结果
-
-    用于在产品优化需求文档问题后，输出结构化的结果
-
+    """整理输出需求文档问题结果
+    
+    评审完成后汇总问题，输出结构化的风险点和不明确点，
+    并将最终需求文档保存到数据库。
+    
     Args:
         message: 给客户的会话
         risks: 给客户提出的风险和建议方案
@@ -139,7 +142,7 @@ async def optimize_requirement_overall_issue_output(
         runtime: 包含项目状态的工具运行时对象
 
     Returns:
-        Command 更新项目状态
+        Command 更新项目状态并保存到数据库
     """
     tool_call_id = runtime.tool_call_id
     tool_name = gutils.get_func_name()
@@ -153,7 +156,7 @@ async def optimize_requirement_overall_issue_output(
     if not runtime.state.get("original_requirement"):
         await project_repository.update(
             runtime.state["project_id"],
-            ProjectUpdate(requirement_design=runtime.state["requirement_overall_content"])
+            ProjectUpdate(requirement_overall_design=runtime.state["requirement_overall_content"])
         )
         logger.info(f"trans_id:{trans_id_ctx.get()} 子图工具:{gutils.get_func_name()} 创建原始需求入库")
     logger.info(f"trans_id:{trans_id_ctx.get()} 子图工具:{gutils.get_func_name()} 输出:{output.model_dump_json()}")
@@ -165,8 +168,8 @@ async def optimize_requirement_overall_issue_output(
         "original_requirement": runtime.state.get("original_requirement")
                                 or runtime.state["requirement_overall_content"],
         "optimized_requirement": runtime.state["requirement_overall_content"],
-        "risks": output.risks,
-        "unclear_points": output.unclear_points,
+        "risks": [item.model_dump() for item in (output.risks or [])],
+        "unclear_points": [item.model_dump() for item in (output.unclear_points or [])],
     })
 
 

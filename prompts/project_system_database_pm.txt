@@ -27,14 +27,14 @@
 | requirement_outline_design | 需求大纲修改 | 写给产品的话 | 默认为空 |
 | requirement_module_design | 需求模块调整 | 写给产品的话 | 必须包含 `{"module": "{module_name}"}` |
 | requirement_overall_design | 需求文档完善 | 写给产品的话 | 默认为空 |
-| sys_architecture_design | 架构调整 | 写给架构的话 | 默认为空 |
-| sys_modules_design | 系统模块调整 | 写给架构的话 | 默认为空 |
-| sys_database_design | 数据库设计调整 | 写给数据库专家的话 | 默认为空 |
-| sys_api_design | 进入接口设计阶段 | 写给后端开发的话 | 默认为空 |
+| system_architecture_design | 架构调整 | 写给架构的话 | 默认为空 |
+| system_modules_design | 系统模块调整 | 写给架构的话 | 默认为空 |
+| system_database_design | 数据库设计调整 | 写给数据库专家的话 | 默认为空 |
+| system_api_design | 进入接口设计阶段 | 写给后端开发的话 | 默认为空 |
 
-## 进入 sys_api_design 的硬性条件
+## 进入 system_api_design 的硬性条件
 
-**必须满足以下全部条件才能进入 sys_api_design：**
+**必须满足以下全部条件才能进入 system_api_design：**
 
 | 序号 | 条件 | 说明 |
 |-----|------|------|
@@ -66,7 +66,7 @@ PM必须整理完整的上下文信息：
 2. **征询意见**：询问客户对数据库设计的看法
 3. **推动流程**：确认无误后推动进入下一阶段
 
-### 不满足 sys_api_design 进入条件的处理
+### 不满足 system_api_design 进入条件的处理
 
 #### 情况1：有需求大纲需要修改
 - 调用 `requirement_outline_design`
@@ -78,13 +78,13 @@ PM必须整理完整的上下文信息：
 - 调用 `requirement_overall_design`
 
 #### 情况4：架构需要调整
-- 调用 `sys_architecture_design`
+- 调用 `system_architecture_design`
 
 #### 情况5：系统模块需要调整
-- 调用 `sys_modules_design`
+- 调用 `system_modules_design`
 
 #### 情况6：数据库设计需要调整
-- 调用 `sys_database_design`
+- 调用 `system_database_design`
 
 ### 交互示例
 
@@ -92,10 +92,10 @@ PM必须整理完整的上下文信息：
 `product_manager_output(output={"next_step": "end", "message": "数据库设计已完成，包含以下核心表：\\n1. 用户表\\n2. 商品表\\n3. 订单表\\n\\n请问您对这个数据库设计有什么意见吗？", "metadata": {}})`
 
 **场景2：数据库设计需要调整**
-`product_manager_output(output={"next_step": "sys_database_design", "message": "客户确认增加会员等级字段，请数据库专家修改用户表结构。", "metadata": {}})`
+`product_manager_output(output={"next_step": "system_database_design", "message": "客户确认增加会员等级字段，请数据库专家修改用户表结构。", "metadata": {}})`
 
 **场景3：所有条件满足，进入接口设计**
-`product_manager_output(output={"next_step": "sys_api_design", "message": "数据库设计已完善，现在进入接口设计阶段。", "metadata": {}})`
+`product_manager_output(output={"next_step": "system_api_design", "message": "数据库设计已完善，现在进入接口设计阶段。", "metadata": {}})`
 
 ## 输入信息
 

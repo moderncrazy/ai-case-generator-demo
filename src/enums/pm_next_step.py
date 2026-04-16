@@ -16,16 +16,16 @@ class PMNextStep(StrEnum):
     REQUIREMENT_OVERALL_DESIGN = "requirement_overall_design"
     """需求总体（PRD）设计"""
 
-    SYS_ARCHITECTURE_DESIGN = "sys_architecture_design"
-    """系统架构设计设计"""
+    SYSTEM_ARCHITECTURE_DESIGN = "system_architecture_design"
+    """系统架构设计"""
 
-    SYS_MODULES_DESIGN = "sys_modules_design"
+    SYSTEM_MODULES_DESIGN = "system_modules_design"
     """系统模块设计"""
 
-    SYS_DATABASE_DESIGN = "sys_database_design"
+    SYSTEM_DATABASE_DESIGN = "system_database_design"
     """系统数据库设计"""
 
-    SYS_API_DESIGN = "sys_api_design"
+    SYSTEM_API_DESIGN = "system_api_design"
     """系统接口设计"""
 
     TEST_CASE_DESIGN = "test_case_design"

@@ -40,15 +40,15 @@ class Settings(BaseSettings):
     minimax_api_host: str = Field(default="https://api.minimaxi.com/anthropic", description="Minimax API Host")
     minimax_mcp_host: str = Field(default="https://api.minimaxi.com", description="Minimax MCP Host")
     minimax_max_tokens: int = Field(default=16384, description="Minimax Max Tokens")
-    minimax_temperature: float = Field(default=1, description="Minimax Temperature")
+    minimax_temperature: float = Field(default=0.4, description="Minimax Temperature")
 
     ollama_model: str = Field(default="qwen3.5:9b-q8_0", description="Ollama Model")
     ollama_api_host: str = Field(default="http://localhost:11434", description="Ollama API Host")
     ollama_max_tokens: int = Field(default=16384, description="Ollama Max Tokens")
     ollama_temperature: float = Field(default=0.3, description="Ollama Temperature")
 
-    model_output_retry: int = Field(default=3, description="Model Output Retry")
-    model_structured_output_retry: int = Field(default=3, description="Model Structured Output Retry")
+    model_output_retry: int = Field(default=5, description="Model Output Retry")
+    model_structured_output_retry: int = Field(default=5, description="Model Structured Output Retry")
 
     # Database
     milvus_project_file_collection_name: str = Field(

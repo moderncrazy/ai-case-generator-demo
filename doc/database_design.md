@@ -27,7 +27,9 @@ erDiagram
         string id PK
         string name UK
         string description
-        string requirement_design
+        string requirement_outline_design
+        string requirement_module_design
+        string requirement_overall_design
         string architecture_design
         string database_design
         string progress
@@ -118,18 +120,20 @@ erDiagram
 
 ### 1. 项目表 (project)
 
-| 字段                  | 类型       | 约束                        | 说明                            |
-|---------------------|----------|---------------------------|-------------------------------|
-| id                  | TEXT     | PRIMARY KEY               | UUID                          |
-| name                | TEXT     | NOT NULL, UNIQUE          | 项目名称（唯一）                      |
-| description         | TEXT     |                           | 项目描述                          |
-| requirement_design  | TEXT     |                           | 需求设计内容                        |
-| architecture_design | TEXT     |                           | 架构设计内容                        |
-| database_design     | TEXT     |                           | 数据库设计内容                       |
-| progress            | TEXT     | DEFAULT 'init'            | 项目进度                          |
-| creator_type        | TEXT     | DEFAULT 'user'            | 创建者类型: system 系统创建, user 用户创建 |
-| created_at          | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间                          |
-| updated_at          | DATETIME |                           | 更新时间                          |
+| 字段                         | 类型       | 约束                        | 说明                            |
+|----------------------------|----------|---------------------------|-------------------------------|
+| id                         | TEXT     | PRIMARY KEY               | UUID                          |
+| name                       | TEXT     | NOT NULL, UNIQUE          | 项目名称（唯一）                      |
+| description                | TEXT     |                           | 项目描述                          |
+| requirement_outline_design | TEXT     |                           | 需求大纲设计内容                      |
+| requirement_module_design  | TEXT     |                           | 需求模块设计内容                      |
+| requirement_overall_design | TEXT     |                           | 需求文档设计内容                      |
+| architecture_design        | TEXT     |                           | 架构设计内容                        |
+| database_design            | TEXT     |                           | 数据库设计内容                       |
+| progress                   | TEXT     | DEFAULT 'init'            | 项目进度                          |
+| creator_type               | TEXT     | DEFAULT 'user'            | 创建者类型: system 系统创建, user 用户创建 |
+| created_at                 | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间                          |
+| updated_at                 | DATETIME |                           | 更新时间                          |
 
 ### 2. 模块表 (module)
 
@@ -226,21 +230,23 @@ erDiagram
 -- 项目表
 CREATE TABLE IF NOT EXISTS project
 (
-    id                  TEXT PRIMARY KEY,
-    name                TEXT NOT NULL UNIQUE,
-    description         TEXT,
-    requirement_design  TEXT,
-    architecture_design TEXT,
-    database_design     TEXT,
-    progress            TEXT     DEFAULT 'init'
+    id                         TEXT PRIMARY KEY,
+    name                       TEXT NOT NULL UNIQUE,
+    description                TEXT,
+    requirement_outline_design TEXT,
+    requirement_module_design  TEXT,
+    requirement_overall_design TEXT,
+    architecture_design        TEXT,
+    database_design            TEXT,
+    progress                   TEXT     DEFAULT 'init'
         CHECK (progress IN
                ('init', 'requirement_outline_design', 'requirement_module_design', 'requirement_overall_design',
                 'sys_architecture_design', 'sys_modules_design', 'sys_database_design', 'sys_api_design',
                 'test_case_design', 'completed')),
-    creator_type        TEXT     DEFAULT 'user'
+    creator_type               TEXT     DEFAULT 'user'
         CHECK (creator_type IN ('system', 'user')),
-    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME
+    created_at                 DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at                 DATETIME
 );
 
 CREATE UNIQUE INDEX idx_project_name ON project (name);

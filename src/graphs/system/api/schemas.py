@@ -15,7 +15,8 @@ class SystemApiRequestParam(BaseModel):
 
 
 class SystemApi(BaseModel):
-    id: Optional[str] = Field(default=str(uuid.uuid4()), description="接口Id，默认自动生成", min_length=1)
+    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()), description="接口Id，默认自动生成",
+                              min_length=1)
     module_id: str = Field(description="接口所属模块Id", min_length=1)
     name: str = Field(description="接口名称", min_length=1)
     method: HttpMethod = Field(description="接口调用方式（GET/POST/PUT/DELETE/PATCH）")

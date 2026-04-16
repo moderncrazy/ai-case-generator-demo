@@ -9,12 +9,14 @@
 ### 📢 项目动态与交流
 
 > [!TIP]
-> 
+>
 > **项目状态**：本项目目前处于 **Early Demo** 阶段。正聚焦于 **Multi-Agent 协同精度**与**系统响应性能**的优化
-> 
+>
 > **关于作者**：一名拥有 Java & Node.js 资深背景的开发者，目前正深度投入于 Python AI 生态与 Agent 编排架构的落地实践
->   - 🔭 **职业状态**：处于开放的技术探索与职业转型期，欢迎关于 **Python 架构**、**测试开发工程化** 或 **模型评测** 相关的职位邀约与技术交流
->   - 🤝 **联系我**：[BOSS 直聘/51Job](https://m.zhipin.com/mpa/html/resume-detail?sid=self&securityId=h8YXVQQMWPA6Z-k1DhC4kAgh5DfVVnP7pBYPmsnfwxkw9JgK8E4m8reqINEIJRfX-g5Fz4Zxz2qxlQu1N65F1dNpY2jMD28InXp75LXmguCT8Ao9K0okHcdarTfNMPuTI0ifgMFyZC9lDWxw2xB4q6LJKI5mu3q9XTWL7A~~) | [GitHub Issues](https://github.com/moderncrazy/ai-case-generator-demo/issues)
+>   - 🔭 **职业状态**：处于开放的技术探索与职业转型期，欢迎关于 **Python 架构**、**测试开发工程化** 或 **模型评测**
+      相关的职位邀约与技术交流
+>   - 🤝 **联系我
+      **：[BOSS 直聘/51Job](https://m.zhipin.com/mpa/html/resume-detail?sid=self&securityId=h8YXVQQMWPA6Z-k1DhC4kAgh5DfVVnP7pBYPmsnfwxkw9JgK8E4m8reqINEIJRfX-g5Fz4Zxz2qxlQu1N65F1dNpY2jMD28InXp75LXmguCT8Ao9K0okHcdarTfNMPuTI0ifgMFyZC9lDWxw2xB4q6LJKI5mu3q9XTWL7A~~) | [GitHub Issues](https://github.com/moderncrazy/ai-case-generator-demo/issues)
 
 ---
 
@@ -29,18 +31,13 @@
 - 📊 **全流程覆盖** - 需求大纲 → 需求模块 → 整体需求 → 架构设计 → 系统模块设计 → 数据库设计 → 接口设计 → 测试用例
 - 🔒 **私有化部署** - 支持本地大模型，零 API 成本，数据安全
 
-### 核心亮点
-- ⏱️ **效率飞跃**：自动化生成覆盖率达 90% 以上的基础测试用例，缩短 60% 的需求对齐周期
-- 🤖 **Agent 协同**：基于 LangGraph 设计了“分析-设计-评审-总结”闭环，有效降低单一模型输出的幻觉问题
-- ⚡ **高性能工程化**：利用 Python 异步生态（FastAPI/Asyncio），实现了支持流式反馈（SSE）的高并发 Agent 执行环境
-
 ---
 
 ## 🏗️ 系统架构
 
 ```mermaid
 flowchart TB
-    A[用户上传需求文档] --> B[LangGraph StateMachine]
+    A[用户对话/上传需求文档] --> B[LangGraph StateMachine]
     
     B --> C[需求大纲分析<br/>Requirement Outline]
     B --> D[需求模块设计<br/>Module Design]
@@ -68,34 +65,39 @@ flowchart TB
 
 ## 📋 核心流程
 
-|    阶段     | 说明               | 输出       |
-|:---------:|:-----------------|:---------|
-| 1️⃣ 需求大纲  | AI 分析需求文档，提取关键信息 | 需求大纲     |
-| 2️⃣ 需求模块  | 拆分功能模块，识别风险点     | 模块树      |
-| 3️⃣ 整体需求  | 优化需求表述，补充细节      | 完整需求文档   |
-| 4️⃣ 架构设计  | 生成系统架构方案         | 架构图/文档   |
-| 5️⃣ 系统模块  | 设计系统内各模块         | 模块详细设计   |
-| 6️⃣ 数据库设计 | 设计数据表结构          | ER 图/SQL |
-| 7️⃣ 接口设计  | 设计 API 接口        | 接口文档     |
-| 8️⃣ 用例生成  | 生成测试用例（分级）       | 测试用例     |
+|    阶段     | 说明             | 输出        |
+|:---------:|:---------------|:----------|
+| 1️⃣ 需求大纲  | AI 分析需求，提取关键信息 | 需求大纲/功能模块 |
+| 2️⃣ 需求模块  | 补全功能模块明细，识别风险点 | 功能模块树     |
+| 3️⃣ 整体需求  | 整合功能模块，补充细节    | 完整需求文档    |
+| 4️⃣ 架构设计  | 生成系统架构方案       | 架构图/文档    |
+| 5️⃣ 系统模块  | 设计系统内各模块       | 模块详细设计    |
+| 6️⃣ 数据库设计 | 设计数据表结构        | ER 图/SQL  |
+| 7️⃣ 接口设计  | 设计 API 接口      | 接口文档      |
+| 8️⃣ 用例生成  | 生成测试用例（分级）     | 测试用例      |
 
 ---
 
 ## 💡 技术亮点
 
 ### 1. 异步并发的多角色评审机制
+
 * **并发执行调度**：利用 LangGraph 的 `Send` 模式实现架构、后端、测试等多个角色的**并行评审**，极大地缩短了反馈链路。
-* **状态自动归约**：设计了精细的 `State Reducer` 逻辑，在并发节点结束后自动汇总冲突并修正，相比串行模式，响应耗时降低 **40% 以上**。
+* **状态自动归约**：设计了精细的 `State Reducer` 逻辑，在并发节点结束后自动汇总冲突并修正，相比串行模式，响应耗时降低 **40%
+  以上**。
 
 ### 2. 精细化的 LangGraph 状态机编排
+
 * **逻辑解耦**：将复杂业务流拆解为多个独立 Agent 节点，利用 `StateGraph` 管理状态流转。
 * **闭环反馈**：引入“设计-评审-重写”的循环迭代机制，有效降低了单一 Agent 输出的幻觉问题。
 
 ### 3. 高性能异步 RAG 架构
+
 * **全链路异步化**：后端基于 **FastAPI + Asyncio**，针对向量检索与 LLM 调用进行了并发调度优化。
 * **混合检索策略**：基于 Milvus Lite 实现稠密与稀疏向量混合检索，并集成 BGE-M3 (ONNX) 模型实现高效的本地向量化处理。
 
 ### 4. 实时交互体验优化
+
 * **SSE 流式渲染**：通过 **Server-Sent Events (SSE)** 协议，在 Streamlit 前端实时展示 Agent 执行过程的实时可视化展示，提升用户交互体验。
 
 ---
@@ -103,10 +105,10 @@ flowchart TB
 ## 🗺️ 进化路线 (Roadmap)
 
 - [x] **Phase 1**: 核心工作流跑通，实现需求到用例的基本闭环。
-- [ ] **Phase 2 (当前)**: 
+- [ ] **Phase 2 (当前)**:
     - 🛠️ **协作调优**：优化 Agent 间的 Prompt 协议，提升多角色配合的稳定性。
     - ⚡ **性能压测**：优化并发调度逻辑，提升多用户环境下的系统吞吐。
-- [ ] **Phase 3**: 
+- [ ] **Phase 3**:
     - 📊 **评测体系**：引入用例质量自动评分机制，支持多模型对比测试报告。
 
 ---

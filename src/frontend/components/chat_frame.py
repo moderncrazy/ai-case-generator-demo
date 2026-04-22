@@ -1,18 +1,22 @@
+import traceback
 import uuid
+import asyncio
 import streamlit as st
 from streamlit import _DeltaGenerator
 import streamlit.components.v1 as components
 
+from src.frontend.utils import utils
+from src.frontend import constant as const
 from src.frontend.service.project_service import ProjectService
 from src.frontend.enums.conversation_role import ConversationRole
-from src.frontend.schemas.conversation_message import ConversationMessage, ConversationMessageResponse
+from src.frontend.schemas.conversation_message import ConversationMessage
+from src.frontend.enums.conversation_message_type import ConversationMessageType
 
-CHAT_POPOVER_KEY = "chat_popover"
 CHAT_CONTAINER_KEY = "chat_container"
 CHAT_CONTEXT_CONTAINER_KEY = "chat_context_container"
 CHAT_INPUT_KEY = "chat_input"
 
-MESSAGE_STATUS_WIDTH = 250
+MESSAGE_STATUS_WIDTH = 480
 MESSAGE_STATUS_SUCCEED_LABEL = "加载完成"
 MESSAGE_STATUS_ERROR_LABEL = "加载失败，请重试"
 MESSAGE_STATUS_LOADING_LABEL = "加载中，请稍后..."
@@ -24,7 +28,7 @@ def config_style():
         f"""
         <style>
             /* 聊天按钮 */
-            .st-key-{CHAT_POPOVER_KEY} button {{
+            .st-key-{const.CHAT_POPOVER_KEY} button {{
                 position: fixed;
                 bottom: 3.5rem;
                 right: 3.5rem;
@@ -70,7 +74,7 @@ def config_style():
             }}
             
             .st-key-{CHAT_INPUT_KEY} div[data-baseweb="base-input"] {{
-                max-height: 10vh !important;
+                max-height: 6vh !important;
             }}
             
             .st-key-{CHAT_INPUT_KEY} textarea {{
@@ -79,26 +83,16 @@ def config_style():
 
             /* 聊天上下文框 */
             div[data-testid="stPopoverBody"] .st-key-{CHAT_CONTEXT_CONTAINER_KEY} {{
-                max-height: 76vh !important;
+                max-height: 72vh !important;
                 overflow-y: auto;
                 overflow-x: hidden;
             
-            /* 选中用户消息的容器 (Streamlit 1.30+ 结构) */
+            /* 选中用户消息的容器 */
             [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {{
                 flex-direction: row-reverse; /* 头像和气泡位置互换 */
                 text-align: right;          /* 文字右对齐 */
                 padding-right: 1rem;
                 background-color: rgba(240, 242, 246, 0.5);
-            }}
-
-            /* 针对用户消息气泡的微调 */
-            [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {{
-                # border-style: solid;
-                # border-width: 1px;
-                # border-color: rgba(49, 51, 63, 0.2);
-                # border-radius: 0.5rem;
-                # padding: 0.4rem 0.75rem;
-                # background-color: rgba(240, 242, 246, 0.5);
             }}
 
         </style>
@@ -184,7 +178,8 @@ async def chat_frame(project_id: str) -> None:
     # UI 组件
     chat_container = st.container(key=CHAT_CONTAINER_KEY)
     with chat_container:
-        chat_popover = chat_container.popover(":material/chat: Chat", key=CHAT_POPOVER_KEY)
+        chat_popover = chat_container.popover(":material/chat: Chat", key=const.CHAT_POPOVER_KEY,
+                                              on_change=lambda: None)
         with chat_popover:
             chat_context_container = chat_popover.container(key=CHAT_CONTEXT_CONTAINER_KEY)
             with chat_context_container:
@@ -207,6 +202,7 @@ async def chat_frame(project_id: str) -> None:
                 st.session_state["chat_messages"].append(ConversationMessage(
                     id=str(uuid.uuid4()),
                     role=ConversationRole.USER,
+                    type=ConversationMessageType.MESSAGE,
                     content=prompt.text
                 ))
                 chat_context_container.chat_message("我", avatar="user").markdown(prompt.text)
@@ -214,17 +210,42 @@ async def chat_frame(project_id: str) -> None:
                 chat_message = chat_context_container.chat_message("AI", avatar="assistant")
                 message_status = chat_message.status(MESSAGE_STATUS_LOADING_LABEL, expanded=True, state="running",
                                                      width=MESSAGE_STATUS_WIDTH)
-                try:
-                    async for response in ProjectService.project_discuss(project_id, prompt.text, prompt.files):
-                        st.session_state["chat_messages"].append(response.message)
-                        st.session_state["context"] = response.context
-                        print(st.session_state["context"])
-                        if response.message.role == ConversationRole.SYSTEM:
-                            message_status.markdown(response.message.content)
-                        else:
-                            message_status.update(label=MESSAGE_STATUS_SUCCEED_LABEL, expanded=False, state="complete")
-                            chat_message.markdown(response.message.content)
-                        scroll_to_bottom()
-                except Exception as e:
-                    print(f"对话接口异常:{str(e)}")
-                    message_status.update(label=MESSAGE_STATUS_ERROR_LABEL, expanded=False, state="error")
+
+                # 发起对话
+                def project_discuss():
+                    try:
+                        # 当前流说话的角色
+                        stream_role = None
+                        user_id = utils.get_user_id()
+                        for response in ProjectService.project_discuss(
+                                project_id, user_id, prompt.text, prompt.files):
+                            st.session_state["chat_messages"].append(response.message)
+                            st.session_state["context"] = response.context
+                            # 若是 end 消息 关闭等待栏 否则正常显示
+                            if response.message.type == ConversationMessageType.END:
+                                message_status.update(
+                                    label=MESSAGE_STATUS_SUCCEED_LABEL, expanded=False, state="complete")
+                            # 阶段消息 展示在loading 栏中
+                            elif response.message.type == ConversationMessageType.STAGE:
+                                message_status.update(label=response.message.content)
+                            # 实体消息正式展示
+                            elif response.message.type == ConversationMessageType.MESSAGE:
+                                chat_message.markdown(response.message.content)
+                            # 流式消息拼接展示
+                            elif response.message.type == ConversationMessageType.STREAM:
+                                # 如果AI角色有变化 则显示说话人 否则直接输出
+                                if not stream_role or stream_role != response.message.assistant_role:
+                                    stream_role = response.message.assistant_role
+                                    yield f"\n\n{stream_role}: {response.message.content}"
+                                else:
+                                    yield response.message.content
+                            # 通知消息 弹出通知
+                            elif response.message.type == ConversationMessageType.NOTIFY:
+                                st.toast(response.message.content, icon="🎉", duration="long")
+                            scroll_to_bottom()
+                    except Exception as e:
+                        print(f"对话接口异常:{traceback.format_exc()}")
+                        message_status.update(label=MESSAGE_STATUS_ERROR_LABEL, expanded=False, state="error")
+
+                # 为流消息准备的markdown
+                message_status.write_stream(project_discuss)

@@ -5,7 +5,7 @@ from langgraph.graph import MessagesState
 
 from src.enums.pm_next_step import PMNextStep
 from src.enums.project_progress import ProjectProgress
-from src.graphs.schemas import (
+from src.graphs.common.schemas import (
     StateApi,
     StateIssue,
     StateModule,
@@ -14,11 +14,14 @@ from src.graphs.schemas import (
     StateNewProjectFile,
     StateRequirementModule
 )
-from src.graphs.reduce import rewrite_reducer as wr
+from src.graphs.common.reduce import rewrite_reducer as wr
 
 
 class State(MessagesState):
     """LangGraph 工作流状态定义"""
+
+    history_summary: Annotated[str, Doc("会话历史摘要"), wr]
+    """会话历史摘要"""
 
     project_id: Annotated[str, Doc("项目ID"), wr]
     """项目ID"""
@@ -83,11 +86,11 @@ class State(MessagesState):
     unclear_points: Annotated[list[StateIssue], Doc("不明确点"), wr]
     """需要让用户明确的问题和建议（重写reducer等子图覆盖）"""
 
-    pm_next_step: Annotated[PMNextStep, Doc("PM下一步操作"), wr]
-    """下一步执行"""
-
     metadata: Annotated[dict[str, Any], Doc("元数据"), wr]
     """元数据（可用于子图传参）"""
 
     private_messages: Annotated[list[AnyMessage], Doc("私聊记录"), wr]
     """用于子图私聊（不设置reducer等子图覆盖）"""
+
+    pm_next_step: Annotated[PMNextStep, Doc("PM下一步操作"), wr]
+    """下一步执行"""

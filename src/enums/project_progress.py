@@ -34,6 +34,29 @@ class ProjectProgress(StrEnum):
     COMPLETED = "completed"
     """完成"""
 
+    def get_name_zh(self) -> str:
+        match self:
+            case ProjectProgress.INIT:
+                return "初始化"
+            case ProjectProgress.REQUIREMENT_OUTLINE_DESIGN:
+                return "需求大纲设计"
+            case ProjectProgress.REQUIREMENT_MODULE_DESIGN:
+                return "需求模块设计"
+            case ProjectProgress.REQUIREMENT_OVERALL_DESIGN:
+                return "需求文档设计"
+            case ProjectProgress.SYSTEM_ARCHITECTURE_DESIGN:
+                return "系统架构设计"
+            case ProjectProgress.SYSTEM_MODULES_DESIGN:
+                return "系统模块设计"
+            case ProjectProgress.SYSTEM_DATABASE_DESIGN:
+                return "系统数据库设计"
+            case ProjectProgress.SYSTEM_API_DESIGN:
+                return "系统接口设计"
+            case ProjectProgress.TEST_CASE_DESIGN:
+                return "测试用例设计"
+            case ProjectProgress.COMPLETED:
+                return "完成"
+
     @classmethod
     def get_next(cls, current: "ProjectProgress") -> "ProjectProgress | None":
         """获取下一个进度"""

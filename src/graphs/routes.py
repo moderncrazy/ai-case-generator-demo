@@ -23,12 +23,13 @@ def load_project_router(state: State) -> Literal["load_project_node", "understan
     Returns:
         目标节点名称
     """
+    project_id = state["project_id"]
     destination_node = "product_manager_node"
     if not state.get("project_name"):
         destination_node = "load_project_node"
     if state.get("new_file_list"):
         destination_node = "understand_image_node"
-    logger.info(f"trans_id:{trans_id_ctx.get()} 主图路由:{gutils.get_func_name()} 路由至:{destination_node}")
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{destination_node}")
     return destination_node
 
 
@@ -45,18 +46,18 @@ def understand_image_router(state: State) -> Literal["understand_image_node", "p
     Returns:
         目标节点名称
     """
+    project_id = state["project_id"]
     destination_node = "product_manager_node"
     if state.get("new_file_list"):
         destination_node = "understand_image_node"
-    logger.info(f"trans_id:{trans_id_ctx.get()} 主图路由:{gutils.get_func_name()} 路由至:{destination_node}")
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{destination_node}")
     return destination_node
 
 
 def product_manager_tool_router(state: State) -> Literal[
     "product_manager_tool_node", "requirement_outline_node", "requirement_module_node", "requirement_overall_node",
     "system_architecture_node", "system_module_node", "system_database_node", "system_api_node",
-    "test_case_node",
-    END
+    "test_case_node", "end_node"
 ]:
     """产品经理决策路由
     
@@ -71,8 +72,9 @@ def product_manager_tool_router(state: State) -> Literal[
     Returns:
         目标节点名称或 END
     """
+    project_id = state["project_id"]
     # 如果不是最终决策则放行
-    destination_node = END
+    destination_node = "end_node"
     if isinstance(state["messages"][-1], AIMessage) and state["messages"][-1].tool_calls:
         destination_node = "product_manager_tool_node"
     else:
@@ -94,6 +96,6 @@ def product_manager_tool_router(state: State) -> Literal[
             case PMNextStep.TEST_CASE_DESIGN:
                 destination_node = "test_case_node"
             case _:
-                destination_node = END
-    logger.info(f"trans_id:{trans_id_ctx.get()} 主图路由:{gutils.get_func_name()} 路由至:{destination_node}")
+                destination_node = "end_node"
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{destination_node}")
     return destination_node

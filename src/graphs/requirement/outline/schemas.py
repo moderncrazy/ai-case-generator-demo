@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 
-
 class RequirementModuleCreate(BaseModel):
     name: str = Field(description="模块名称", min_length=1)
     order: int = Field(description="序号")

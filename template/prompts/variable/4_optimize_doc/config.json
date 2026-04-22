@@ -1,0 +1,53 @@
+{
+  "common": {},
+  "stage": {
+    "requirement_outline_design": {
+      "role_name": "资深产品经理",
+      "target": "根据原始需求，生成/优化需求大纲。",
+      "output_tool": "optimize_requirement_outline_output",
+      "include_file": "requirement_outline.md.j2"
+    },
+    "requirement_module_design": {
+      "role_name": "资深产品专家",
+      "target": "根据需求大纲，生成/优化【指定模块】的详细设计文档。",
+      "output_tool": "optimize_requirement_module_output",
+      "include_file": "requirement_module.md.j2"
+    },
+    "requirement_overall_design": {
+      "role_name": "资深产品经理",
+      "target": "将各需求模块生成/优化，整合成完整 PRD，确保逻辑闭环、术语统一。",
+      "output_tool": "optimize_requirement_overall_output",
+      "include_file": "requirement_overall.md.j2"
+    },
+    "system_architecture_design": {
+      "role_name": "资深架构师",
+      "target": "根据需求文档，生成/优化系统架构设计。",
+      "output_tool": "optimize_system_architecture_output",
+      "include_file": "system_architecture.md.j2"
+    },
+    "system_modules_design": {
+      "role_name": "资深架构师",
+      "target": "根据需求文档和架构设计，生成/优化系统模块结构。",
+      "output_tool": "optimize_system_module_output",
+      "include_file": "system_modules.md.j2"
+    },
+    "system_database_design": {
+      "role_name": "数据库专家",
+      "target": "根据需求文档、架构设计和系统架构文档，设计/优化数据库表结构。",
+      "output_tool": "optimize_system_database_output",
+      "include_file": "system_database.md.j2"
+    },
+    "system_api_design": {
+      "role_name": "资深后端工程师",
+      "target": "根据需求文档、架构设计和数据库文档，生成/优化系统接口定义。",
+      "output_tool": "optimize_system_api_output",
+      "include_file": "system_api.md.j2"
+    },
+    "test_case_design": {
+      "role_name": "资深测试工程师",
+      "target": "根据需求文档、数据库和接口文档，生成/优化测试用例。",
+      "output_tool": "optimize_test_case_output",
+      "include_file": "test_case.md.j2"
+    }
+  }
+}

@@ -1,3 +1,4 @@
+from src import constant as const
 from src.repositories.project_file_repository import project_file_repository
 
 
@@ -25,7 +26,7 @@ class ProjectFileService:
         project_files = await project_file_repository.list_by_project(project_id)
         for item in project_files:
             content += f"文件Id：{item.id}\n文件名：{item.name}\n上传时间：{item.created_at}\n文件摘要：\n{item.summary}\n\n----------{item.name} end----------\n\n"
-        return content if content else "（空）"
+        return content if content else const.EMPTY_ZH
 
 
 # 导出单例

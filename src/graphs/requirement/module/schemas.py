@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from src.graphs.schemas import Issue
+from src.graphs.common.schemas import Issue
 
 
 class OptimizeRequirementModuleOutput(BaseModel):

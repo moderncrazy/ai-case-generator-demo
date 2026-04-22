@@ -1,0 +1,64 @@
+```json
+{
+  "message": "给评审同学的留言，说明接口设计的要点和重点关注的地方（简洁）",
+  "system_apis": [
+    {
+      "module_id": "模块ID",
+      "name": "接口名称",
+      "method": "get/post/put/delete/patch",
+      "path": "/api/xxx",
+      "description": "接口描述",
+      "request_headers": [
+        {"name": "参数名", "type": "string/number/object/array", "required": true/false, "description": "说明"}
+      ],
+      "request_params": [
+        {"name": "参数名", "type": "string/number/object/array", "required": true/false, "description": "说明"}
+      ],
+      "request_body": [
+        {"name": "参数名", "type": "string/number/object/array", "required": true/false, "description": "说明"}
+      ],
+      "response_schema": "响应格式描述"
+    }
+  ]
+}
+```
+
+## ⚡️ 接口设计规范
+
+1. **RESTful 规范:** 使用标准 HTTP 方法，路径使用小写+下划线
+2. **参数定义:** 必须包含 name、type、required、description
+3. **响应结构:** 必须明确成功/失败的响应格式
+4. **模块归属:** 每个接口必须指定 module_id
+
+## 📝 接口定义格式
+
+```markdown
+### 接口序号：1
+**模块ID：** 模块A
+**接口名称：** 获取用户列表
+**请求方法：** GET
+**请求路径：** /api/v1/users
+**接口描述：** 获取系统用户列表，支持分页和筛选
+
+**请求头参数：**
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| Authorization | string | 是 | Bearer Token |
+
+**URL参数：**
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| page | int | 否 | 页码，默认1 |
+
+**响应格式：**
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {}
+}
+```
+```
+
+## 接口闭环
+[简要描述接口的起点和终点]

@@ -1,23 +1,86 @@
 from loguru import logger
 from langgraph.runtime import Runtime
-from langchain.messages import SystemMessage
-from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
 
 from src.context import trans_id_ctx
-from src.utils import utils as gutils
-from src.graphs.llms import default_model
-from src.graphs import utils as main_utils
-from src.graphs.schemas import CustomMessage
-from src.graphs.tools import common_tool_list
+from src.graphs.common.tools import tool_list as ctool_list
+from src.graphs.common.utils import workflow_node_utils, utils as cutils
 from src.graphs.requirement.overall.state import State, GroupMemberState
 from src.graphs.requirement.overall.tools import (
-    optimize_requirement_overall_output,
+    common_tool_list,
     review_requirement_overall_output,
-    optimize_requirement_overall_issue_output
+    optimize_requirement_overall_output,
+    optimize_requirement_overall_issue_output,
+    review_optimization_requirement_overall_plan_output,
+    generate_optimization_requirement_overall_plan_output,
 )
-from src.enums.system_prompt import SystemPrompt
 from src.enums.group_member_role import GroupMemberRole
+from src.enums.conversation_message_type import ConversationMessageType
+
+
+async def generate_optimization_requirement_overall_plan_node(state: State, runtime: Runtime,
+                                                              config: RunnableConfig) -> State:
+    """生成优化方案节点
+
+    调用 LLM 根据上下文生成优化需求整体文档的方案
+    支持通过工具查询项目历史文档等信息
+
+    Args:
+        state: LangGraph 状态
+        runtime: LangGraph 运行时
+        config: LangGraph 运行时配置
+
+    Returns:
+        更新后的状态（包含生成的需求整体文档的方案）
+    """
+    project_id = state["project_id"]
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
+    tool_list = [*ctool_list, *common_tool_list]
+    result = await workflow_node_utils.generate_optimization_plan(
+        state,
+        runtime,
+        config,
+        tool_list,
+        GroupMemberRole.PRODUCT,
+        generate_optimization_requirement_overall_plan_output,
+    )
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
+    return result
+
+
+async def review_optimization_requirement_overall_plan_node(state: State, runtime: Runtime,
+                                                            config: RunnableConfig) -> State:
+    """审核优化方案节点
+
+    调用 LLM 根据上下文审核优化需求整体文档的方案
+    支持通过工具查询项目历史文档等信息
+
+    Args:
+        state: LangGraph 状态
+        runtime: LangGraph 运行时
+        config: LangGraph 运行时配置
+
+    Returns:
+        更新后的状态（包含审核优化方案结果）
+    """
+    project_id = state["project_id"]
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
+    tool_list = [*ctool_list, *common_tool_list]
+    result = await workflow_node_utils.review_optimization_plan(
+        state,
+        runtime,
+        config,
+        tool_list,
+        GroupMemberRole.PM,
+        review_optimization_requirement_overall_plan_output,
+        GroupMemberRole.PRODUCT,
+    )
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
+    return result
 
 
 async def optimize_requirement_overall_node(state: State, runtime: Runtime, config: RunnableConfig) -> State:
@@ -34,26 +97,22 @@ async def optimize_requirement_overall_node(state: State, runtime: Runtime, conf
     Returns:
         更新后的状态（包含优化后的需求文档内容）
     """
-    logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 进入")
-    writer = get_stream_writer()
-    # 发送自定义消息
-    writer(CustomMessage(message="产品优化需求文档中..."))
     project_id = state["project_id"]
-    messages = [
-                   SystemMessage(content=SystemPrompt.OPTIMIZED_REQUIREMENT_OVERALL.template.format(
-                       original_requirement=state.get("original_requirement") or "（空）",
-                       requirement_overall_content=state.get("requirement_overall_content")
-                                                   or state.get("optimized_requirement") or "（空）",
-                       requirement_overall_issues=main_utils.format_issues_to_str(
-                           state.get("requirement_overall_issues")),
-                   ))
-               ] + state["private_messages"]
-    # 绑定查询方法和结构化输出方法
-    llm_with_tool = default_model.bind_tools([*common_tool_list, optimize_requirement_overall_output])
-    result = await main_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
-                                                         optimize_requirement_overall_output,
-                                                         messages_key="private_messages")
-    logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 完成")
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
+    # 发送自定义消息
+    cutils.send_custom_message("产品优化需求文档中...", GroupMemberRole.PRODUCT)
+    tool_list = [*ctool_list, *common_tool_list]
+    result = await workflow_node_utils.optimize_doc(
+        state,
+        runtime,
+        config,
+        tool_list,
+        GroupMemberRole.PRODUCT,
+        optimize_requirement_overall_output,
+    )
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result
 
 
@@ -71,51 +130,23 @@ async def review_requirement_overall_node(state: GroupMemberState, runtime: Runt
     Returns:
         更新后的状态（包含评审意见）
     """
-    logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 角色:{state["role"]} 进入")
-    writer = get_stream_writer()
+    role = state["role"]
     project_id = state["project_id"]
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 角色:{role} 进入")
     # 根据角色使用不同提示词
-    system_prompt = None
-    match state["role"]:
-        case GroupMemberRole.PM:
-            # 发送自定义消息
-            writer(CustomMessage(message="PM评审需求文档中..."))
-            system_prompt = SystemPrompt.REVIEW_REQUIREMENT_OVERALL_PM.template
-        case GroupMemberRole.ARCHITECT:
-            # 发送自定义消息
-            writer(CustomMessage(message="架构师评审需求文档中..."))
-            system_prompt = SystemPrompt.REVIEW_REQUIREMENT_OVERALL_ARCHITECT.template
-        case GroupMemberRole.FRONTEND:
-            # 发送自定义消息
-            writer(CustomMessage(message="前端工程师评审需求文档中..."))
-            system_prompt = SystemPrompt.REVIEW_REQUIREMENT_OVERALL_FRONTEND.template
-        case GroupMemberRole.BACKEND:
-            # 发送自定义消息
-            writer(CustomMessage(message="后端工程师评审需求文档中..."))
-            system_prompt = SystemPrompt.REVIEW_REQUIREMENT_OVERALL_BACKEND.template
-        case GroupMemberRole.TEST:
-            # 发送自定义消息
-            writer(CustomMessage(message="测试工程师评审需求文档中..."))
-            system_prompt = SystemPrompt.REVIEW_REQUIREMENT_OVERALL_TEST.template
-        case _:
-            # 发送自定义消息
-            writer(CustomMessage(message="内部评审需求文档中..."))
-            system_prompt = SystemPrompt.REVIEW_REQUIREMENT_OVERALL_PM.template
-    messages = [
-                   SystemMessage(content=system_prompt.format(
-                       original_requirement=state.get("original_requirement") or "（空）",
-                       requirement_overall_content=state["requirement_overall_content"],
-                       risk=main_utils.format_issues_to_str(state.get("risks")),
-                       unclear_point=main_utils.format_issues_to_str(state.get("unclear_points")),
-                   ))
-               ] + state["private_messages"]
-    # 绑定查询方法和结构化输出方法
-    metadata = {"role": state["role"]}
-    llm_with_tool = default_model.bind_tools([*common_tool_list, review_requirement_overall_output])
-    result = await main_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
-                                                         review_requirement_overall_output,
-                                                         messages_key="private_messages", metadata=metadata)
-    logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 角色:{state["role"]} 完成")
+    cutils.send_custom_message(f"{role}评审需求文档中...", role)
+    tool_list = [*ctool_list, *common_tool_list]
+    result = await workflow_node_utils.review_optimization_doc(
+        state,
+        runtime,
+        config,
+        tool_list,
+        review_requirement_overall_output,
+        GroupMemberRole.PRODUCT
+    )
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 角色:{role} 完成")
     return result
 
 
@@ -133,23 +164,21 @@ async def optimize_requirement_overall_issue_node(state: State, runtime: Runtime
     Returns:
         更新后的状态（包含最终风险点和不明确点）
     """
-    logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 进入")
-    writer = get_stream_writer()
-    # 发送自定义消息
-    writer(CustomMessage(message="需求文档问题整理中..."))
     project_id = state["project_id"]
-    messages = [
-                   SystemMessage(content=SystemPrompt.OPTIMIZED_REQUIREMENT_OVERALL_ISSUE.template.format(
-                       original_requirement=state.get("original_requirement") or "（空）",
-                       requirement_overall_content=state["requirement_overall_content"],
-                       risk=main_utils.format_issues_to_str(state.get("risks")),
-                       unclear_point=main_utils.format_issues_to_str(state.get("unclear_points")),
-                   ))
-               ] + state["private_messages"]
-    # 绑定查询方法和结构化输出方法
-    llm_with_tool = default_model.bind_tools([*common_tool_list, optimize_requirement_overall_issue_output])
-    result = await main_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
-                                                         optimize_requirement_overall_issue_output,
-                                                         messages_key="private_messages")
-    logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 完成")
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
+    # 发送自定义消息
+    cutils.send_custom_message("整理需求文档问题中...", GroupMemberRole.PRODUCT)
+    tool_list = [*ctool_list, *common_tool_list]
+    result = await workflow_node_utils.summarize_optimization_doc_issue(
+        state,
+        runtime,
+        config,
+        tool_list,
+        GroupMemberRole.PRODUCT,
+        optimize_requirement_overall_issue_output,
+    )
+    cutils.send_custom_message("需求文档已更新，快来看看吧！", GroupMemberRole.PRODUCT, ConversationMessageType.NOTIFY)
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result

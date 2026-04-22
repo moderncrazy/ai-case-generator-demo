@@ -1,19 +1,83 @@
 from loguru import logger
 from langgraph.runtime import Runtime
-from langchain.messages import SystemMessage
-from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
 
 from src.context import trans_id_ctx
-from src.utils import utils as gutils
-from src.graphs.llms import default_model
-from src.graphs import utils as main_utils
-from src.graphs.schemas import CustomMessage
-from src.graphs.tools import common_tool_list
+from src.enums.group_member_role import GroupMemberRole
+from src.enums.conversation_message_type import ConversationMessageType
+from src.graphs.common.utils import workflow_node_utils, utils as cutils
+from src.graphs.common.tools import tool_list as ctool_list
 from src.graphs.requirement.outline.state import State
-from src.graphs.requirement.outline.tools import optimize_requirement_outline_output
-from src.enums.system_prompt import SystemPrompt
-from src.services.project_file_service import project_file_service
+from src.graphs.requirement.outline.tools import (
+    optimize_requirement_outline_output,
+    review_optimization_requirement_outline_plan_output,
+    generate_optimization_requirement_outline_plan_output,
+)
+
+
+async def generate_optimization_requirement_outline_plan_node(state: State, runtime: Runtime,
+                                                              config: RunnableConfig) -> State:
+    """生成优化方案节点
+
+    调用 LLM 根据上下文生成优化需求大纲和模块划分的方案
+    支持通过工具查询项目历史文档等信息
+
+    Args:
+        state: LangGraph 状态
+        runtime: LangGraph 运行时
+        config: LangGraph 运行时配置
+
+    Returns:
+        更新后的状态（包含生成的需求大纲和模块的方案）
+    """
+    project_id = state["project_id"]
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
+    tool_list = [*ctool_list]
+    result = await workflow_node_utils.generate_optimization_plan(
+        state,
+        runtime,
+        config,
+        tool_list,
+        GroupMemberRole.PRODUCT,
+        generate_optimization_requirement_outline_plan_output,
+    )
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
+    return result
+
+
+async def review_optimization_requirement_outline_plan_node(state: State, runtime: Runtime,
+                                                            config: RunnableConfig) -> State:
+    """审核优化方案节点
+
+    调用 LLM 根据上下文审核优化需求大纲和模块划分的方案
+    支持通过工具查询项目历史文档等信息
+
+    Args:
+        state: LangGraph 状态
+        runtime: LangGraph 运行时
+        config: LangGraph 运行时配置
+
+    Returns:
+        更新后的状态（包含生成的需求大纲和模块的方案）
+    """
+    project_id = state["project_id"]
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
+    tool_list = [*ctool_list]
+    result = await workflow_node_utils.review_optimization_plan(
+        state,
+        runtime,
+        config,
+        tool_list,
+        GroupMemberRole.PM,
+        review_optimization_requirement_outline_plan_output,
+        GroupMemberRole.PRODUCT,
+    )
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
+    return result
 
 
 async def optimize_requirement_outline_node(state: State, runtime: Runtime, config: RunnableConfig) -> State:
@@ -30,20 +94,21 @@ async def optimize_requirement_outline_node(state: State, runtime: Runtime, conf
     Returns:
         更新后的状态（包含生成的需求大纲和模块列表）
     """
-    logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 进入")
-    writer = get_stream_writer()
-    # 发送自定义消息
-    writer(CustomMessage(message="产品优化需求大纲中..."))
     project_id = state["project_id"]
-    messages = [
-                   SystemMessage(content=SystemPrompt.OPTIMIZED_REQUIREMENT_OUTLINE.template.format(
-                       requirement_outline=state.get("optimized_requirement") or "（空）",
-                   ))
-               ] + state["private_messages"]
-    # 绑定查询方法和结构化输出方法
-    llm_with_tool = default_model.bind_tools([*common_tool_list, optimize_requirement_outline_output])
-    result = await main_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
-                                                         optimize_requirement_outline_output,
-                                                         messages_key="private_messages")
-    logger.info(f"trans_id:{trans_id_ctx.get()} 子图节点:{gutils.get_func_name()} 完成")
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
+    # 发送自定义消息
+    cutils.send_custom_message("产品优化需求大纲中...", GroupMemberRole.PRODUCT)
+    tool_list = [*ctool_list]
+    result = await workflow_node_utils.optimize_doc(
+        state,
+        runtime,
+        config,
+        tool_list,
+        GroupMemberRole.PRODUCT,
+        optimize_requirement_outline_output,
+    )
+    cutils.send_custom_message("需求大纲已更新，快来看看吧！", GroupMemberRole.PRODUCT, ConversationMessageType.NOTIFY)
+    logger.info(
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result

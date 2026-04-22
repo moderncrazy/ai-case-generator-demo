@@ -290,3 +290,15 @@ def get_file_type(file_path: str | Path) -> str:
     path = Path(file_path)
     suffix = path.suffix.lower()
     return suffix.split(".")[-1]
+
+
+def unlink_file(file_path: str | Path):
+    """删除文件
+
+    删除文件
+
+    Args:
+        file_path: 文件路径
+    """
+    path = Path(file_path)
+    path.unlink(missing_ok=True)

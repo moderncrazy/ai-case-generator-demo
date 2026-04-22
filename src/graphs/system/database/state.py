@@ -1,10 +1,11 @@
 from typing import Annotated
 from langchain.messages import AnyMessage
 
-from src.graphs.schemas import StateIssue
-from src.graphs.state import State as BaseState
 from src.enums.group_member_role import GroupMemberRole
-from src.graphs.reduce import priority_message_reducer, distinct_reducer, rewrite_reducer as wr
+from src.enums.review_optimization_plan_result import ReviewOptimizationPlanResult
+from src.graphs.common.schemas import StateIssue
+from src.graphs.state import State as BaseState
+from src.graphs.common.reduce import priority_message_reducer, distinct_reducer, rewrite_reducer as wr
 
 
 class State(BaseState):
@@ -24,6 +25,9 @@ class State(BaseState):
 
     private_messages: Annotated[list[AnyMessage], priority_message_reducer]
     """子图内部私聊消息（不暴露给主图）"""
+
+    review_optimization_plan_result: Annotated[ReviewOptimizationPlanResult, wr]
+    """审核优化方案结果"""
 
 
 class GroupMemberState(State):

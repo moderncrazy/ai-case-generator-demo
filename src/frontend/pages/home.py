@@ -5,7 +5,6 @@ from src.frontend.utils import utils
 from src.frontend.enums.project_progress import ProjectProgress
 from src.frontend.service.project_service import ProjectService
 
-
 def app():
     """首页"""
 

@@ -2,14 +2,15 @@ from loguru import logger
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from src.config import settings, setup_logging
+from src.config import settings,setup_logging
 from src.models.base import initialize_database
+from src.services.redis_service import redis_service
 from src.services.milvus_service import milvus_service
-from src.routes.project import router as project_router
-from src.routes.module import router as module_router
-from src.routes.test_case import router as test_case_router
 from src.routes.api import router as api_router
+from src.routes.module import router as module_router
+from src.routes.project import router as project_router
 from src.routes.conversation_message import router as conversation_message_router
+from src.routes.test_case import router as test_case_router
 from src.middlewares.request_log import RequestLogMiddleware
 from src.middlewares.request_context import RequestContextMiddleware
 from src.middlewares.transaction_id_verify import TransactionIdVerifyMiddleware
@@ -25,6 +26,7 @@ async def lifespan(app: FastAPI):
     # 启动时
     logger.info("应用启动中...")
     initialize_database()
+    await redis_service.initialize()
     await milvus_service.initialize()
     logger.info("应用启动完成")
 
@@ -33,6 +35,7 @@ async def lifespan(app: FastAPI):
     # 关闭时
     logger.info("应用关闭中...")
     await milvus_service.close()
+    await redis_service.close()
     logger.info("应用已关闭")
 
 

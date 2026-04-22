@@ -1,0 +1,79 @@
+{
+  "init": [],
+  "requirement_outline_design": [],
+  "requirement_module_design": [
+    {
+      "name": "get_completed_requirement_modules",
+      "description": "获取已完成的需求模块列表"
+    },
+    {
+      "name": "get_current_requirement_module",
+      "description": "获取优化后需求模块内容"
+    },
+    {
+      "name": "get_requirement_module_issues",
+      "description": "获取需求模块评审意见列表"
+    }
+  ],
+  "requirement_overall_design": [
+    {
+      "name": "get_requirement_overall_content",
+      "description": "获取优化后需求文档内容"
+    },
+    {
+      "name": "get_requirement_overall_issues",
+      "description": "获取需求文档评审意见列表"
+    }
+  ],
+  "system_architecture_design": [
+    {
+      "name": "get_system_architecture_content",
+      "description": "获取优化后系统架构内容"
+    },
+    {
+      "name": "get_system_architecture_issues",
+      "description": "获取系统架构评审意见列表"
+    }
+  ],
+  "system_modules_design": [
+    {
+      "name": "get_system_modules",
+      "description": "获取优化后系统模块列表"
+    },
+    {
+      "name": "get_system_module_issues",
+      "description": "获取系统模块评审意见列表"
+    }
+  ],
+  "system_database_design": [
+    {
+      "name": "get_system_database_content",
+      "description": "获取优化后数据库内容"
+    },
+    {
+      "name": "get_system_database_issues",
+      "description": "获取数据库评审意见列表"
+    }
+  ],
+  "system_api_design": [
+    {
+      "name": "get_system_apis",
+      "description": "获取优化后系统接口列表"
+    },
+    {
+      "name": "get_system_api_issues",
+      "description": "获取系统接口评审意见列表"
+    }
+  ],
+  "test_case_design": [
+    {
+      "name": "get_test_cases",
+      "description": "获取优化后测试用例列表"
+    },
+    {
+      "name": "get_test_case_issues",
+      "description": "获取测试用例评审意见列表"
+    }
+  ],
+  "completed": []
+}

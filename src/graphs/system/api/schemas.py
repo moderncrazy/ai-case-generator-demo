@@ -2,7 +2,7 @@ import uuid
 from typing import Optional
 from pydantic import BaseModel, Field
 
-from src.graphs.schemas import Issue
+from src.graphs.common.schemas import Issue
 from src.enums.http_method import HttpMethod
 from src.enums.http_param_type import HttpParamType
 

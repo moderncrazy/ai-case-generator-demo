@@ -3,7 +3,7 @@ from typing import List, Tuple
 from collections import defaultdict
 
 from src.utils import utils
-from src.graphs.schemas import StateApi
+from src.graphs.common.schemas import StateApi
 from src.repositories.module_repository import module_repository
 from src.repositories.api_repository import api_repository, ApiBulkUpdate
 from src.schemas.api import ApiResponse, ApiTreeNode, ApiRequestParam

@@ -1,20 +1,25 @@
 import uuid
 import asyncio
 import traceback
+
 from loguru import logger
 from typing import Optional
 from datetime import datetime
-from fastapi import UploadFile
-from langchain.messages import AIMessage
+from fastapi import UploadFile, BackgroundTasks
 from fastapi.responses import StreamingResponse
+from langgraph.graph import END
+from langchain_core.messages.utils import trim_messages, count_tokens_approximately
+from langchain.messages import SystemMessage, AIMessage, AIMessageChunk, HumanMessage, RemoveMessage
 
-from src.config import settings
 from src.context import trans_id_ctx
-from src.utils import utils, file_utils
+from src.config import settings
+from src.utils import utils, file_utils, sensitive_word_utils
 from src.models.project import Project
 from src.agents.main_agent import main_agent
 from src.graphs.state import State
-from src.graphs.schemas import (
+from src.graphs.common.utils import utils as cutils
+from src.graphs.common.llms import default_model
+from src.graphs.common.schemas import (
     StateApi,
     StateIssue,
     StateModule,
@@ -37,13 +42,15 @@ from src.schemas.conversation_message import (
 )
 from src.repositories.project_file_repository import project_file_repository
 from src.repositories.conversation_message_repository import conversation_message_repository
-from src.enums.http_method import HttpMethod
+from src.repositories.conversation_summary_repository import conversation_summary_repository
+from src.services.redis_service import redis_service
+from src.services.milvus_service import milvus_service
+from src.services.conversation_summary_service import conversation_summary_service
 from src.enums.error_message import ErrorMessage
-from src.enums.test_case_type import TestCaseType
-from src.enums.test_case_level import TestCaseLevel
 from src.enums.project_progress import ProjectProgress
 from src.enums.conversation_role import ConversationRole
-from src.enums.requirement_module_status import RequirementModuleStatus
+from src.enums.const_system_prompt import ConstSystemPrompt
+from src.enums.conversation_message_type import ConversationMessageType
 
 
 class ConversationMessageService:
@@ -344,7 +351,7 @@ class ConversationMessageService:
         )
 
     @staticmethod
-    async def _start_agent(project_id: str, message: str, file_list: list[StateNewProjectFile] | None, queue):
+    async def _start_agent(project: Project, message: str, file_list: list[StateNewProjectFile] | None, queue):
         """启动 AI Agent 处理对话
         
         异步流式处理用户消息，返回 AI 响应。
@@ -356,27 +363,35 @@ class ConversationMessageService:
             queue: 消息队列，用于异步通信
         """
         try:
-            async for chunk in await main_agent.astream(project_id, message, file_list):
+            # 消息内容 如果消息与上次一样则不再发送
+            message_content = ""
+            async for chunk in await main_agent.astream(project.id, message, file_list):
                 # 将 chunk 转为 SSE 格式
                 match chunk["type"]:
                     case "custom":
-                        msg = chunk["data"]["message"]
-                        # 创建对话
-                        msg_id = await conversation_message_repository.create(
-                            project_id=project_id,
-                            role=ConversationRole.SYSTEM,
-                            content=msg)
-                        msg_response = ConversationMessage(
-                            id=msg_id,
-                            role=ConversationRole.SYSTEM,
-                            content=msg,
-                            created_at=datetime.now()
-                        )
-                        response = ConversationMessageResponse(message=msg_response)
-                        logger.info(
-                            f"trans_id:{trans_id_ctx.get()} 方法:{utils.get_func_name()} 自定义消息发送:{response.model_dump_json()}")
-                        # 响应用户
-                        await queue.put(f"data: {response.model_dump_json()}\n\n")
+                        msg_type = chunk["data"]["type"]
+                        msg_content = chunk["data"]["message"]
+                        msg_assistant_role = chunk["data"]["role"]
+                        if msg_content and msg_content != message_content:
+                            message_content = msg_content
+                            # 创建对话
+                            msg_id = await conversation_message_repository.create(
+                                project_id=project.id,
+                                role=ConversationRole.SYSTEM,
+                                content=msg_content)
+                            msg_response = ConversationMessage(
+                                id=msg_id,
+                                role=ConversationRole.SYSTEM,
+                                assistant_role=msg_assistant_role,
+                                type=msg_type,
+                                content=msg_content,
+                                created_at=datetime.now()
+                            )
+                            response = ConversationMessageResponse(message=msg_response)
+                            logger.info(
+                                f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 自定义消息发送:{response.model_dump_json()}")
+                            # 响应用户
+                            await queue.put(f"data: {response.model_dump_json()}\n\n")
                     case "values":
                         state = chunk["data"]
                         # 检查节点返回是否包含对话
@@ -384,83 +399,141 @@ class ConversationMessageService:
                             msg = state["messages"][-1]
                             if isinstance(msg, AIMessage):
                                 msg_content = msg.content
-                                # 返回思考内容 但不记录
-                                if isinstance(msg_content, list) and msg_content[0].get("thinking"):
-                                    msg_response = ConversationMessage(
-                                        id="",
-                                        role=ConversationRole.SYSTEM,
-                                        content=msg_content[0]["thinking"],
-                                        created_at=datetime.now()
-                                    )
-                                    response = ConversationMessageResponse(message=msg_response)
-                                    # 响应用户
-                                    await queue.put(f"data: {response.model_dump_json()}\n\n")
                                 # 如果是正式回话 则记录并返回
-                                if msg_content and not msg.tool_calls:
+                                if msg_content and msg_content != message_content and not msg.tool_calls:
+                                    message_content = msg_content
                                     # 创建对话
                                     msg_id = await conversation_message_repository.create(
-                                        project_id=project_id,
+                                        project_id=project.id,
                                         role=ConversationRole.ASSISTANT,
                                         content=msg_content)
                                     msg_response = ConversationMessage(
                                         id=msg_id,
                                         role=ConversationRole.ASSISTANT,
+                                        type=ConversationMessageType.MESSAGE,
                                         content=msg_content,
                                         created_at=datetime.now()
                                     )
                                     response = ConversationMessageResponse(
                                         message=msg_response,
-                                        context=ConversationContext(
-                                            project_progress=state["project_progress"])
+                                        context=ConversationContext(project_progress=state["project_progress"])
                                     )
                                     logger.info(
-                                        f"trans_id:{trans_id_ctx.get()} 方法:{utils.get_func_name()} AI消息发送:{response.model_dump_json()}")
+                                        f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} AI消息发送:{response.model_dump_json()}")
                                     # 响应用户
                                     await queue.put(f"data: {response.model_dump_json()}\n\n")
+                    case "messages":
+                        token, metadata = chunk["data"]
+                        if (isinstance(token, AIMessageChunk)
+                                and token.content_blocks
+                                and not token.tool_calls):
+                            msg_content = "".join([block[block["type"]] for block in token.content_blocks
+                                                   if block["type"] not in ["tool_call_chunk"]])
+                            # 过滤系统工具
+                            msg_content = sensitive_word_utils.filter_ai_output_content(msg_content)
+                            if msg_content and msg_content != message_content:
+                                message_content = msg_content
+                                msg_response = ConversationMessage(
+                                    id="",
+                                    role=ConversationRole.ASSISTANT,
+                                    assistant_role=metadata.get("role"),
+                                    type=ConversationMessageType.STREAM,
+                                    content=msg_content,
+                                    created_at=datetime.now()
+                                )
+                                response = ConversationMessageResponse(
+                                    message=msg_response,
+                                    context=ConversationContext(project_progress=ProjectProgress(project.progress))
+                                )
+                                # 响应用户
+                                await queue.put(f"data: {response.model_dump_json()}\n\n")
                     case _:
                         print(chunk)
         except Exception as e:
             await queue.put("error: \n\n")
             logger.error(
-                f"trans_id:{trans_id_ctx.get()} 方法:{utils.get_func_name()} 异常:{str(e)}\n异常栈:{traceback.format_exc()}")
+                f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 异常:{str(e)}\n异常栈:{traceback.format_exc()}")
         finally:
             await queue.put(None)
 
     @staticmethod
     async def _send_heartbeat(queue):
-        """发送心跳包
-        
-        每3秒发送一次心跳包，保持连接活跃。
-        
-        Args:
-            queue: 消息队列
-        """
+        """发送心跳包"""
         while True:
             await asyncio.sleep(3)
             await queue.put("heartbeat: \n\n")
 
     @staticmethod
+    async def _compress_context(project_id: str):
+        """上下文压缩"""
+        try:
+            # 获取上下文压缩锁
+            lock_result = await redis_service.get_compress_context_lock(project_id)
+            if lock_result:
+                logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 上下文压缩取锁成功")
+                # 获取会话上下文
+                config = {"configurable": {"thread_id": project_id}}
+                agent = await main_agent.get_agent()
+                state_snapshot = await agent.aget_state(config=config)
+                total_messages = state_snapshot.values.get("messages", [])
+                # 生成精简后的上下文
+                compressed_messages = trim_messages(
+                    total_messages,
+                    strategy="last",
+                    start_on="human",
+                    token_counter=count_tokens_approximately,
+                    max_tokens=settings.model_max_context_token
+                )
+                # 提取需要压缩的上下文
+                compressed_message_ids = {item.id for item in compressed_messages}
+                summary_messages = [item for item in total_messages if item.id not in compressed_message_ids]
+                # 存在压缩的上下文则生成摘要
+                if summary_messages:
+                    # 获取历史摘要 默认最近20条
+                    history_summary = await conversation_summary_service.get_conversation_summary_to_str(project_id)
+                    message_text = cutils.format_context_messages_to_str(summary_messages)
+                    # 生成摘要
+                    messages = [
+                        SystemMessage(content=ConstSystemPrompt.CONTEXT_SUMMARY.template.format(
+                            existing_summary=history_summary, new_messages=message_text)),
+                        HumanMessage(content="请生成摘要")
+                    ]
+                    result = await default_model.ainvoke(messages)
+                    # 存储摘要
+                    if result and result.text:
+                        summary_token = count_tokens_approximately([result])
+                        await milvus_service.add_project_context(project_id, result.text)
+                        await conversation_summary_repository.create(project_id, result.text, token_count=summary_token)
+                        # 更新至 state
+                        remove_messages = [RemoveMessage(item.id) for item in summary_messages]
+                        await agent.aupdate_state(
+                            config=config,
+                            values={"history_summary": result.text, "messages": remove_messages}
+                        )
+                        logger.info(
+                            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 上下文压缩完成:{utils.to_one_line(result.text)}")
+                    else:
+                        logger.error(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 生成摘要响应异常:{result}")
+                else:
+                    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 上下文未达压缩上限")
+                await redis_service.unlock_compress_context_lock(project_id)
+                logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 上下文压缩解锁")
+            else:
+                logger.warning(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 上下文压缩取锁失败")
+        except Exception as e:
+            await redis_service.unlock_compress_context_lock(project_id)
+            logger.error(
+                f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 异常:{str(e)}\n异常栈:\n{traceback.format_exc()}")
+
+    @staticmethod
     async def discuss_project(
             project: Project,
+            user_id: str,
             message: str,
             files: list[UploadFile] = None,
+            background_tasks: BackgroundTasks = None,
     ) -> StreamingResponse:
-        """项目对话
-        
-        处理用户与 AI 的对话请求，支持上传文件。
-        返回流式响应（SSE 格式）。
-        
-        Args:
-            project: 项目对象
-            message: 用户消息
-            files: 上传的文件列表（可选）
-            
-        Returns:
-            流式响应（Server-Sent Events）
-            
-        Raises:
-            BusinessException: 文件类型错误、文件大小超限等
-        """
+        """项目对话"""
         # 上传文件检查
         conversation_message_id = str(uuid.uuid4())
         graph_file_list: list[StateNewProjectFile] = []
@@ -499,39 +572,49 @@ class ConversationMessageService:
                     created_at=datetime.now()
                 ))
 
-        # 创建用户对话记录
-        await conversation_message_repository.create(
-            id=conversation_message_id,
-            project_id=project.id,
-            role=ConversationRole.USER,
-            content=message)
+        lock_result = await redis_service.get_project_occupy_lock(project.id, user_id)
+        if lock_result:
+            logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 项目占用取锁成功")
+            # 创建用户对话记录
+            await conversation_message_repository.create(
+                id=conversation_message_id,
+                project_id=project.id,
+                role=ConversationRole.USER,
+                content=message)
 
-        # 进行项目对话
-        async def event_generator():
-            # 创建异步任务发送心跳包 保持链接
-            queue = asyncio.Queue()
-            heart_task = asyncio.create_task(ConversationMessageService._send_heartbeat(queue))
-            agent_task = asyncio.create_task(
-                ConversationMessageService._start_agent(project.id, message, graph_file_list, queue))
-            try:
-                while True:
-                    try:
-                        # 每秒检查队列，有数据 不为 None 则发送给前端
-                        data = await asyncio.wait_for(queue.get(), timeout=1)
-                        if data is None:
-                            break
-                        yield data
-                    except asyncio.TimeoutError:
-                        continue
-            except Exception as e:
-                logger.error(
-                    f"trans_id:{trans_id_ctx.get()} 方法:{utils.get_func_name()} 异常:{str(e)}\n异常栈:{traceback.format_exc()}")
-            finally:
-                agent_task.cancel()
-                heart_task.cancel()
-                logger.info(f"trans_id:{trans_id_ctx.get()} 方法:{utils.get_func_name()} 对话结束")
+            # 进行项目对话
+            async def event_generator():
+                # 创建异步任务发送心跳包 保持链接
+                queue = asyncio.Queue()
+                heart_task = asyncio.create_task(ConversationMessageService._send_heartbeat(queue))
+                agent_task = asyncio.create_task(
+                    ConversationMessageService._start_agent(project, message, graph_file_list, queue))
+                try:
+                    while True:
+                        try:
+                            # 每秒检查队列，有数据 不为 None 则发送给前端
+                            data = await asyncio.wait_for(queue.get(), timeout=1)
+                            if data is None:
+                                break
+                            yield data
+                        except asyncio.TimeoutError:
+                            continue
+                except Exception as e:
+                    logger.error(
+                        f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 异常:{str(e)}\n异常栈:{traceback.format_exc()}")
+                finally:
+                    agent_task.cancel()
+                    heart_task.cancel()
+                    logger.info(f"trans_id:{trans_id_ctx.get(None)} 项目Id:{project.id} 对话结束")
+                    # 执行上下文压缩
+                    background_tasks.add_task(ConversationMessageService._compress_context, project.id)
 
-        return StreamingResponse(event_generator(), media_type="text/event-stream")
+            return StreamingResponse(event_generator(), media_type="text/event-stream")
+        else:
+            # 删除已上传的文件
+            for file in graph_file_list:
+                file_utils.unlink_file(file["path"])
+            raise BusinessException.from_error_message(ErrorMessage.PROJECT_OCCUPIED_ERROR)
 
 
 # 导出单例

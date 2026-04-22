@@ -3,3 +3,8 @@ services:
     image: clamav/clamav-debian:stable
     ports:
       - "3310:3310"
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"

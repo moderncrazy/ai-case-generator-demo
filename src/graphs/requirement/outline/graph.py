@@ -4,7 +4,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from src import constant as const
-from src.graphs import tools as main_tools
+from src.graphs.common import tools as ctools
 from src.graphs.requirement.outline.state import State
 from src.graphs.requirement.outline import routes, nodes, tools
 
@@ -21,11 +21,44 @@ def create_agent() -> CompiledStateGraph:
     """
     agent_builder = StateGraph(State)
 
+    agent_builder.add_node("generate_optimization_requirement_outline_plan_node",
+                           nodes.generate_optimization_requirement_outline_plan_node)
+    agent_builder.add_node("generate_optimization_requirement_outline_plan_tool_node",
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
+
+    agent_builder.add_node("review_optimization_requirement_outline_plan_node",
+                           nodes.review_optimization_requirement_outline_plan_node)
+    agent_builder.add_node("review_optimization_requirement_outline_plan_tool_node",
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
+
     agent_builder.add_node("optimize_requirement_outline_node", nodes.optimize_requirement_outline_node)
     agent_builder.add_node("optimize_requirement_outline_tool_node",
-                           ToolNode(main_tools.tool_list + tools.tool_list, messages_key="private_messages"))
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
 
-    agent_builder.add_edge(START, "optimize_requirement_outline_node")
+    agent_builder.add_edge(START, "generate_optimization_requirement_outline_plan_node")
+
+    agent_builder.add_conditional_edges(
+        "generate_optimization_requirement_outline_plan_node",
+        routes.generate_optimization_requirement_outline_plan_tool_router,
+        ["generate_optimization_requirement_outline_plan_tool_node",
+         "review_optimization_requirement_outline_plan_node"]
+    )
+    agent_builder.add_edge("generate_optimization_requirement_outline_plan_tool_node",
+                           "generate_optimization_requirement_outline_plan_node")
+
+    agent_builder.add_conditional_edges(
+        "review_optimization_requirement_outline_plan_node",
+        routes.review_optimization_requirement_outline_plan_tool_router,
+        [
+            "review_optimization_requirement_outline_plan_tool_node",
+            "optimize_requirement_outline_node",
+            "generate_optimization_requirement_outline_plan_node",
+            END
+        ]
+    )
+    agent_builder.add_edge("review_optimization_requirement_outline_plan_tool_node",
+                           "review_optimization_requirement_outline_plan_node")
+
     agent_builder.add_conditional_edges(
         "optimize_requirement_outline_node",
         routes.optimize_requirement_outline_tool_router,

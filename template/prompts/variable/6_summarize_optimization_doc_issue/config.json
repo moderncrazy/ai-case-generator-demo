@@ -1,0 +1,14 @@
+{
+  "common": {},
+  "stage": {
+    "requirement_module_design": {
+      "output_tool": "optimize_requirement_module_issue_output"
+    },
+    "requirement_overall_design": {
+      "output_tool": "optimize_requirement_overall_issue_output"
+    },
+    "system_architecture_design": {
+      "output_tool": "optimize_system_architecture_issue_output"
+    }
+  }
+}

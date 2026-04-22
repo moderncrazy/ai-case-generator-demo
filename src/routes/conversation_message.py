@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import APIRouter, Form, UploadFile, Depends
+from fastapi import APIRouter, Form, UploadFile, Depends, BackgroundTasks
 
 from src.models.project import Project
 from src.dependencies.dependencies import get_project_or_404
@@ -40,8 +40,10 @@ async def list_messages(
 @router.post("/{project_id}/discuss")
 async def discuss_project(
         project: Annotated[Project, Depends(get_project_or_404)],
+        user_id: Annotated[str, Form()],
         message: Annotated[str, Form()],
         files: list[UploadFile] = None,
+        background_tasks: BackgroundTasks = None,
 ):
     """项目对话
     
@@ -50,10 +52,13 @@ async def discuss_project(
     
     Args:
         project: 项目对象（通过依赖注入获取）
+        user_id: 用户项目对话免打扰
         message: 用户输入的消息内容
         files: 上传的文件列表（可选，支持多文件）
+        background_tasks: 后台任务
         
     Returns:
         返回对话响应结果
     """
-    return await conversation_message_service.discuss_project(project=project, message=message, files=files)
+    return await conversation_message_service.discuss_project(
+        project=project, user_id=user_id, message=message, files=files, background_tasks=background_tasks)

@@ -1,0 +1,45 @@
+```json
+{
+  "message": "给评审同学的留言，说明数据库设计的要点和重点关注的地方（简洁）",
+  "system_database_content": "数据库设计内容（Markdown格式，通常包含SQL语句）"
+}
+```
+
+## ⚡️ 数据库设计规范
+
+### 1. 表结构设计
+```sql
+CREATE TABLE `user` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '用户ID',
+  `username` varchar(50) NOT NULL COMMENT '用户名',
+  `email` varchar(100) NOT NULL COMMENT '邮箱',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_username` (`username`),
+  KEY `idx_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
+```
+
+### 2. 索引设计
+- 主键使用自增ID或UUID
+- 唯一索引使用 UNIQUE KEY
+- 频繁查询字段添加普通索引
+- 避免过多索引影响写入性能
+
+### 3. 命名规范
+| 类型 | 规范 | 示例 |
+|------|------|------|
+| 表名 | 小写下划线 | user_info |
+| 字段名 | 小写下划线 | user_name |
+| 索引名 | idx_表名_字段 | idx_user_email |
+| 外键名 | fk_表名_字段 | fk_order_user |
+
+### 4. 字段类型选择
+| 场景 | 推荐类型 |
+|------|----------|
+| 主键ID | bigint(20) |
+| 状态字段 | tinyint(4) |
+| 时间字段 | datetime |
+| 金额字段 | decimal(10,2) |
+| 长文本 | text |

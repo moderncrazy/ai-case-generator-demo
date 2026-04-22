@@ -16,8 +16,10 @@ erDiagram
     PROJECT ||--o{ OPERATION_LOG : "记录"
     PROJECT ||--o{ CONVERSATION_MESSAGE : "包含"
     PROJECT ||--o{ PROJECT_FILE : "包含"
+    PROJECT ||--o{ CONVERSATION_SUMMARY : "生成"
     
     CONVERSATION_MESSAGE ||--o{ PROJECT_FILE : "上传"
+    CONVERSATION_MESSAGE ||--o{ CONVERSATION_SUMMARY : "触发"
     MODULE ||--o{ TEST_CASE : "生成"
     MODULE ||--o{ API : "生成"
     
@@ -110,6 +112,14 @@ erDiagram
         string content 
         string summary 
         string metadata
+        datetime created_at
+    }
+    
+    CONVERSATION_SUMMARY {
+        string id PK
+        string project_id FK
+        string summary
+        integer token_count
         datetime created_at
     }
 ```
@@ -221,6 +231,16 @@ erDiagram
 | summary                 | TEXT     |             | 文件摘要         |
 | metadata                | TEXT     |             | 额外元数据 (JSON) |
 | created_at              | DATETIME | NOT NULL    | 创建时间         |
+
+### 8. 会话摘要表 (conversation_summary)
+
+| 字段          | 类型       | 约束                        | 说明                 |
+|-------------|----------|---------------------------|--------------------|
+| id          | TEXT     | PRIMARY KEY               | UUID               |
+| project_id  | TEXT     | FOREIGN KEY               | 所属项目ID             |
+| summary     | TEXT     | NOT NULL                  | 摘要内容               |
+| token_count | INTEGER  |                           | summary 的 token 数量 |
+| created_at  | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间               |
 
 ---
 
@@ -375,6 +395,20 @@ CREATE TABLE IF NOT EXISTS project_file
 CREATE INDEX idx_files_project ON project_file (project_id);
 CREATE INDEX idx_files_name ON project_file (name);
 CREATE INDEX idx_files_message ON project_file (conversation_message_id);
+
+-- 会话摘要表
+CREATE TABLE IF NOT EXISTS conversation_summary
+(
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL,
+    summary     TEXT NOT NULL,
+    token_count INTEGER,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES project (id)
+);
+
+CREATE INDEX idx_summary_project ON conversation_summary (project_id);
+CREATE INDEX idx_summary_created ON conversation_summary (created_at);
 ```
 
 ---

@@ -2,7 +2,8 @@ from typing import Annotated
 from langchain.messages import AnyMessage
 
 from src.graphs.state import State as BaseState
-from src.graphs.reduce import priority_message_reducer
+from src.graphs.common.reduce import priority_message_reducer, rewrite_reducer as wr
+from src.enums.review_optimization_plan_result import ReviewOptimizationPlanResult
 
 
 class State(BaseState):
@@ -13,3 +14,6 @@ class State(BaseState):
 
     private_messages: Annotated[list[AnyMessage], priority_message_reducer]
     """子图内部私聊消息（不暴露给主图）"""
+
+    review_optimization_plan_result: Annotated[ReviewOptimizationPlanResult, wr]
+    """审核优化方案结果"""

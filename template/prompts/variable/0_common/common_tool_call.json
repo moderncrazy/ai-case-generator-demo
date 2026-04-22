@@ -1,0 +1,202 @@
+{
+  "init": [
+    {
+      "name": "get_project_info",
+      "description": "获取项目基本信息"
+    },
+    {
+      "name": "get_new_project_file_list",
+      "description": "获取本次对话中用户新上传的文件"
+    }
+  ],
+  "requirement_outline_design": [
+    {
+      "name": "get_project_info",
+      "description": "获取项目基本信息"
+    },
+    {
+      "name": "get_new_project_file_list",
+      "description": "获取本次对话中用户新上传的文件"
+    },
+    {
+      "name": "get_requirement_outline",
+      "description": "获取已生成的需求大纲内容"
+    }
+  ],
+  "requirement_module_design": [
+    {
+      "name": "get_project_info",
+      "description": "获取项目基本信息"
+    },
+    {
+      "name": "get_new_project_file_list",
+      "description": "获取本次对话中用户新上传的文件"
+    },
+    {
+      "name": "get_requirement_outline",
+      "description": "获取已生成的需求大纲内容"
+    },
+    {
+      "name": "get_requirement_modules",
+      "description": "获取需求模块列表"
+    }
+  ],
+  "requirement_overall_design": [
+    {
+      "name": "get_project_info",
+      "description": "获取项目基本信息"
+    },
+    {
+      "name": "get_new_project_file_list",
+      "description": "获取本次对话中用户新上传的文件"
+    },
+    {
+      "name": "get_requirement_outline",
+      "description": "获取已生成的需求大纲内容"
+    },
+    {
+      "name": "get_requirement_modules",
+      "description": "获取需求模块列表"
+    },
+    {
+      "name": "get_current_requirement",
+      "description": "获取当前需求文档内容"
+    }
+  ],
+  "system_architecture_design": [
+    {
+      "name": "get_project_info",
+      "description": "获取项目基本信息"
+    },
+    {
+      "name": "get_new_project_file_list",
+      "description": "获取本次对话中用户新上传的文件"
+    },
+    {
+      "name": "get_current_requirement",
+      "description": "获取当前需求文档内容"
+    },
+    {
+      "name": "get_current_architecture",
+      "description": "获取当前架构设计内容"
+    }
+  ],
+  "system_modules_design": [
+    {
+      "name": "get_project_info",
+      "description": "获取项目基本信息"
+    },
+    {
+      "name": "get_new_project_file_list",
+      "description": "获取本次对话中用户新上传的文件"
+    },
+    {
+      "name": "get_current_requirement",
+      "description": "获取当前需求文档内容"
+    },
+    {
+      "name": "get_current_architecture",
+      "description": "获取系统架构内容"
+    },
+    {
+      "name": "get_current_modules",
+      "description": "获取系统模块列表"
+    }
+  ],
+  "system_database_design": [
+    {
+      "name": "get_project_info",
+      "description": "获取项目基本信息"
+    },
+    {
+      "name": "get_new_project_file_list",
+      "description": "获取本次对话中用户新上传的文件"
+    },
+    {
+      "name": "get_current_requirement",
+      "description": "获取当前需求文档内容"
+    },
+    {
+      "name": "get_current_architecture",
+      "description": "获取系统架构内容"
+    },
+    {
+      "name": "get_current_modules",
+      "description": "获取系统模块列表"
+    },
+    {
+      "name": "get_current_database",
+      "description": "获取当前数据库设计"
+    }
+  ],
+  "system_api_design": [
+    {
+      "name": "get_project_info",
+      "description": "获取项目基本信息"
+    },
+    {
+      "name": "get_new_project_file_list",
+      "description": "获取本次对话中用户新上传的文件"
+    },
+    {
+      "name": "get_current_requirement",
+      "description": "获取当前需求文档内容"
+    },
+    {
+      "name": "get_current_architecture",
+      "description": "获取系统架构内容"
+    },
+    {
+      "name": "get_current_modules",
+      "description": "获取系统模块列表"
+    },
+    {
+      "name": "get_current_database",
+      "description": "获取当前数据库设计"
+    },
+    {
+      "name": "get_current_apis",
+      "description": "获取系统接口列表"
+    }
+  ],
+  "test_case_design": [
+    {
+      "name": "get_project_info",
+      "description": "获取项目基本信息"
+    },
+    {
+      "name": "get_new_project_file_list",
+      "description": "获取本次对话中用户新上传的文件"
+    },
+    {
+      "name": "get_current_requirement",
+      "description": "获取当前需求文档内容"
+    },
+    {
+      "name": "get_current_database",
+      "description": "获取当前数据库设计"
+    },
+    {
+      "name": "get_current_apis",
+      "description": "获取系统接口列表"
+    },
+    {
+      "name": "get_current_test_cases",
+      "description": "获取测试用例列表"
+    }
+  ],
+  "completed": [
+    {
+      "name": "get_project_info",
+      "description": "获取项目基本信息"
+    },
+    {
+      "name": "get_new_project_file_list",
+      "description": "获取本次对话中用户新上传的文件"
+    },
+    {
+      "name": "get_current_requirement",
+      "description": "获取当前需求文档内容"
+    }
+  ]
+}

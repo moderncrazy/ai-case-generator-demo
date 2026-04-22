@@ -4,7 +4,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from src import constant as const
-from src.graphs import tools as main_tools
+from src.graphs.common import tools as ctools
 from src.graphs.system.database import routes, nodes, tools
 from src.graphs.system.database.state import State, GroupMemberState
 
@@ -23,7 +23,7 @@ def create_group_member_review_agent() -> CompiledStateGraph:
 
     agent_builder.add_node("review_system_database_node", nodes.review_system_database_node)
     agent_builder.add_node("review_system_database_tool_node",
-                           ToolNode(main_tools.tool_list + tools.tool_list, messages_key="private_messages"))
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
 
     agent_builder.add_edge(START, "review_system_database_node")
     agent_builder.add_conditional_edges(
@@ -50,9 +50,22 @@ def create_agent() -> CompiledStateGraph:
     """
     agent_builder = StateGraph(State)
 
+    # 生成方案节点
+    agent_builder.add_node("generate_optimization_system_database_plan_node",
+                           nodes.generate_optimization_system_database_plan_node)
+    agent_builder.add_node("generate_optimization_system_database_plan_tool_node",
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
+
+    # 审核方案节点
+    agent_builder.add_node("review_optimization_system_database_plan_node",
+                           nodes.review_optimization_system_database_plan_node)
+    agent_builder.add_node("review_optimization_system_database_plan_tool_node",
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
+
+    # 优化节点
     agent_builder.add_node("optimize_system_database_node", nodes.optimize_system_database_node)
     agent_builder.add_node("optimize_system_database_tool_node",
-                           ToolNode(main_tools.tool_list + tools.tool_list, messages_key="private_messages"))
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
 
     # review 子图
     agent_builder.add_node("review_system_database_node", create_group_member_review_agent())
@@ -60,7 +73,29 @@ def create_agent() -> CompiledStateGraph:
     # 聚合节点
     agent_builder.add_node("review_system_database_aggregator_node", nodes.review_system_database_aggregator_node)
 
-    agent_builder.add_edge(START, "optimize_system_database_node")
+    agent_builder.add_edge(START, "generate_optimization_system_database_plan_node")
+
+    agent_builder.add_conditional_edges(
+        "generate_optimization_system_database_plan_node",
+        routes.generate_optimization_system_database_plan_tool_router,
+        ["generate_optimization_system_database_plan_tool_node", "review_optimization_system_database_plan_node"]
+    )
+    agent_builder.add_edge("generate_optimization_system_database_plan_tool_node",
+                           "generate_optimization_system_database_plan_node")
+
+    agent_builder.add_conditional_edges(
+        "review_optimization_system_database_plan_node",
+        routes.review_optimization_system_database_plan_tool_router,
+        [
+            "review_optimization_system_database_plan_tool_node",
+            "optimize_system_database_node",
+            "generate_optimization_system_database_plan_node",
+            END
+        ]
+    )
+    agent_builder.add_edge("review_optimization_system_database_plan_tool_node",
+                           "review_optimization_system_database_plan_node")
+
     agent_builder.add_conditional_edges(
         "optimize_system_database_node",
         routes.optimize_system_database_tool_router,

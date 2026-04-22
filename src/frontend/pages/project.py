@@ -5,6 +5,7 @@ import streamlit as st
 import streamlit_antd_components as sac
 
 from src.frontend.utils import utils
+from src.frontend import constant as const
 from src.frontend.service.project_service import ProjectService
 from src.frontend.enums.project_file_type import ProjectFileType
 from src.frontend.enums.project_progress import ProjectProgress
@@ -17,7 +18,6 @@ STATE_SHOW_PROJECT_FILE_TYPE = "show_project_file_type"
 
 def project_file_on_click(project_file_type: ProjectFileType):
     st.session_state[STATE_SHOW_PROJECT_FILE_TYPE] = project_file_type
-    # st.rerun()
 
 
 def show_project_file_type(file_container, project: ProjectDetailResponse):
@@ -80,11 +80,19 @@ def app():
         st.page_link("pages/home.py", label="返回首页")
         return
 
+        # 默认打开聊天框
+    if st.session_state.get(const.CHAT_POPOVER_KEY) is None:
+        st.session_state[const.CHAT_POPOVER_KEY] = True
+
     # 聊天框
     asyncio.run(chat_frame(project_id))
 
-    # 页面标题
-    st.title(f"📂 {project.name}")
+    back, title = st.columns([2, 30], vertical_alignment="center")
+    with back:
+        st.page_link("pages/home.py", label="\u200c\n\n返回\n\n\u200c", icon=":material/arrow_back:")
+    with title:
+        # 页面标题
+        st.title(f"📂 {project.name}")
 
     st.divider()
 

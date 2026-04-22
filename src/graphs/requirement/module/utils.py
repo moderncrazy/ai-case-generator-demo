@@ -1,4 +1,4 @@
-from src.graphs.schemas import StateRequirementModule
+from src.graphs.common.schemas import StateRequirementModule
 from src.enums.requirement_module_status import RequirementModuleStatus
 
 

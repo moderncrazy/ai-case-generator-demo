@@ -14,6 +14,7 @@ class ErrorMessage(Enum):
     PROJECT_FILE_TOTAL_SIZE_ERROR = (4006, "项目文件总体过大")
     PROJECT_FILE_EXIST_ERROR = (4007, "项目文件已存在")
     PROJECT_NAME_EXIST_ERROR = (4008, "项目名称已存在")
+    PROJECT_OCCUPIED_ERROR = (4009, "项目被其他用户使用中")
     LLM_ERROR = (4100, "模型调用异常")
     FLOW_VALIDATE_FAILED = (4101, "流程验证失败")
 

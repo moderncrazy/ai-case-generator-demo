@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     ollama_max_tokens: int = Field(default=16384, description="Ollama Max Tokens")
     ollama_temperature: float = Field(default=0.3, description="Ollama Temperature")
 
+    model_max_context_token: int = Field(default=1000, description="Max Context Token")
     model_output_retry: int = Field(default=5, description="Model Output Retry")
     model_structured_output_retry: int = Field(default=5, description="Model Structured Output Retry")
 
@@ -89,6 +90,16 @@ class Settings(BaseSettings):
         default=BASE_DIR / "models/bge-m3-onnx-int8",
         description="Embedding Model Local Path"
     )
+
+    # redis
+    redis_host: str = Field(default="localhost", description="Redis Host")
+    redis_port: int = Field(default=6379, description="Redis Port")
+    redis_db: int = Field(default=0, description="Redis DB")
+    redis_password: str = Field(default="", description="Redis Password")
+
+    # lock
+    project_occupy_lock_expire: int = Field(default=300, description="Project Occupy Lock Expire")
+    compress_context_lock_expire: int = Field(default=300, description="Compress Context Lock Expire")
 
 
 # 日志初始化配置

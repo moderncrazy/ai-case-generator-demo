@@ -1,4 +1,4 @@
-from src.graphs.schemas import StateModule
+from src.graphs.common.schemas import StateModule
 from src.graphs.system.api.schemas import SystemApi
 
 

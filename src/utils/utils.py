@@ -4,15 +4,16 @@ from typing import Any
 from typing_extensions import Doc, get_type_hints
 
 
-def get_func_name():
+def get_func_name(depth: int = 1):
     """获取调用者的函数名
     
     获取上一级调用栈的函数名称。
+    depth=2 则 为上上级 以此类推
     
     Returns:
         调用者的函数名字符串
     """
-    return sys._getframe(1).f_code.co_name
+    return sys._getframe(depth).f_code.co_name
 
 
 def to_json(obj):

@@ -2,7 +2,7 @@ import uuid
 from typing import Optional
 from pydantic import BaseModel, Field
 
-from src.graphs.schemas import Issue
+from src.graphs.common.schemas import Issue
 from src.enums.test_case_type import TestCaseType
 from src.enums.test_case_level import TestCaseLevel
 

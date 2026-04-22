@@ -3,3 +3,14 @@ showSidebarNavigation = false
 
 [server]
 headless = true
+
+[theme]
+baseFontSize = 15
+headingFontSizes = [
+    "2.25rem", # h1 (1.5rem for sidebar)
+    "2.0rem", # h2 (1.25rem for sidebar)
+    "1.5rem", # h3 (1.125rem for sidebar)
+    "1.25rem", # h4 (1rem for sidebar)
+    "1.1rem", # h5 (0.875rem for sidebar)
+    "1rem", # h6 (0.75rem for sidebar)
+]

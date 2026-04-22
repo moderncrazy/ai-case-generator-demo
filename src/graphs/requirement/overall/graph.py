@@ -4,7 +4,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from src import constant as const
-from src.graphs import tools as main_tools
+from src.graphs.common import tools as ctools
 from src.graphs.requirement.overall.state import State, GroupMemberState
 from src.graphs.requirement.overall import routes, nodes, tools
 
@@ -23,7 +23,7 @@ def create_group_member_review_agent() -> CompiledStateGraph:
 
     agent_builder.add_node("review_requirement_overall_node", nodes.review_requirement_overall_node)
     agent_builder.add_node("review_requirement_overall_tool_node",
-                           ToolNode(main_tools.tool_list + tools.tool_list, messages_key="private_messages"))
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
 
     agent_builder.add_edge(START, "review_requirement_overall_node")
     agent_builder.add_conditional_edges(
@@ -40,7 +40,9 @@ def create_group_member_review_agent() -> CompiledStateGraph:
 def create_agent() -> CompiledStateGraph:
     """创建完整的需求文档优化 Agent
     
-    工作流程：优化 → 评审（多角色并发）→ 聚合 → 问题整理
+    工作流程：生成方案 → 审核方案 → 优化 → 评审（多角色并发）→ 聚合 → 问题整理
+    - 生成方案节点：根据上下文生成需求整体文档的优化方案
+    - 审核方案节点：审核优化方案，确保方案合理可行
     - 优化节点：根据上下文优化需求文档内容
     - Review 子图：团队成员分别评审
     - 聚合节点：汇总评审结果，判断是否需要返工或进入下一阶段
@@ -51,9 +53,22 @@ def create_agent() -> CompiledStateGraph:
     """
     agent_builder = StateGraph(State)
 
+    # 生成方案节点
+    agent_builder.add_node("generate_optimization_requirement_overall_plan_node",
+                           nodes.generate_optimization_requirement_overall_plan_node)
+    agent_builder.add_node("generate_optimization_requirement_overall_plan_tool_node",
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
+
+    # 审核方案节点
+    agent_builder.add_node("review_optimization_requirement_overall_plan_node",
+                           nodes.review_optimization_requirement_overall_plan_node)
+    agent_builder.add_node("review_optimization_requirement_overall_plan_tool_node",
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
+
+    # 优化节点
     agent_builder.add_node("optimize_requirement_overall_node", nodes.optimize_requirement_overall_node)
     agent_builder.add_node("optimize_requirement_overall_tool_node",
-                           ToolNode(main_tools.tool_list + tools.tool_list, messages_key="private_messages"))
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
 
     # review 子图
     agent_builder.add_node("review_requirement_overall_node", create_group_member_review_agent())
@@ -63,9 +78,34 @@ def create_agent() -> CompiledStateGraph:
 
     agent_builder.add_node("optimize_requirement_overall_issue_node", nodes.optimize_requirement_overall_issue_node)
     agent_builder.add_node("optimize_requirement_overall_issue_tool_node",
-                           ToolNode(main_tools.tool_list + tools.tool_list, messages_key="private_messages"))
+                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
 
-    agent_builder.add_edge(START, "optimize_requirement_overall_node")
+    # 流程连接：START → 生成方案 → 审核方案 → 优化 → 评审 → 聚合 → 问题整理 → END
+    agent_builder.add_edge(START, "generate_optimization_requirement_overall_plan_node")
+
+    agent_builder.add_conditional_edges(
+        "generate_optimization_requirement_overall_plan_node",
+        routes.generate_optimization_requirement_overall_plan_tool_router,
+        [
+            "generate_optimization_requirement_overall_plan_tool_node",
+            "review_optimization_requirement_overall_plan_node"
+        ]
+    )
+    agent_builder.add_edge("generate_optimization_requirement_overall_plan_tool_node",
+                           "generate_optimization_requirement_overall_plan_node")
+
+    agent_builder.add_conditional_edges(
+        "review_optimization_requirement_overall_plan_node",
+        routes.review_optimization_requirement_overall_plan_tool_router,
+        [
+            "review_optimization_requirement_overall_plan_tool_node", "optimize_requirement_overall_node",
+            "generate_optimization_requirement_overall_plan_node",
+            END
+        ]
+    )
+    agent_builder.add_edge("review_optimization_requirement_overall_plan_tool_node",
+                           "review_optimization_requirement_overall_plan_node")
+
     agent_builder.add_conditional_edges(
         "optimize_requirement_overall_node",
         routes.optimize_requirement_overall_tool_router,

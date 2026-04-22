@@ -9,8 +9,8 @@ from optimum.onnxruntime import ORTModelForCustomTasks
 from pymilvus import AsyncMilvusClient, AnnSearchRequest, WeightedRanker, DataType
 
 from src.utils import utils
-from src.config import settings
 from src.context import trans_id_ctx
+from src.config import settings
 
 
 class ProjectFileSearchResult(BaseModel):
@@ -310,7 +310,7 @@ class MilvusService:
             data=data
         )
         logger.info(
-            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 项目Id:{project_id} 插入项目文件:{name}")
+            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 插入项目文件:{name}")
         return result["ids"][0]
 
     async def add_project_context(
@@ -348,7 +348,7 @@ class MilvusService:
             data=data
         )
         logger.info(
-            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 项目Id:{project_id} 插入上下文对话:{content}")
+            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 插入会话摘要:{utils.to_one_line(content)}")
         return result["ids"][0]
 
     async def search_project_files(
@@ -419,7 +419,7 @@ class MilvusService:
         ]
 
         logger.info(
-            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 项目Id:{project_id} 返回文件条目:{len(formatted)}")
+            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 返回文件条目:{len(formatted)}")
         return formatted
 
     async def search_project_context(
@@ -480,7 +480,7 @@ class MilvusService:
             for hit in results[0]
         ]
         logger.info(
-            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 项目Id:{project_id} 返回上下文条目:{len(formatted)}")
+            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 返回上下文条目:{len(formatted)}")
         return formatted
 
     async def delete_project_file(self, sql_db_id: str) -> None:
@@ -494,7 +494,7 @@ class MilvusService:
             filter=f'sql_db_id == "{sql_db_id}"'
         )
         logger.info(
-            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 文件Id:{sql_db_id} 删除项目文件向量数据")
+            f"trans_id:{trans_id_ctx.get()} 文件Id:{sql_db_id} 删除项目文件向量数据")
 
     async def delete_project(self, project_id: str) -> None:
         """删除项目的所有向量数据
@@ -515,7 +515,7 @@ class MilvusService:
             filter=f'project_id == "{project_id}"'
         )
         logger.info(
-            f"trans_id:{trans_id_ctx.get()} 方法名:{utils.get_func_name()} 项目Id:{project_id} 删除项目向量数据")
+            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 删除项目向量数据")
 
     async def close(self) -> None:
         """关闭连接"""

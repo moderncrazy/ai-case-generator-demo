@@ -270,6 +270,7 @@ POST /api/v1/project/{project_id}/discuss
 
 | 参数      | 类型     | 必填 | 说明                         |
 |---------|--------|----|----------------------------|
+| user_id | string | 是  | 用户Id（随机UUID，用于项目对话免打扰）     |
 | message | string | 是  | 对话消息                       |
 | files   | file   | 否  | 需求文件（支持 PDF/Word/Markdown） |
 

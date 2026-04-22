@@ -2,7 +2,7 @@ from langchain.messages import HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 
 from src.graphs import graph
-from src.graphs.schemas import StateNewProjectFile
+from src.graphs.common.schemas import StateNewProjectFile
 
 
 class MainAgent:
@@ -15,7 +15,7 @@ class MainAgent:
         """初始化主代理，agent 实例初始为 None（懒加载）"""
         self._agent: CompiledStateGraph | None = None
 
-    async def _get_agent(self) -> CompiledStateGraph:
+    async def get_agent(self) -> CompiledStateGraph:
         """获取或创建编译后的 LangGraph agent
         
         Returns:
@@ -38,7 +38,7 @@ class MainAgent:
         Returns:
             异步生成器，产生流式输出结果
         """
-        self._agent = await self._get_agent()
+        self._agent = await self.get_agent()
         if new_file_list:
             state = {
                 "messages": HumanMessage(content=message),
@@ -51,7 +51,7 @@ class MainAgent:
         return self._agent.astream(
             state,
             config={"configurable": {"thread_id": project_id}},
-            stream_mode=["values", "custom"],
+            stream_mode=["values", "custom", "messages"],
             subgraphs=True,
             version="v2"
         )

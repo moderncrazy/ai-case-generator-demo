@@ -40,6 +40,7 @@ services:
         condition: on-failure
     volumes:
       - /opt/projects/ai-case-generator-demo/logs:/app/logs
+      - /opt/projects/ai-case-generator-demo/.streamlit:/app/.streamlit
     depends_on:
       - backend
     networks:

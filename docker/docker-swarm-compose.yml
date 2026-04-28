@@ -1,0 +1,50 @@
+services:
+  clamav:
+    image: clamav/clamav-debian:stable
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  redis:
+    image: redis:8-alpine
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - /opt/projects/ai-case-generator-demo/redis:/data
+
+  ai-case-generator-demo-backend:
+    image: ai-case-generator-demo-backend:latest
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - /opt/projects/ai-case-generator-demo/data:/app/data
+      - /opt/projects/ai-case-generator-demo/logs:/app/logs
+      - /opt/projects/ai-case-generator-demo/models:/app/models
+      - /opt/projects/ai-case-generator-demo/.env:/app/.env
+    depends_on:
+      - redis
+      - clamav
+    networks:
+      - gateway_net
+
+  ai-case-generator-demo-frontend:
+    image: ai-case-generator-demo-frontend:latest
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    volumes:
+      - /opt/projects/ai-case-generator-demo/logs:/app/logs
+    depends_on:
+      - backend
+    networks:
+      - gateway_net
+
+networks:
+  gateway_net:
+    external: true

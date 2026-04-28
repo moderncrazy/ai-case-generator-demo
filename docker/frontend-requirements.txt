@@ -1,0 +1,14 @@
+# Frontend
+httpx>=0.28.1
+streamlit>=1.40.0
+streamlit-extras>=0.4.0
+streamlit-local-storage>=0.0.25
+streamlit-antd-components>=0.3.2
+streamlit-adjustable-columns>=0.2.1
+
+# Utilities
+loguru>=0.7.0
+pathlib>=1.0.0
+orjson>=3.11.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0

@@ -125,8 +125,9 @@ def setup_logging(setting: Settings) -> None:
     )
 
 
-# 设置 HF 模型离线调用
-os.environ.setdefault("HF_HUB_OFFLINE", "1")
-os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-
 settings = Settings()
+
+# 优先使用离线嵌入模型
+if settings.embedding_model_local_path.exists():
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")

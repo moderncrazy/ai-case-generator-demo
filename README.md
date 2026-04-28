@@ -128,7 +128,7 @@ flowchart TB
 - Python 3.12+
 - macOS / Linux / Windows
 - 内存 8GB+（推荐 16GB）
-- Docker（可选，用于 ClamAV）
+- Docker（可选，用于 ClamAV、Redis）
 
 ### 安装步骤
 
@@ -157,7 +157,7 @@ streamlit run src/frontend/web.py   # 前端 UI  http://localhost:8501
 ### ClamAV 依赖
 
 ```bash
-# 启动依赖服务（ClamAV）
+# 启动依赖服务（ClamAV、Redis）
 docker-compose -f docker/docker-compose-dependency.yml up -d
 ```
 

@@ -39,4 +39,4 @@ def validate_requirement_modules(modules: list[RequirementModuleCreate]) -> str:
     missing_orders = expected_orders - actual_orders
     if missing_orders:
         errors.append(f"order 序号不连续，缺失的序号：{', '.join(str(o) for o in sorted(missing_orders))}")
-    return "，".join(errors)
+    return "\n".join(errors)

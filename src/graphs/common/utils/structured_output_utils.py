@@ -4,21 +4,24 @@ import traceback
 import uuid
 
 from loguru import logger
+from typing import TypeVar
 from langgraph.runtime import Runtime
 from langchain.chat_models import BaseChatModel
 from langchain.tools import ToolRuntime, BaseTool
 from langchain_core.runnables import RunnableConfig
 from langchain.messages import HumanMessage, AIMessage, ToolMessage, AnyMessage, ToolCall
 
+from src.config import settings
 from src.graphs.state import State
 from src.context import trans_id_ctx
 from src.utils import utils as gutils
-from src.config import settings
 from src.enums.error_message import ErrorMessage
 from src.exceptions.exceptions import BusinessException
 
+AnyState = TypeVar("AnyState", bound=State)
 
-def create_tool_runtime(tool_call_id: str, state: State, runtime: Runtime, config: RunnableConfig) -> ToolRuntime:
+
+def create_tool_runtime(tool_call_id: str, state: AnyState, runtime: Runtime, config: RunnableConfig) -> ToolRuntime:
     """创建 ToolRuntime
 
     构建一个 ToolRuntime 实例，用于在 tool 调用时传递上下文信息。
@@ -42,7 +45,7 @@ def create_tool_runtime(tool_call_id: str, state: State, runtime: Runtime, confi
     return ToolRuntime(**args)
 
 
-def mock_ai_message_in_structured_output(tool_call_id: str, tool_name: str, tool_locals: dict) -> AIMessage:
+def mock_ai_message_in_structured_output(tool_call_id: str, tool_name: str, tool_args: dict) -> AIMessage:
     """在结构化输出 tool 中 mock tool call ai message
 
     在调用结构化输出方法时，需要先创建一个模拟的 AIMessage
@@ -51,18 +54,17 @@ def mock_ai_message_in_structured_output(tool_call_id: str, tool_name: str, tool
     Args:
         tool_call_id: 工具调用ID
         tool_name: 工具名称
-        tool_locals: 工具函数的局部变量字典
+        tool_args: 工具函数参数
 
     Returns:
         模拟的 AIMessage，包含 tool_calls 信息
     """
-    tool_args = {k: v for k, v in tool_locals.items() if not k.startswith(("__", "runtime"))}
     return AIMessage(content="", tool_calls=[ToolCall(id=tool_call_id, name=tool_name, args=tool_args)])
 
 
-async def llm_tool_structured_output(llm: BaseChatModel, state: State, runtime: Runtime, config: RunnableConfig,
+async def llm_tool_structured_output(llm: BaseChatModel, state: AnyState, runtime: Runtime, config: RunnableConfig,
                                      messages: list, structured_output_func: BaseTool, messages_key: str = "messages",
-                                     metadata: dict | None = None) -> dict | State:
+                                     metadata: dict | None = None) -> AnyState:
     """LLM 调用 tool 进行结构化输出
     
     核心的结构化输出方法，实现以下逻辑：
@@ -117,7 +119,7 @@ async def llm_tool_structured_output(llm: BaseChatModel, state: State, runtime: 
             messages.extend([
                 mock_msg,
                 ToolMessage(
-                    content=f"** ⚠️Warning 参数错误，无效输出，你已违反【核心规则】，使用当前回复内容重新调用该方法**",
+                    content=f"** ⚠️Warning 参数错误，无效输出，你已违反【核心规则】，使用以下内容重新组织参数调用：**\n{message_output.text}",
                     tool_call_id=mock_tool_call_id
                 )
             ])
@@ -138,8 +140,20 @@ async def llm_tool_structured_output(llm: BaseChatModel, state: State, runtime: 
                 ])
         # 若响应为查询方法则去查询
         else:
-            logger.info(f"{log_prefix} 调用tool:{",".join([item["name"] for item in message_output.tool_calls])}")
-            return {messages_key: [message_output]}
+            # 检查调用的方法是否为其他角色的输出方法 若是则拒绝
+            other_agent_tool = [tool_call for tool_call in message_output.tool_calls
+                                if tool_call["name"].endswith("output")]
+            if other_agent_tool:
+                messages.extend([
+                    message_output,
+                    *[ToolMessage(content=f"无效方法，禁止调用", tool_call_id=tool_call["id"])
+                      for tool_call in other_agent_tool],
+                ])
+                logger.warning(
+                    f"{log_prefix} 拦截调用其他agent方法:{",".join([item["name"] for item in other_agent_tool])}")
+            else:
+                logger.info(f"{log_prefix} 调用tool:{",".join([item["name"] for item in message_output.tool_calls])}")
+                return {messages_key: [message_output]}
     # 若重试后仍无法调用方法则报错
     logger.info(f"{log_prefix} llm结构化输出重试超限")
     raise BusinessException.from_error_message(ErrorMessage.LLM_ERROR)

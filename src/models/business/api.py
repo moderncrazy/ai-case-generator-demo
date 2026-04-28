@@ -1,11 +1,12 @@
 from piccolo.columns import Varchar, Timestamp, ForeignKey
+from piccolo.table import Table
 
-from src.models.base import BaseModel
-from src.models.project import Project
-from src.models.module import Module
+from src.models.base import BUSINESS_DB
+from src.models.business.project import Project
+from src.models.business.module import Module
 
 
-class Api(BaseModel):
+class Api(Table, db=BUSINESS_DB):
     """接口表模型
     
     存储系统 API 接口的定义信息。

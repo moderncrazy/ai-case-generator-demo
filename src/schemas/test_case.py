@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
 
 from src.enums.test_case_level import TestCaseLevel
@@ -26,3 +26,9 @@ class TestCaseTreeNode(BaseModel):
     module_name: str = Field(description="模块名称")
     test_cases: list[TestCaseResponse] = Field(default_factory=list, description="测试用例列表")
     children: list["TestCaseTreeNode"] = Field(default_factory=list, description="子模块")
+
+
+class TestCaseTreeDocumentResponse(BaseModel):
+    """测试用例树文档响应（原始版和优化版）"""
+    original: Optional[List[TestCaseTreeNode]] = Field(default=None, description="原始测试用例树")
+    optimized: Optional[List[TestCaseTreeNode]] = Field(default=None, description="优化测试用例树")

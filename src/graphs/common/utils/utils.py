@@ -2,8 +2,8 @@ from langgraph.config import get_stream_writer
 from langchain.messages import AnyMessage, AIMessage, HumanMessage, ToolMessage
 
 from src import constant as const
-from src.frontend.enums.group_member_role import GroupMemberRole
 from src.utils import utils as gutils
+from src.enums.group_member_role import GroupMemberRole
 from src.enums.requirement_module_status import RequirementModuleStatus
 from src.enums.conversation_message_type import ConversationMessageType
 from src.enums.review_optimization_plan_result import ReviewOptimizationPlanResult
@@ -18,7 +18,6 @@ from src.graphs.common.schemas import (
     StateRequirementModule,
     ReviewOptimizationPlanOutput,
     GenerateOptimizationPlanOutput,
-
 )
 
 
@@ -33,13 +32,14 @@ def format_issues_to_str(issues: list[StateIssue] | None) -> str:
         
     Returns:
         格式化后的文本，格式为：
+        问题Id：xxx
         问题：xxx
         建议方案：xxx
     """
     if issues:
         content = ""
         for item in issues:
-            content += f"问题：{item["content"]}\n建议方案：{item["propose"]}\n\n"
+            content += f"问题Id：{item["id"]}\n问题：{item["content"]}\n建议方案：{item["propose"]}\n\n"
         return content if content else const.EMPTY_ZH
     return const.EMPTY_ZH
 
@@ -226,7 +226,13 @@ def format_state_test_cases_to_str(test_cases: list[StateTestCase] | None) -> st
 
 def format_generate_optimization_plan_output_to_str(output: GenerateOptimizationPlanOutput) -> str:
     """格式化优化方案输出为可读文本"""
-    result = f"方案逻辑链路：\n{output.logic}\n\n方案具体步骤：\n{"\n".join(output.steps)}\n\n"
+    result = f"AI生成的具体优化方案如下：\n\n业务背景：\n{output.background}\n\n优化说明：\n{output.summary}\n\n方案逻辑链路：\n{output.logic}\n\n方案具体步骤：\n{"\n".join(output.steps)}"
+    return result
+
+
+def format_generate_optimization_plan_and_question_output_to_str(output: GenerateOptimizationPlanOutput) -> str:
+    """格式化优化方案输出为可读文本"""
+    result = f"{format_generate_optimization_plan_output_to_str(output)}\n\n"
     if output.questions:
         result += f"提出的问题：{"\n".join(output.questions)}\n\n"
     if output.risks:
@@ -241,9 +247,9 @@ def format_review_optimization_plan_output_to_str(output: ReviewOptimizationPlan
         case ReviewOptimizationPlanResult.APPROVE:
             result = output.message
         case ReviewOptimizationPlanResult.REVISE:
-            result = f"{"\n\n".join([f"问题：{item.content}\n解答：{item.propose}" for item in output.feedbacks])}\n\n{output.message}"
+            result = f"{"\n\n".join([f"待修改问题：{item.content}\n建议方案：{item.propose}" for item in output.issues])}\n\n{output.message}"
         case ReviewOptimizationPlanResult.ASK_QUESTION:
-            result = f"{output.message}\n\n{"\n\n\n\n".join([f"问题：{item.content}\n\n建议：{item.propose}" for item in output.questions])}"
+            result = f"{output.message}\n\n{"\n\n\n\n".join([f"**待确认问题：** {item.content}\n\n**建议方案：** {item.propose}" for item in output.issues])}"
     return result
 
 

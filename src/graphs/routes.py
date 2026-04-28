@@ -55,9 +55,9 @@ def understand_image_router(state: State) -> Literal["understand_image_node", "p
 
 
 def product_manager_tool_router(state: State) -> Literal[
-    "product_manager_tool_node", "requirement_outline_node", "requirement_module_node", "requirement_overall_node",
-    "system_architecture_node", "system_module_node", "system_database_node", "system_api_node",
-    "test_case_node", "end_node"
+    "product_manager_node", "product_manager_tool_node", "requirement_outline_node", "requirement_module_node",
+    "requirement_overall_node", "system_architecture_node", "system_module_node", "system_database_node",
+    "system_api_node", "test_case_node", "end_node"
 ]:
     """产品经理决策路由
     
@@ -77,6 +77,8 @@ def product_manager_tool_router(state: State) -> Literal[
     destination_node = "end_node"
     if isinstance(state["messages"][-1], AIMessage) and state["messages"][-1].tool_calls:
         destination_node = "product_manager_tool_node"
+    elif state.get("node_rollback"):
+        destination_node = "product_manager_node"
     else:
         match state["pm_next_step"]:
             case PMNextStep.REQUIREMENT_OUTLINE_DESIGN:

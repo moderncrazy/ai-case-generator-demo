@@ -1,4 +1,5 @@
 from enum import StrEnum
+from functools import cached_property
 
 
 class ProjectProgress(StrEnum):
@@ -33,6 +34,10 @@ class ProjectProgress(StrEnum):
 
     COMPLETED = "completed"
     """完成"""
+
+    @cached_property
+    def idx(self) -> int:
+        return list(ProjectProgress).index(self)
 
     def get_name_zh(self) -> str:
         match self:

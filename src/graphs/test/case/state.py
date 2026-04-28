@@ -20,11 +20,14 @@ class State(BaseState):
     test_cases: Annotated[list[StateTestCase], wr]
     """当前正在优化的测试用例列表"""
 
-    test_case_issues: Annotated[list[Issue], distinct_reducer]
-    """评审中针对测试用例提出的问题和建议（去重合并）"""
+    review_issues: Annotated[list[Issue], distinct_reducer]
+    """评审中提出的问题和建议（去重合并）"""
 
     private_messages: Annotated[list[AnyMessage], priority_message_reducer]
     """子图内部私聊消息（不暴露给主图）"""
+
+    optimization_plan_content: Annotated[str, wr]
+    """优化方案内容"""
 
     review_optimization_plan_result: Annotated[ReviewOptimizationPlanResult, wr]
     """审核优化方案结果"""

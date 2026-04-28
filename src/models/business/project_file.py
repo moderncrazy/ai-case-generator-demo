@@ -1,11 +1,12 @@
 from piccolo.columns import ForeignKey, Varchar, Timestamp, Integer
+from piccolo.table import Table
 
-from src.models.base import BaseModel
-from src.models.project import Project
-from src.models.conversation_message import ConversationMessage
+from src.models.base import BUSINESS_DB
+from src.models.business.project import Project
+from src.models.business.conversation_message import ConversationMessage
 
 
-class ProjectFile(BaseModel):
+class ProjectFile(Table, db=BUSINESS_DB):
     """项目文件表模型
     
     存储项目相关文件的元信息和内容。

@@ -3,7 +3,7 @@ from typing import List, Any
 from datetime import datetime
 
 from src.enums.conversation_role import ConversationRole
-from src.models.conversation_message import ConversationMessage
+from src.models.business.conversation_message import ConversationMessage
 
 
 class ConversationMessageRepository:
@@ -124,7 +124,7 @@ class ConversationMessageRepository:
 
     async def paginate(
             self, project_id: str, page: int = 1, page_size: int = 20
-    ) -> tuple[list, int]:
+    ) -> tuple[list[ConversationMessage], int]:
         """分页查询对话消息
         
         Args:

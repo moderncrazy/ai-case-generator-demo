@@ -4,15 +4,17 @@ from langchain_core.runnables import RunnableConfig
 
 from src.context import trans_id_ctx
 from src.enums.group_member_role import GroupMemberRole
-from src.enums.conversation_message_type import ConversationMessageType
 from src.graphs.common.utils import workflow_node_utils, utils as cutils
-from src.graphs.common.tools import tool_list as ctool_list
+from src.graphs.common.tools import optimization_plan_tools, tools as ctools
 from src.graphs.requirement.outline.state import State
 from src.graphs.requirement.outline.tools import (
+    common_tool_list,
     optimize_requirement_outline_output,
     review_optimization_requirement_outline_plan_output,
     generate_optimization_requirement_outline_plan_output,
 )
+
+tool_list = optimization_plan_tools.tool_list + ctools.tool_list + common_tool_list
 
 
 async def generate_optimization_requirement_outline_plan_node(state: State, runtime: Runtime,
@@ -33,7 +35,6 @@ async def generate_optimization_requirement_outline_plan_node(state: State, runt
     project_id = state["project_id"]
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
-    tool_list = [*ctool_list]
     result = await workflow_node_utils.generate_optimization_plan(
         state,
         runtime,
@@ -65,7 +66,6 @@ async def review_optimization_requirement_outline_plan_node(state: State, runtim
     project_id = state["project_id"]
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
-    tool_list = [*ctool_list]
     result = await workflow_node_utils.review_optimization_plan(
         state,
         runtime,
@@ -99,7 +99,6 @@ async def optimize_requirement_outline_node(state: State, runtime: Runtime, conf
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
     # 发送自定义消息
     cutils.send_custom_message("产品优化需求大纲中...", GroupMemberRole.PRODUCT)
-    tool_list = [*ctool_list]
     result = await workflow_node_utils.optimize_doc(
         state,
         runtime,
@@ -107,8 +106,8 @@ async def optimize_requirement_outline_node(state: State, runtime: Runtime, conf
         tool_list,
         GroupMemberRole.PRODUCT,
         optimize_requirement_outline_output,
+        GroupMemberRole.PM,
     )
-    cutils.send_custom_message("需求大纲已更新，快来看看吧！", GroupMemberRole.PRODUCT, ConversationMessageType.NOTIFY)
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result

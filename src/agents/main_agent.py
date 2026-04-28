@@ -2,7 +2,11 @@ from langchain.messages import HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 
 from src.graphs import graph
+from src.graphs.state import State
 from src.graphs.common.schemas import StateNewProjectFile
+
+from src.repositories.writes_repository import writes_repository
+from src.repositories.checkpoints_repository import checkpoints_repository
 
 
 class MainAgent:
@@ -24,6 +28,20 @@ class MainAgent:
         if self._agent is None:
             self._agent = await graph.create_agent()
         return self._agent
+
+    async def get_state(self, project_id: str) -> State | None:
+        """获取项目当前的图状态
+        
+        Args:
+            project_id: 项目ID，用于获取对应的 checkpoint 状态
+            
+        Returns:
+            图状态字典，如果不存在则返回 None
+        """
+        agent = await self.get_agent()
+        config = {"configurable": {"thread_id": project_id}}
+        state_snapshot = await agent.aget_state(config=config)
+        return state_snapshot.values if state_snapshot else None
 
     async def astream(self, project_id: str, message: str, new_file_list: list[StateNewProjectFile] = None):
         """异步流式执行主代理工作流

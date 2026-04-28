@@ -11,8 +11,24 @@
       "description": "获取优化后需求模块内容"
     },
     {
-      "name": "get_requirement_module_issues",
+      "name": "get_optimization_plan_content",
+      "description": "获取优化方案内容"
+    },
+    {
+      "name": "get_review_issues",
       "description": "获取需求模块评审意见列表"
+    },
+    {
+      "name": "remove_review_issues_by_ids",
+      "description": "删除需求模块评审意见"
+    },
+    {
+      "name": "get_risks",
+      "description": "获取需求模块风险点"
+    },
+    {
+      "name": "get_unclear_points",
+      "description": "获取需求模块待确认项"
     }
   ],
   "requirement_overall_design": [
@@ -21,8 +37,24 @@
       "description": "获取优化后需求文档内容"
     },
     {
-      "name": "get_requirement_overall_issues",
+      "name": "get_optimization_plan_content",
+      "description": "获取优化方案内容"
+    },
+    {
+      "name": "get_review_issues",
       "description": "获取需求文档评审意见列表"
+    },
+    {
+      "name": "remove_review_issues_by_ids",
+      "description": "删除需求文档评审意见"
+    },
+    {
+      "name": "get_risks",
+      "description": "获取需求模块风险点"
+    },
+    {
+      "name": "get_unclear_points",
+      "description": "获取需求模块待确认项"
     }
   ],
   "system_architecture_design": [
@@ -31,8 +63,24 @@
       "description": "获取优化后系统架构内容"
     },
     {
-      "name": "get_system_architecture_issues",
+      "name": "get_optimization_plan_content",
+      "description": "获取优化方案内容"
+    },
+    {
+      "name": "get_review_issues",
       "description": "获取系统架构评审意见列表"
+    },
+    {
+      "name": "remove_review_issues_by_ids",
+      "description": "删除系统架构评审意见"
+    },
+    {
+      "name": "get_risks",
+      "description": "获取需求模块风险点"
+    },
+    {
+      "name": "get_unclear_points",
+      "description": "获取需求模块待确认项"
     }
   ],
   "system_modules_design": [
@@ -41,8 +89,16 @@
       "description": "获取优化后系统模块列表"
     },
     {
-      "name": "get_system_module_issues",
+      "name": "get_optimization_plan_content",
+      "description": "获取优化方案内容"
+    },
+    {
+      "name": "get_review_issues",
       "description": "获取系统模块评审意见列表"
+    },
+    {
+      "name": "remove_review_issues_by_ids",
+      "description": "删除系统模块评审意见"
     }
   ],
   "system_database_design": [
@@ -51,8 +107,16 @@
       "description": "获取优化后数据库内容"
     },
     {
-      "name": "get_system_database_issues",
+      "name": "get_optimization_plan_content",
+      "description": "获取优化方案内容"
+    },
+    {
+      "name": "get_review_issues",
       "description": "获取数据库评审意见列表"
+    },
+    {
+      "name": "remove_review_issues_by_ids",
+      "description": "删除数据库评审意见"
     }
   ],
   "system_api_design": [
@@ -61,8 +125,16 @@
       "description": "获取优化后系统接口列表"
     },
     {
-      "name": "get_system_api_issues",
+      "name": "get_optimization_plan_content",
+      "description": "获取优化方案内容"
+    },
+    {
+      "name": "get_review_issues",
       "description": "获取系统接口评审意见列表"
+    },
+    {
+      "name": "remove_review_issues_by_ids",
+      "description": "删除系统接口评审意见"
     }
   ],
   "test_case_design": [
@@ -71,8 +143,16 @@
       "description": "获取优化后测试用例列表"
     },
     {
-      "name": "get_test_case_issues",
+      "name": "get_optimization_plan_content",
+      "description": "获取优化方案内容"
+    },
+    {
+      "name": "get_review_issues",
       "description": "获取测试用例评审意见列表"
+    },
+    {
+      "name": "remove_review_issues_by_ids",
+      "description": "删除测试用例评审意见"
     }
   ],
   "completed": []

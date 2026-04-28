@@ -4,7 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from piccolo.query.functions.aggregate import Sum
 
-from src.models.project_file import ProjectFile
+from src.models.business.project_file import ProjectFile
 
 
 class ProjectFileCreate(BaseModel):

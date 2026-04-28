@@ -1,8 +1,8 @@
 from enum import StrEnum
 
 
-class ProjectFileType(StrEnum):
-    """项目文件类型"""
+class ProjectDocType(StrEnum):
+    """项目文档类型"""
 
     REQUIREMENT_OUTLINE = "requirement_outline"
     """需求大纲"""

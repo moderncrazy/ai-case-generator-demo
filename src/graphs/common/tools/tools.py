@@ -1,22 +1,31 @@
 import uuid
 from typing import Any
 from loguru import logger
+from typing import TypeVar
+from pydantic import TypeAdapter
 from langchain.tools import tool, ToolRuntime, BaseTool
 
 from src.context import trans_id_ctx
 from src.utils import utils as gutils
-from src.models.project_file import ProjectFile
-from src.graphs import utils
 from src.graphs.state import State
-from src.graphs.common.schemas import StateRequirementModule, StateModule, StateApi, StateTestCase, StateProjectFile, \
-    StateNewProjectFile
+from src.graphs.common.utils import utils
+from src.graphs.common.utils import repository_utils
+from src.graphs.common.schemas import (
+    StateApi,
+    StateModule,
+    StateTestCase,
+    StateProjectFile,
+    StateNewProjectFile,
+    StateRequirementModule,
+)
 from src.repositories.project_file_repository import project_file_repository
-from src.services.project_file_service import project_file_service
 from src.services.milvus_service import milvus_service, ProjectContextSearchResult, ProjectFileSearchResult
+
+AnyState = TypeVar("AnyState", bound=State)
 
 
 @tool
-async def get_project_file_by_id(id: str, runtime: ToolRuntime) -> ProjectFile:
+async def get_project_file_by_id(id: str, runtime: ToolRuntime[Any, AnyState]) -> dict:
     """根据文件ID查询项目文件
     
     AI大模型使用此工具可获取指定文件的完整信息。
@@ -49,11 +58,11 @@ async def get_project_file_by_id(id: str, runtime: ToolRuntime) -> ProjectFile:
     result = await project_file_repository.get_by_id(id)
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_json(result)}")
-    return result
+    return result.to_dict()
 
 
 @tool
-async def search_project_files(query: str, runtime: ToolRuntime) -> list[ProjectFileSearchResult]:
+async def search_project_files(query: str, runtime: ToolRuntime[Any, AnyState]) -> list[ProjectFileSearchResult]:
     """搜索项目文件
     
     AI大模型使用此工具可在项目的历史文件库中进行语义搜索，找到与查询内容相关的文件。
@@ -87,12 +96,12 @@ async def search_project_files(query: str, runtime: ToolRuntime) -> list[Project
     project_id = runtime.state["project_id"]
     result = await milvus_service.search_project_files(query, project_id)
     logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 查询内容:{query} 输出:{gutils.to_json(result)}")
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 查询内容:{query} 输出:{TypeAdapter(list[ProjectFileSearchResult]).dump_json(result)}")
     return result
 
 
 @tool
-async def get_project_files_summary(runtime: ToolRuntime) -> str:
+async def get_project_files_summary(runtime: ToolRuntime[Any, AnyState]) -> str:
     """获取项目文件摘要汇总
     
     AI大模型使用此工具可快速了解当前项目已上传的所有文件概要。
@@ -120,14 +129,15 @@ async def get_project_files_summary(runtime: ToolRuntime) -> str:
         数据库查询异常 → 该方法暂不可用
     """
     project_id = runtime.state["project_id"]
-    result = await project_file_service.get_project_files_summary_to_str(project_id)
+    result = await repository_utils.format_project_files_summary_to_str(project_id)
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
 
 
 @tool
-async def search_project_history_conversation(query: str, runtime: ToolRuntime) -> list[ProjectContextSearchResult]:
+async def search_project_history_conversation(query: str, runtime: ToolRuntime[Any, AnyState]) -> list[
+    ProjectContextSearchResult]:
     """搜索项目历史对话摘要
     
     AI大模型使用此工具可在项目历史对话记录中进行语义检索，找到与当前分析相关的历史上下文摘要。
@@ -157,12 +167,12 @@ async def search_project_history_conversation(query: str, runtime: ToolRuntime) 
     project_id = runtime.state["project_id"]
     result = await milvus_service.search_project_context(project_id, query)
     logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 查询内容:{query} 输出:{gutils.to_json(result)}")
+        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 查询内容:{query} 输出:{TypeAdapter(list[ProjectContextSearchResult]).dump_json(result)}")
     return result
 
 
 @tool
-async def get_requirement_outline(runtime: ToolRuntime[Any, State]) -> str:
+async def get_requirement_outline(runtime: ToolRuntime[Any, AnyState]) -> str:
     """获取需求大纲
     
     AI大模型使用此工具可获取当前项目的需求大纲内容。
@@ -188,7 +198,7 @@ async def get_requirement_outline(runtime: ToolRuntime[Any, State]) -> str:
 
 
 @tool
-async def get_requirement_modules(runtime: ToolRuntime[Any, State]) -> list[StateRequirementModule]:
+async def get_requirement_modules(runtime: ToolRuntime[Any, AnyState]) -> list[StateRequirementModule]:
     """获取需求模块列表
     
     AI大模型使用此工具可获取当前项目的需求模块列表。
@@ -220,7 +230,7 @@ async def get_requirement_modules(runtime: ToolRuntime[Any, State]) -> list[Stat
 
 
 @tool
-async def get_original_requirement(runtime: ToolRuntime[Any, State]) -> str:
+async def get_original_requirement(runtime: ToolRuntime[Any, AnyState]) -> str:
     """获取原始需求文档
     
     AI大模型使用此工具可获取在 requirement_overall_design 阶段生成的初版需求文档内容。
@@ -271,7 +281,7 @@ async def get_current_requirement(runtime: ToolRuntime[Any, State]) -> str:
 
 
 @tool
-async def get_original_architecture(runtime: ToolRuntime[Any, State]) -> str:
+async def get_original_architecture(runtime: ToolRuntime[Any, AnyState]) -> str:
     """获取原始架构设计
     
     AI大模型使用此工具可获取最初生成的系统架构设计方案。
@@ -297,7 +307,7 @@ async def get_original_architecture(runtime: ToolRuntime[Any, State]) -> str:
 
 
 @tool
-async def get_current_architecture(runtime: ToolRuntime[Any, State]) -> str:
+async def get_current_architecture(runtime: ToolRuntime[Any, AnyState]) -> str:
     """获取当前架构设计
     
     AI大模型使用此工具可获取经过优化和评审后的系统架构设计。
@@ -323,7 +333,7 @@ async def get_current_architecture(runtime: ToolRuntime[Any, State]) -> str:
 
 
 @tool
-async def get_original_modules(runtime: ToolRuntime[Any, State]) -> list[StateModule]:
+async def get_original_modules(runtime: ToolRuntime[Any, AnyState]) -> list[StateModule]:
     """获取原始系统模块列表
     
     AI大模型使用此工具可获取初步拆分的系统功能模块列表。
@@ -353,7 +363,7 @@ async def get_original_modules(runtime: ToolRuntime[Any, State]) -> list[StateMo
 
 
 @tool
-async def get_current_modules(runtime: ToolRuntime[Any, State]) -> list[StateModule]:
+async def get_current_modules(runtime: ToolRuntime[Any, AnyState]) -> list[StateModule]:
     """获取当前系统模块列表
     
     AI大模型使用此工具可获取经过优化调整后的系统功能模块列表。
@@ -383,7 +393,7 @@ async def get_current_modules(runtime: ToolRuntime[Any, State]) -> list[StateMod
 
 
 @tool
-async def get_original_database(runtime: ToolRuntime[Any, State]) -> str:
+async def get_original_database(runtime: ToolRuntime[Any, AnyState]) -> str:
     """获取原始数据库设计
     
     AI大模型使用此工具可获取最初生成的数据库设计文档。
@@ -408,7 +418,7 @@ async def get_original_database(runtime: ToolRuntime[Any, State]) -> str:
 
 
 @tool
-async def get_current_database(runtime: ToolRuntime[Any, State]) -> str:
+async def get_current_database(runtime: ToolRuntime[Any, AnyState]) -> str:
     """获取当前数据库设计
     
     AI大模型使用此工具可获取经过优化评审后的数据库设计。
@@ -434,7 +444,7 @@ async def get_current_database(runtime: ToolRuntime[Any, State]) -> str:
 
 
 @tool
-async def get_original_apis(runtime: ToolRuntime[Any, State]) -> list[StateApi]:
+async def get_original_apis(runtime: ToolRuntime[Any, AnyState]) -> list[StateApi]:
     """获取原始接口设计列表
     
     AI大模型使用此工具可获取初步设计的API接口列表。
@@ -477,7 +487,7 @@ async def get_original_apis(runtime: ToolRuntime[Any, State]) -> list[StateApi]:
 
 
 @tool
-async def get_current_apis(runtime: ToolRuntime[Any, State]) -> list[StateApi]:
+async def get_current_apis(runtime: ToolRuntime[Any, AnyState]) -> list[StateApi]:
     """获取当前接口设计列表
     
     AI大模型使用此工具可获取经过优化评审后的API接口列表。
@@ -520,7 +530,7 @@ async def get_current_apis(runtime: ToolRuntime[Any, State]) -> list[StateApi]:
 
 
 @tool
-async def get_original_test_cases(runtime: ToolRuntime[Any, State]) -> list[StateTestCase]:
+async def get_original_test_cases(runtime: ToolRuntime[Any, AnyState]) -> list[StateTestCase]:
     """获取原始测试用例列表
     
     AI大模型使用此工具可获取初步生成的测试用例列表。
@@ -555,7 +565,7 @@ async def get_original_test_cases(runtime: ToolRuntime[Any, State]) -> list[Stat
 
 
 @tool
-async def get_current_test_cases(runtime: ToolRuntime[Any, State]) -> list[StateTestCase]:
+async def get_current_test_cases(runtime: ToolRuntime[Any, AnyState]) -> list[StateTestCase]:
     """获取当前测试用例列表
     
     AI大模型使用此工具可获取经过优化调整后的测试用例列表。
@@ -590,7 +600,7 @@ async def get_current_test_cases(runtime: ToolRuntime[Any, State]) -> list[State
 
 
 @tool
-async def get_project_file_list(runtime: ToolRuntime[Any, State]) -> list[StateProjectFile]:
+async def get_project_file_list(runtime: ToolRuntime[Any, AnyState]) -> list[StateProjectFile]:
     """获取项目文件列表
     
     AI大模型使用此工具可获取当前项目已入库的所有文件清单。
@@ -626,7 +636,7 @@ async def get_project_file_list(runtime: ToolRuntime[Any, State]) -> list[StateP
 
 
 @tool
-async def get_new_project_file_list(runtime: ToolRuntime[Any, State]) -> list[StateNewProjectFile]:
+async def get_new_project_file_list(runtime: ToolRuntime[Any, AnyState]) -> list[StateNewProjectFile]:
     """获取本次对话用户上传的新项目文件
     
     AI大模型使用此工具可获取用户在本轮对话中新上传的文件。
@@ -661,59 +671,7 @@ async def get_new_project_file_list(runtime: ToolRuntime[Any, State]) -> list[St
 
 
 @tool
-async def get_risks(runtime: ToolRuntime) -> str:
-    """获取风险点列表
-
-    AI大模型使用此工具可获取当前项目已识别的风险点列表。
-
-    **功能说明：**
-    从运行时状态中读取并返回已识别的风险点，用于了解项目潜在的风险。
-
-    Args:
-        runtime: 系统运行时对象，AI传参时不用传递，会自动注入
-
-    Returns:
-        返回 str 类型的字符串，格式为：
-        问题：xxx
-        建议方案：xxx
-
-        如果无风险点，则返回"（空）"
-    """
-    project_id = runtime.state["project_id"]
-    result = utils.format_issues_to_str(runtime.state.get("risks"))
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
-    return result
-
-
-@tool
-async def get_unclear_points(runtime: ToolRuntime) -> str:
-    """获取不明确问题列表
-
-    AI大模型使用此工具可获取当前项目待澄清的不明确问题列表。
-
-    **功能说明：**
-    从运行时状态中读取并返回待澄清的不明确问题，用于了解需要客户明确的事项。
-
-    Args:
-        runtime: 系统运行时对象，AI传参时不用传递，会自动注入
-
-    Returns:
-        返回 str 类型的字符串，格式为：
-        问题：xxx
-        建议方案：xxx
-
-        如果无不明确问题，则返回"（空）"
-    """
-    project_id = runtime.state["project_id"]
-    result = utils.format_issues_to_str(runtime.state.get("unclear_points"))
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
-    return result
-
-
-@tool
-async def get_project_info(runtime: ToolRuntime) -> dict[str, Any]:
+async def get_project_info(runtime: ToolRuntime[Any, AnyState]) -> dict[str, Any]:
     """获取项目基本信息
     
     AI大模型使用此工具可快速了解当前项目的整体状态概况。
@@ -730,9 +688,7 @@ async def get_project_info(runtime: ToolRuntime) -> dict[str, Any]:
         - project_id: str - 项目唯一标识
         - project_name: str - 项目名称
         - project_progress: ProjectProgress - 当前进度状态（init/requirement_outline_design/requirement_module_design/requirement_overall_design/system_architecture_design/system_modules_design/system_database_design/system_api_design/test_case_design/completed）
-        - risks: list[str] - 已识别风险点列表（可能为空）
-        - unclear_points: list[str] - 待澄清问题列表（可能为空）
-    
+
     Exception:
         项目信息不完整 → 返回的字典中某些字段可能缺失或为空
     """
@@ -741,8 +697,6 @@ async def get_project_info(runtime: ToolRuntime) -> dict[str, Any]:
         "project_id": runtime.state["project_id"],
         "project_name": runtime.state["project_name"],
         "project_progress": runtime.state["project_progress"],
-        "risks": runtime.state.get("risks", []),
-        "unclear_points": runtime.state.get("unclear_points", []),
     }
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_json(result)}")
@@ -750,7 +704,7 @@ async def get_project_info(runtime: ToolRuntime) -> dict[str, Any]:
 
 
 @tool
-async def batch_generator_uuid(size: int, runtime: ToolRuntime) -> list[str]:
+async def batch_generator_uuid(size: int, runtime: ToolRuntime[Any, AnyState]) -> list[str]:
     """批量生成唯一标识符
     
     AI大模型使用此工具可批量生成符合 UUID 标准的唯一标识符。

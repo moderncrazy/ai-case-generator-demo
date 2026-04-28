@@ -1,6 +1,6 @@
 ```json
 {
-  "message": "给评审同学的留言，说明接口设计的要点和重点关注的地方（简洁）",
+  "message": "给评审同学的留言，说明接口设计要点（简洁）",
   "system_apis": [
     {
       "module_id": "模块ID",
@@ -9,13 +9,13 @@
       "path": "/api/xxx",
       "description": "接口描述",
       "request_headers": [
-        {"name": "参数名", "type": "string/number/object/array", "required": true/false, "description": "说明"}
+        {"name": "参数名", "type": "string/number/object/array", "required": true, "description": "说明"}
       ],
       "request_params": [
-        {"name": "参数名", "type": "string/number/object/array", "required": true/false, "description": "说明"}
+        {"name": "参数名", "type": "string/number/object/array", "required": true, "description": "说明"}
       ],
       "request_body": [
-        {"name": "参数名", "type": "string/number/object/array", "required": true/false, "description": "说明"}
+        {"name": "参数名", "type": "string/number/object/array", "required": true, "description": "说明"}
       ],
       "response_schema": "响应格式描述"
     }
@@ -23,12 +23,29 @@
 }
 ```
 
+## 📏 设计边界
+
+### ✅ 只应包含
+- 接口列表（每个接口的路径、方法、描述）
+- 请求参数定义（参数名、类型、必填、说明）
+- 响应格式定义（状态码、数据结构）
+- 模块归属（每个接口属于哪个系统模块）
+
+### ❌ 禁止包含
+- 业务逻辑流程
+- 性能优化建议（如缓存策略）
+- 数据库表结构
+- 测试用例
+- 代码实现细节
+- 技术选型
+
+---
+
 ## ⚡️ 接口设计规范
 
-1. **RESTful 规范:** 使用标准 HTTP 方法，路径使用小写+下划线
-2. **参数定义:** 必须包含 name、type、required、description
-3. **响应结构:** 必须明确成功/失败的响应格式
-4. **模块归属:** 每个接口必须指定 module_id
+1. **RESTful 规范**：使用标准 HTTP 方法，路径小写+下划线
+2. **参数定义**：name、type、required、description
+3. **模块归属**：每个接口必须指定 module_id
 
 ## 📝 接口定义格式
 
@@ -37,8 +54,8 @@
 **模块ID：** 模块A
 **接口名称：** 获取用户列表
 **请求方法：** GET
-**请求路径：** /api/v1/users
-**接口描述：** 获取系统用户列表，支持分页和筛选
+**请求路径：** /api/v1/xxx
+**接口描述：** xxx
 
 **请求头参数：**
 | 参数名 | 类型 | 必填 | 描述 |
@@ -60,5 +77,8 @@
 ```
 ```
 
-## 接口闭环
-[简要描述接口的起点和终点]
+### ⚡ 粒度要求
+- 细粒度：每个接口的参数和响应要详细定义
+- 不需要深入到数据库或代码实现
+- 关注接口契约和模块归属
+- 示例：描述"用户ID参数类型为string，必填"而不需要描述"如何实现这个查询"

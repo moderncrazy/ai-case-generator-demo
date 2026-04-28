@@ -36,3 +36,9 @@ class ApiTreeNode(BaseModel):
     module_name: str = Field(description="模块名称")
     apis: list[ApiResponse] = Field(default_factory=list, description="接口列表")
     children: list["ApiTreeNode"] = Field(default_factory=list, description="子模块")
+
+
+class ApiTreeDocumentResponse(BaseModel):
+    """API 树文档响应（原始版和优化版）"""
+    original: Optional[List[ApiTreeNode]] = Field(default=None, description="原始 API 树")
+    optimized: Optional[List[ApiTreeNode]] = Field(default=None, description="优化 API 树")

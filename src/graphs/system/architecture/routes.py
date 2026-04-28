@@ -25,6 +25,7 @@ def generate_optimization_system_architecture_plan_tool_router(state: State) -> 
 
 
 def review_optimization_system_architecture_plan_tool_router(state: State) -> Literal[
+    "review_optimization_system_architecture_plan_node",
     "review_optimization_system_architecture_plan_tool_node",
     "optimize_system_architecture_node",
     "generate_optimization_system_architecture_plan_node",
@@ -33,6 +34,7 @@ def review_optimization_system_architecture_plan_tool_router(state: State) -> Li
     project_id = state["project_id"]
     result = workflow_router_utils.review_optimization_plan_tool_router(
         state,
+        "review_optimization_system_architecture_plan_node",
         "review_optimization_system_architecture_plan_tool_node",
         "optimize_system_architecture_node",
         "generate_optimization_system_architecture_plan_node"
@@ -61,6 +63,7 @@ def review_system_architecture_tool_router(state: GroupMemberState) -> Literal[
 
 
 def optimize_system_architecture_tool_router(state: State) -> Literal[
+                                                                  "optimize_system_architecture_node",
                                                                   "optimize_system_architecture_tool_node",
                                                                   "review_system_architecture_node"] | list[Send]:
     """优化工具调用路由（并发多角色评审）
@@ -76,20 +79,24 @@ def optimize_system_architecture_tool_router(state: State) -> Literal[
         工具节点名称或 Send 对象列表（并发评审）
     """
     project_id = state["project_id"]
-    if isinstance(state["private_messages"][-1], AIMessage) and state["private_messages"][-1].tool_calls:
-        logger.info(
-            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:optimize_system_architecture_tool_node")
-        return "optimize_system_architecture_tool_node"
+    result = workflow_router_utils.optimize_doc_tool_router(
+        state,
+        "optimize_system_architecture_node",
+        "optimize_system_architecture_tool_node",
+        "review_system_architecture_node",
+        [
+            GroupMemberRole.PM,
+            GroupMemberRole.ARCHITECT,
+            GroupMemberRole.FRONTEND,
+            GroupMemberRole.BACKEND,
+            GroupMemberRole.SRE
+        ]
+    )
+    if isinstance(result, str):
+        logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{result}")
     else:
-        # 角色列表
-        roles = [GroupMemberRole.PM,
-                 GroupMemberRole.ARCHITECT,
-                 GroupMemberRole.FRONTEND,
-                 GroupMemberRole.BACKEND,
-                 GroupMemberRole.SRE]
-        logger.info(
-            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:review_system_architecture_node")
-        return [Send("review_system_architecture_node", {"role": role, **state}) for role in roles]
+        logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:review_system_architecture_node")
+    return result
 
 
 def review_system_architecture_aggregator_router(state: State) -> Literal[
@@ -107,11 +114,13 @@ def review_system_architecture_aggregator_router(state: State) -> Literal[
         目标节点名称
     """
     project_id = state["project_id"]
-    destination_node = "optimize_system_architecture_issue_node"
-    if state["system_architecture_issues"]:
-        destination_node = "optimize_system_architecture_node"
-    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{destination_node}")
-    return destination_node
+    result = workflow_router_utils.review_optimize_doc_aggregator_router(
+        state,
+        "optimize_system_architecture_node",
+        "optimize_system_architecture_issue_node"
+    )
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{result}")
+    return result
 
 
 def optimize_system_architecture_issue_router(state: State) -> Literal[

@@ -33,6 +33,7 @@ streamlit>=1.40.0
 streamlit-extras>=0.4.0
 streamlit-local-storage>=0.0.25
 streamlit-antd-components>=0.3.2
+streamlit-adjustable-columns>=0.2.1
 
 # Database
 redis>=7.0.0

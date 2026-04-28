@@ -15,8 +15,7 @@
 > **关于作者**：一名拥有 Java & Node.js 资深背景的开发者，目前正深度投入于 Python AI 生态与 Agent 编排架构的落地实践
 >   - 🔭 **职业状态**：处于开放的技术探索与职业转型期，欢迎关于 **Python 架构**、**测试开发工程化** 或 **模型评测**
       相关的职位邀约与技术交流
->   - 🤝 **联系我
-      **：[BOSS 直聘/51Job](https://m.zhipin.com/mpa/html/resume-detail?sid=self&securityId=h8YXVQQMWPA6Z-k1DhC4kAgh5DfVVnP7pBYPmsnfwxkw9JgK8E4m8reqINEIJRfX-g5Fz4Zxz2qxlQu1N65F1dNpY2jMD28InXp75LXmguCT8Ao9K0okHcdarTfNMPuTI0ifgMFyZC9lDWxw2xB4q6LJKI5mu3q9XTWL7A~~) | [GitHub Issues](https://github.com/moderncrazy/ai-case-generator-demo/issues)
+>   - 🤝 **联系我**：[BOSS 直聘/51Job](https://m.zhipin.com/mpa/html/resume-detail?sid=self&securityId=h8YXVQQMWPA6Z-k1DhC4kAgh5DfVVnP7pBYPmsnfwxkw9JgK8E4m8reqINEIJRfX-g5Fz4Zxz2qxlQu1N65F1dNpY2jMD28InXp75LXmguCT8Ao9K0okHcdarTfNMPuTI0ifgMFyZC9lDWxw2xB4q6LJKI5mu3q9XTWL7A~~) | [GitHub Issues](https://github.com/moderncrazy/ai-case-generator-demo/issues)
 
 ---
 
@@ -170,28 +169,32 @@ docker-compose -f docker/docker-compose-dependency.yml up -d
 ai-case-generator-demo/
 ├── src/
 │   ├── agents/                 # AI Agent 核心
-│   ├── graphs/                 # LangGraph 工作流
-│   │   ├── requirement/       # 需求相关工作流
-│   │   ├── system/             # 系统设计工作流
-│   │   └── test/              # 测试工作流
-│   ├── services/               # 业务服务层
-│   ├── repositories/           # 数据访问层
-│   ├── models/                 # 数据模型
-│   ├── routes/                 # API 路由
-│   ├── middlewares/            # 中间件
-│   ├── schemas/                # Pydantic 模型
+│   ├── dependencies/           # 依赖注入
 │   ├── enums/                  # 枚举定义
-│   ├── utils/                  # 工具函数
+│   ├── exceptions/            # 异常定义
 │   ├── frontend/               # Streamlit 前端
-│   ├── config.py               # 配置管理
+│   ├── graphs/                 # LangGraph 工作流
+│   │   ├── common/            # 公共模块（LLM、Reducer、工具等）
+│   │   ├── requirement/       # 需求相关工作流
+│   │   ├── system/           # 系统相关工作流
+│   │   └── test/             # 测试用例生成
+│   ├── middlewares/           # 中间件
+│   ├── models/                 # 数据模型
+│   ├── repositories/           # 数据访问层
+│   ├── routes/                # API 路由
+│   ├── schemas/               # Pydantic 模型
+│   ├── services/              # 业务服务层
+│   ├── utils/                 # 工具函数
+│   ├── config.py              # 配置管理
 │   ├── constant.py             # 常量定义
-│   ├── context.py              # 上下文变量
-│   └── main.py                 # FastAPI 应用入口
-├── prompts/                    # Prompt 模板
-├── doc/                        # 设计文档
-├── docker/                     # Docker 配置
-├── requirements.txt            # Python 依赖
-└── pyproject.toml              # 项目配置
+│   ├── context.py             # 上下文变量
+│   └── main.py                # FastAPI 应用入口
+├── template/                   # 模板目录
+├── doc/                       # 设计文档
+├── docker/                    # Docker 配置
+├── .env.example              # 环境变量示例
+├── requirements.txt           # Python 依赖
+└── pyproject.toml            # 项目配置
 ```
 
 ---

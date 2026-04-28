@@ -1,12 +1,11 @@
 import orjson
 from typing import List, Tuple
-from collections import defaultdict
 
-from src.utils import utils
-from src.graphs.common.schemas import StateApi
+from src.agents.main_agent import main_agent
+from src.services.module_service import module_service
 from src.repositories.module_repository import module_repository
-from src.repositories.api_repository import api_repository, ApiBulkUpdate
-from src.schemas.api import ApiResponse, ApiTreeNode, ApiRequestParam
+from src.repositories.api_repository import api_repository
+from src.schemas.api import ApiResponse, ApiTreeNode, ApiRequestParam, ApiTreeDocumentResponse
 
 
 class ApiService:
@@ -17,83 +16,79 @@ class ApiService:
     """
 
     @staticmethod
-    async def bulk_update_by_state_apis(project_id: str, apis: List[StateApi]):
-        """批量更新接口
-        
-        根据状态数据批量更新项目的接口信息。
-        
-        Args:
-            project_id: 项目 ID
-            apis: 状态中的 API 列表
-        """
-        await api_repository.bulk_update(
-            project_id,
-            [
-                ApiBulkUpdate(
-                    name=item["name"],
-                    method=item["method"],
-                    path=item["path"],
-                    module_id=item["module_id"],
-                    description=item.get("description"),
-                    request_headers=utils.to_json(item.get("request_headers") or []),
-                    request_params=utils.to_json(item.get("request_params") or []),
-                    request_body=utils.to_json(item.get("request_body") or []),
-                    response_schema=item["response_schema"],
-                    test_script=item.get("test_script"),
-                )
-                for item in apis
-            ]
-        )
+    def _parse_request_params(data: str | list) -> List[ApiRequestParam]:
+        """解析请求参数字符串或列表
 
-    @staticmethod
-    async def list_by_project_to_state_api(project_id: str) -> List[StateApi]:
-        """查询项目接口转为状态对象
-        
-        从数据库查询项目接口并转换为状态格式。
-        
-        Args:
-            project_id: 项目 ID
-            
-        Returns:
-            状态 API 列表
-        """
-        results = await api_repository.list_by_project(project_id)
-        return [
-            StateApi(
-                id=item.id,
-                name=item.name,
-                method=item.method,
-                path=item.path,
-                module_id=item.module_id,
-                description=item.description,
-                request_headers=orjson.loads(item.request_headers),
-                request_params=orjson.loads(item.request_params),
-                request_body=orjson.loads(item.request_body),
-                response_schema=item.response_schema,
-                test_script=item.test_script,
-            )
-            for item in results
-        ]
+        将 JSON 格式的参数字符串或列表解析为 ApiRequestParam 列表。
 
-    @staticmethod
-    def _parse_request_params(json_str: str) -> List[ApiRequestParam]:
-        """解析请求参数字符串
-        
-        将 JSON 格式的参数字符串解析为 ApiRequestParam 列表。
-        
         Args:
-            json_str: JSON 格式参数字符串
-            
+            data: JSON 字符串或列表
+
         Returns:
             解析后的参數列表，解析失败返回空列表
         """
-        if not json_str:
-            return []
-        try:
-            items = orjson.loads(json_str)
-            return [ApiRequestParam(**item) for item in items]
-        except Exception:
-            return []
+        if data:
+            if isinstance(data, str):
+                data = orjson.loads(data)
+            return [ApiRequestParam(**item) for item in data]
+        return []
+
+    @staticmethod
+    def _convert_api_to_response(api) -> ApiResponse:
+        """将 API 模型或字典转换为 ApiResponse
+
+        Args:
+            api: API 模型或字典
+
+        Returns:
+            ApiResponse 对象
+        """
+        response = ApiResponse.model_validate(api)
+        response.request_headers = ApiService._parse_request_params(api.request_headers)
+        response.request_params = ApiService._parse_request_params(api.request_params)
+        response.request_body = ApiService._parse_request_params(api.request_body)
+        return response
+
+    @staticmethod
+    def _group_apis_by_module(apis: list) -> dict:
+        """按 module_id 分组 ApiResponse
+
+        Args:
+            apis: ApiResponse 列表
+
+        Returns:
+            按 module_id 分组的字典
+        """
+        apis_by_module = {}
+        for api in apis:
+            module_id = api.module_id
+            if module_id:
+                if module_id not in apis_by_module:
+                    apis_by_module[module_id] = []
+                apis_by_module[module_id].append(api)
+        return apis_by_module
+
+    @staticmethod
+    def _build_api_tree(module_nodes: list, apis_by_module: dict) -> List[ApiTreeNode]:
+        """构建 API 树
+
+        Args:
+            module_nodes: 模块树节点列表
+            apis_by_module: 按 module_id 分组的字典
+
+        Returns:
+            API 树节点列表
+        """
+        result = []
+        for node in module_nodes:
+            children = ApiService._build_api_tree(node.children, apis_by_module) if node.children else []
+            result.append(ApiTreeNode(
+                module_id=node.id,
+                module_name=node.name,
+                apis=apis_by_module.get(node.id, []),
+                children=children
+            ))
+        return result
 
     @staticmethod
     async def list_apis(
@@ -152,49 +147,54 @@ class ApiService:
         Returns:
             接口树形结构列表
         """
-        # 获取项目下所有模块
+        # 获取项目下所有模块并转为字典格式
         all_modules = await module_repository.list_by_project(project_id)
-        module_dict = {m.id: m for m in all_modules}
+        module_dicts = [m.to_dict() for m in all_modules]
 
-        # 获取项目下所有接口
+        # 复用 module_service 的模块树构建方法
+        module_tree = module_service.build_module_tree_from_dict(module_dicts)
+
+        # 获取项目下所有接口并转换为 ApiResponse
         all_apis = await api_repository.list_by_project(project_id)
+        api_responses = [ApiService._convert_api_to_response(api) for api in all_apis]
 
-        # 按 module_id 分组接口
-        apis_by_module = defaultdict(list)
-        for api in all_apis:
-            apis_by_module[api.module_id].append(
-                ApiResponse(
-                    id=api.id,
-                    project_id=api.project_id,
-                    module_id=api.module_id,
-                    name=api.name,
-                    method=api.method,
-                    path=api.path,
-                    description=api.description,
-                    request_headers=ApiService._parse_request_params(api.request_headers),
-                    request_params=ApiService._parse_request_params(api.request_params),
-                    request_body=ApiService._parse_request_params(api.request_body),
-                    response_schema=api.response_schema,
-                    test_script=api.test_script,
-                    created_at=api.created_at,
-                )
-            )
+        # 复用公共方法构建 API 树
+        return ApiService._build_api_tree(
+            module_tree, ApiService._group_apis_by_module(api_responses))
 
-        # 构建树形结构
-        def build_tree(parent_id: str = None) -> List[ApiTreeNode]:
-            children = []
-            for module in all_modules:
-                if module.parent_id == parent_id:
-                    node = ApiTreeNode(
-                        module_id=module.id,
-                        module_name=module.name,
-                        apis=apis_by_module.get(module.id, []),
-                        children=build_tree(module.id)
-                    )
-                    children.append(node)
-            return children
+    @staticmethod
+    async def get_apis_compare(project_id: str) -> ApiTreeDocumentResponse:
+        """获取 API 对比文档
+        
+        从 graph state 获取原始版本和优化版本的 API 树形结构。
+        
+        Args:
+            project_id: 项目 ID
+            
+        Returns:
+            API 树文档响应（原始版和优化版）
+        """
+        state = await main_agent.get_state(project_id)
+        modules = state.get("optimized_modules") or []
 
-        return build_tree()
+        # 复用 module_service 的模块树构建方法
+        module_tree = module_service.build_module_tree_from_dict(modules)
+
+        # 分别构建原始版和优化版的 API 树
+        original_apis = state.get("original_apis") if state else []
+        optimized_apis = state.get("optimized_apis") if state else []
+
+        original_api_tree = ApiService._build_api_tree(
+            module_tree, ApiService._group_apis_by_module(
+                [ApiService._convert_api_to_response(api) for api in original_apis]))
+        optimized_api_tree = ApiService._build_api_tree(
+            module_tree, ApiService._group_apis_by_module(
+                [ApiService._convert_api_to_response(api) for api in optimized_apis]))
+
+        return ApiTreeDocumentResponse(
+            original=original_api_tree,
+            optimized=optimized_api_tree
+        )
 
 
 # 导出单例

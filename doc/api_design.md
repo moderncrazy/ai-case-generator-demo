@@ -157,6 +157,8 @@ GET /api/v1/project
 GET /api/v1/project/{project_id}
 ```
 
+**说明：** 获取项目基本信息及各文档是否存在
+
 **响应：**
 
 ```json
@@ -167,20 +169,17 @@ GET /api/v1/project/{project_id}
     "name": "用户中心系统",
     "progress": "init",
     "description": "项目描述",
-    "requirement_outline_design": "需求大纲文档",
-    "requirement_module_design": "需求模块文档",
-    "requirement_overall_design": "需求文档",
-    "architecture_design": "架构文档",
-    "database_design": "数据库文档",
+    "has_requirement_outline": true,
+    "has_requirement_modules": true,
+    "has_requirement_overall": true,
+    "has_architecture": true,
+    "has_database": true,
+    "has_modules": true,
+    "has_apis": true,
+    "has_test_cases": true,
     "creator_type": "user",
     "created_at": "2026-03-30T20:00:00Z",
-    "updated_at": "2026-03-30T21:00:00Z",
-    "stats": {
-      "modules_count": 12,
-      "test_cases_count": 100,
-      "apis_count": 25,
-      "file_count": 2
-    }
+    "updated_at": "2026-03-30T21:00:00Z"
   }
 }
 ```
@@ -193,7 +192,15 @@ GET /api/v1/project/{project_id}
 DELETE /api/v1/project/{project_id}
 ```
 
-**说明：** 删除项目及其所有关联数据。（系统创建的项目不允许删除）
+**说明：** 删除项目及其所有关联数据。【系统创建和当前被占用的项目不允许删除】
+
+**请求体：**
+
+```json
+{
+  "user_id": "用户UUID"
+}
+```
 
 **响应：**
 
@@ -246,6 +253,221 @@ POST /api/v1/project/{project_id}/copy
     "creator_type": "user",
     "created_at": "2026-04-03T21:00:00Z",
     "updated_at": "2026-04-03T21:00:00Z"
+  }
+}
+```
+
+---
+
+## 项目文档接口 (Project Documents)
+
+项目文档接口用于获取项目的各类设计文档内容。
+
+### 获取需求大纲
+
+```
+GET /api/v1/project/{project_id}/requirement-outline
+```
+
+**说明：** 获取需求大纲文档内容
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "content": "需求大纲内容..."
+  }
+}
+```
+
+---
+
+### 获取需求模块
+
+```
+GET /api/v1/project/{project_id}/requirement-modules
+```
+
+**说明：** 获取需求模块文档内容
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "modules": [
+      {
+        "name": "模块名称",
+        "order": 1,
+        "status": "pending",
+        "description": "描述",
+        "content": "详细设计"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 获取需求整体文档
+
+```
+GET /api/v1/project/{project_id}/requirement-overall
+```
+
+**说明：** 获取需求整体（PRD）文档内容
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "content": "需求文档内容..."
+  }
+}
+```
+
+---
+
+### 对比需求整体文档
+
+```
+GET /api/v1/project/{project_id}/requirement-overall/compare
+```
+
+**说明：** 对比需求整体（PRD）文档内容，包含原始版本和优化版本
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "original": "原始需求文档内容...",
+    "optimized": "优化后需求文档内容..."
+  }
+}
+```
+
+---
+
+### 获取架构设计文档
+
+```
+GET /api/v1/project/{project_id}/architecture
+```
+
+**说明：** 获取系统架构设计文档内容
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "content": "架构设计..."
+  }
+}
+```
+
+---
+
+### 对比架构设计文档
+
+```
+GET /api/v1/project/{project_id}/architecture/compare
+```
+
+**说明：** 对比系统架构设计文档内容，包含原始版本和优化版本
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "original": "原始架构设计...",
+    "optimized": "优化后架构设计..."
+  }
+}
+```
+
+---
+
+### 获取数据库设计文档
+
+```
+GET /api/v1/project/{project_id}/database
+```
+
+**说明：** 获取系统数据库设计文档内容，包含原始版本和优化版本
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "content": "数据库设计..."
+  }
+}
+```
+
+---
+
+### 对比数据库设计文档
+
+```
+GET /api/v1/project/{project_id}/database/compare
+```
+
+**说明：** 对比系统数据库设计文档内容，包含原始版本和优化版本
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "original": "原始数据库设计...",
+    "optimized": "优化后数据库设计..."
+  }
+}
+```
+
+---
+
+### 获取风险点和疑问
+
+```
+GET /api/v1/project/{project_id}/issues
+```
+
+**说明：** 获取项目当前的风险点和需要明确的问题
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "risks": [
+      {
+        "content": "验证码有效期未定义",
+        "propose": "建议5分钟有效"
+      }
+    ],
+    "unclear_points": [
+      {
+        "content": "是否支持第三方登录",
+        "propose": "建议暂不支持"
+      }
+    ]
   }
 }
 ```
@@ -307,317 +529,7 @@ Content-Type: application/pdf
       "created_at": "2026-03-31T09:00:00Z"
     },
     "context": {
-      "project_progress": "requirement",
-      "requirement_outline": "需求大纲",
-      "requirement_modules": [
-        {
-          "name": "模块名称",
-          "order": 1,
-          "status": "pending",
-          "description": "描述",
-          "content": "详细设计"
-        }
-      ],
-      "original_requirement": "原始需求",
-      "optimized_requirement": "优化后需求",
-      "original_architecture": "原始架构",
-      "optimized_architecture": "优化后架构",
-      "original_modules_tree": [
-        {
-          "id": "module_1",
-          "parent_id": null,
-          "name": "用户中心",
-          "description": "描述",
-          "children": [
-            {
-              "id": "module_2",
-              "parent_id": "module_1",
-              "name": "用户注册",
-              "description": "描述",
-              "children": []
-            }
-          ]
-        }
-      ],
-      "optimized_modules_tree": [
-        {
-          "id": "module_1",
-          "parent_id": null,
-          "name": "用户中心",
-          "description": "描述",
-          "children": [
-            {
-              "id": "module_2",
-              "parent_id": "module_1",
-              "name": "用户注册",
-              "description": "描述",
-              "children": []
-            }
-          ]
-        }
-      ],
-      "original_database": "原始数据库",
-      "optimized_database": "优化后数据库",
-      "original_apis_tree": [
-        {
-          "module_id": "module_1",
-          "module_name": "用户中心",
-          "apis": [
-            {
-              "id": "api_1",
-              "module_id": "module_1",
-              "name": "获取验证码",
-              "method": "POST",
-              "path": "/api/v1/auth/send-code",
-              "description": "发送注册验证码",
-              "request_headers": [
-                {
-                  "name": "字段名",
-                  "type": "string",
-                  "required": "bool",
-                  "description": "描述"
-                }
-              ],
-              "request_params": [
-                {
-                  "name": "字段名",
-                  "type": "string",
-                  "required": "bool",
-                  "description": "描述"
-                }
-              ],
-              "request_body": [
-                {
-                  "name": "字段名",
-                  "type": "string",
-                  "required": "bool",
-                  "description": "描述"
-                }
-              ],
-              "response_schema": "{\"code\": 0, \"message\": \"success\", \"data\": {\"token\": \"xxx\"}}",
-              "test_script": ""
-            }
-          ],
-          "children": [
-            {
-              "module_id": "module_2",
-              "module_name": "用户注册",
-              "apis": [
-                {
-                  "id": "api_1",
-                  "module_id": "module_2",
-                  "name": "获取验证码",
-                  "method": "POST",
-                  "path": "/api/v1/auth/send-code",
-                  "description": "发送注册验证码",
-                  "request_headers": [
-                    {
-                      "name": "字段名",
-                      "type": "string",
-                      "required": "bool",
-                      "description": "描述"
-                    }
-                  ],
-                  "request_params": [
-                    {
-                      "name": "字段名",
-                      "type": "string",
-                      "required": "bool",
-                      "description": "描述"
-                    }
-                  ],
-                  "request_body": [
-                    {
-                      "name": "字段名",
-                      "type": "string",
-                      "required": "bool",
-                      "description": "描述"
-                    }
-                  ],
-                  "response_schema": "{\"code\": 0, \"message\": \"success\", \"data\": {\"token\": \"xxx\"}}",
-                  "test_script": ""
-                }
-              ],
-              "children": []
-            }
-          ]
-        }
-      ],
-      "optimized_apis_tree": [
-        {
-          "module_id": "module_1",
-          "module_name": "用户中心",
-          "apis": [
-            {
-              "id": "api_1",
-              "module_id": "module_1",
-              "name": "获取验证码",
-              "method": "POST",
-              "path": "/api/v1/auth/send-code",
-              "description": "发送注册验证码",
-              "request_headers": [
-                {
-                  "name": "字段名",
-                  "type": "string",
-                  "required": "bool",
-                  "description": "描述"
-                }
-              ],
-              "request_params": [
-                {
-                  "name": "字段名",
-                  "type": "string",
-                  "required": "bool",
-                  "description": "描述"
-                }
-              ],
-              "request_body": [
-                {
-                  "name": "字段名",
-                  "type": "string",
-                  "required": "bool",
-                  "description": "描述"
-                }
-              ],
-              "response_schema": "{\"code\": 0, \"message\": \"success\", \"data\": {\"token\": \"xxx\"}}",
-              "test_script": ""
-            }
-          ],
-          "children": [
-            {
-              "module_id": "module_2",
-              "module_name": "用户注册",
-              "apis": [
-                {
-                  "id": "api_1",
-                  "module_id": "module_2",
-                  "name": "获取验证码",
-                  "method": "POST",
-                  "path": "/api/v1/auth/send-code",
-                  "description": "发送注册验证码",
-                  "request_headers": [
-                    {
-                      "name": "字段名",
-                      "type": "string",
-                      "required": "bool",
-                      "description": "描述"
-                    }
-                  ],
-                  "request_params": [
-                    {
-                      "name": "字段名",
-                      "type": "string",
-                      "required": "bool",
-                      "description": "描述"
-                    }
-                  ],
-                  "request_body": [
-                    {
-                      "name": "字段名",
-                      "type": "string",
-                      "required": "bool",
-                      "description": "描述"
-                    }
-                  ],
-                  "response_schema": "{\"code\": 0, \"message\": \"success\", \"data\": {\"token\": \"xxx\"}}",
-                  "test_script": ""
-                }
-              ],
-              "children": []
-            }
-          ]
-        }
-      ],
-      "original_test_cases_tree": [
-        {
-          "module_id": "module_1",
-          "module_name": "用户中心",
-          "test_cases": [
-            {
-              "id": "tc_1",
-              "module_id": "module_1",
-              "title": "注册成功-手机号验证通过",
-              "precondition": "手机号未注册，验证码正确",
-              "test_steps": "1.输入手机号\n2.输入验证码\n3.点击注册",
-              "expected_result": "显示注册成功提示，跳转首页",
-              "test_data": "phone:13800138000,code:123456",
-              "level": "P0",
-              "type": "functional"
-            }
-          ],
-          "children": [
-            {
-              "module_id": "module_2",
-              "module_name": "用户注册",
-              "test_cases": [
-                {
-                  "id": "tc_2",
-                  "module_id": "module_2",
-                  "title": "邮箱注册成功",
-                  "precondition": "邮箱未注册",
-                  "test_steps": "1.输入邮箱\n2.输入验证码\n3.点击注册",
-                  "expected_result": "...",
-                  "test_data": "example@163.com",
-                  "level": "P1",
-                  "type": "functional"
-                }
-              ],
-              "children": []
-            }
-          ]
-        }
-      ],
-      "optimized_test_cases_tree": [
-        {
-          "module_id": "module_1",
-          "module_name": "用户中心",
-          "test_cases": [
-            {
-              "id": "tc_1",
-              "module_id": "module_1",
-              "title": "注册成功-手机号验证通过",
-              "precondition": "手机号未注册，验证码正确",
-              "test_steps": "1.输入手机号\n2.输入验证码\n3.点击注册",
-              "expected_result": "显示注册成功提示，跳转首页",
-              "test_data": "phone:13800138000,code:123456",
-              "level": "P0",
-              "type": "functional"
-            }
-          ],
-          "children": [
-            {
-              "module_id": "module_2",
-              "module_name": "用户注册",
-              "test_cases": [
-                {
-                  "id": "tc_2",
-                  "module_id": "module_2",
-                  "title": "邮箱注册成功",
-                  "precondition": "邮箱未注册",
-                  "test_steps": "1.输入邮箱\n2.输入验证码\n3.点击注册",
-                  "expected_result": "...",
-                  "test_data": "example@163.com",
-                  "level": "P1",
-                  "type": "functional"
-                }
-              ],
-              "children": []
-            }
-          ]
-        }
-      ],
-      "risks": [
-        {
-          "content": "验证码有效期未定义",
-          "propose": "建议5分钟有效"
-        }
-      ],
-      "unclear_points": [
-        {
-          "content": "是否支持第三方登录",
-          "propose": "建议暂不支持"
-        }
-      ]
+      "project_progress": "requirement"
     }
   }
 }
@@ -746,21 +658,13 @@ GET /api/v1/project/{project_id}/modules/tree
 
 ---
 
-## 测试用例接口 (Test Cases)
-
-### 查询测试用例列表
+### 对比系统模块文档
 
 ```
-GET /api/v1/project/{project_id}/test-cases
+GET /api/v1/project/{project_id}/modules/compare
 ```
 
-**查询参数：**
-
-| 参数        | 类型     | 必填 | 说明                               |
-|-----------|--------|----|----------------------------------|
-| module_id | string | 否  | 关联模块ID                           |
-| level     | string | 否  | P0/P1/P2/P3                      |
-| type      | string | 否  | functional/interface/performance |
+**说明：** 获取系统模块设计文档内容，包含原始版本和优化版本（树形结构）
 
 **响应：**
 
@@ -768,102 +672,43 @@ GET /api/v1/project/{project_id}/test-cases
 {
   "code": 200,
   "data": {
-    "items": [
+    "original": [
       {
-        "id": "tc_1",
-        "module_id": "module_1",
-        "title": "注册成功-手机号验证通过",
-        "precondition": "手机号未注册，验证码正确",
-        "test_steps": "1.输入手机号\n2.输入验证码\n3.点击注册",
-        "expected_result": "显示注册成功提示，跳转首页",
-        "test_data": "phone:13800138000,code:123456",
-        "level": "P0",
-        "type": "functional",
-        "created_at": "2026-03-30T20:00:00Z"
+        "id": "module_1",
+        "parent_id": null,
+        "name": "用户中心",
+        "description": "描述",
+        "children": [
+          {
+            "id": "module_2",
+            "parent_id": "module_1",
+            "name": "用户注册",
+            "description": "描述",
+            "children": []
+          }
+        ]
       }
     ],
-    "total": 1,
-    "page": 1,
-    "page_size": 20
+    "optimized": [
+      {
+        "id": "module_1",
+        "parent_id": null,
+        "name": "用户中心",
+        "description": "描述",
+        "children": [
+          {
+            "id": "module_2",
+            "parent_id": "module_1",
+            "name": "用户注册",
+            "description": "描述",
+            "children": []
+          }
+        ]
+      }
+    ]
   }
 }
 ```
-
----
-
-### 获取测试用例树形结构
-
-```
-GET /api/v1/project/{project_id}/test-cases/tree
-```
-
-**说明：** 获取项目下所有测试用例的树形结构，按模块层级组织
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": [
-    {
-      "module_id": "module_1",
-      "module_name": "用户中心",
-      "test_cases": [
-        {
-          "id": "tc_1",
-          "module_id": "module_1",
-          "title": "注册成功-手机号验证通过",
-          "precondition": "手机号未注册，验证码正确",
-          "test_steps": "1.输入手机号\n2.输入验证码\n3.点击注册",
-          "expected_result": "显示注册成功提示，跳转首页",
-          "test_data": "phone:13800138000,code:123456",
-          "level": "P0",
-          "type": "functional"
-        }
-      ],
-      "children": [
-        {
-          "module_id": "module_2",
-          "module_name": "用户注册",
-          "test_cases": [
-            {
-              "id": "tc_2",
-              "module_id": "module_2",
-              "title": "邮箱注册成功",
-              "precondition": "邮箱未注册",
-              "test_steps": "1.输入邮箱\n2.输入验证码\n3.点击注册",
-              "expected_result": "...",
-              "test_data": "example@163.com",
-              "level": "P1",
-              "type": "functional"
-            }
-          ],
-          "children": []
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-### 导出测试用例
-
-```
-GET /api/v1/project/{project_id}/test-cases/export
-```
-
-**说明：** 直接返回文件数据流
-
-**查询参数：**
-
-| 参数        | 类型     | 必填 | 说明                 |
-|-----------|--------|----|--------------------|
-| format    | string | 否  | excel/csv，默认 excel |
-| module_id | string | 否  | 筛选模块               |
-
-**响应：** 直接返回文件二进制流，Content-Type 根据 format 参数决定
 
 ---
 
@@ -1034,6 +879,260 @@ GET /api/v1/project/{project_id}/apis/tree
   ]
 }
 ```
+
+---
+
+### 对比接口文档
+
+```
+GET /api/v1/project/{project_id}/apis/compare
+```
+
+**说明：** 获取系统接口设计文档内容，包含原始版本和优化版本（树形结构）
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "original": [
+      {
+        "module_id": "module_1",
+        "module_name": "用户中心",
+        "apis": [
+          {
+            "id": "api_1",
+            "module_id": "module_1",
+            "name": "获取验证码",
+            "method": "POST",
+            "path": "/api/v1/auth/send-code",
+            "description": "发送注册验证码",
+            "request_headers": [
+              {
+                "name": "字段名",
+                "type": "string",
+                "required": true,
+                "description": "描述"
+              }
+            ],
+            "request_params": [
+              {
+                "name": "字段名",
+                "type": "string",
+                "required": true,
+                "description": "描述"
+              }
+            ],
+            "request_body": [
+              {
+                "name": "字段名",
+                "type": "string",
+                "required": true,
+                "description": "描述"
+              }
+            ],
+            "response_schema": "{\"code\": 0, \"message\": \"success\", \"data\": {\"token\": \"xxx\"}}",
+            "test_script": ""
+          }
+        ],
+        "children": [
+          {
+            "module_id": "module_2",
+            "module_name": "用户注册",
+            "apis": [],
+            "children": []
+          }
+        ]
+      }
+    ],
+    "optimized": [
+      {
+        "module_id": "module_1",
+        "module_name": "用户中心",
+        "apis": [],
+        "children": []
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 测试用例接口 (Test Cases)
+
+### 查询测试用例列表
+
+```
+GET /api/v1/project/{project_id}/test-cases
+```
+
+**查询参数：**
+
+| 参数        | 类型     | 必填 | 说明                               |
+|-----------|--------|----|----------------------------------|
+| module_id | string | 否  | 关联模块ID                           |
+| level     | string | 否  | P0/P1/P2/P3                      |
+| type      | string | 否  | functional/interface/performance |
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "items": [
+      {
+        "id": "tc_1",
+        "module_id": "module_1",
+        "title": "注册成功-手机号验证通过",
+        "precondition": "手机号未注册，验证码正确",
+        "test_steps": "1.输入手机号\n2.输入验证码\n3.点击注册",
+        "expected_result": "显示注册成功提示，跳转首页",
+        "test_data": "phone:13800138000,code:123456",
+        "level": "P0",
+        "type": "functional",
+        "created_at": "2026-03-30T20:00:00Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "page_size": 20
+  }
+}
+```
+
+---
+
+### 获取测试用例树形结构
+
+```
+GET /api/v1/project/{project_id}/test-cases/tree
+```
+
+**说明：** 获取项目下所有测试用例的树形结构，按模块层级组织
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": [
+    {
+      "module_id": "module_1",
+      "module_name": "用户中心",
+      "test_cases": [
+        {
+          "id": "tc_1",
+          "module_id": "module_1",
+          "title": "注册成功-手机号验证通过",
+          "precondition": "手机号未注册，验证码正确",
+          "test_steps": "1.输入手机号\n2.输入验证码\n3.点击注册",
+          "expected_result": "显示注册成功提示，跳转首页",
+          "test_data": "phone:13800138000,code:123456",
+          "level": "P0",
+          "type": "functional"
+        }
+      ],
+      "children": [
+        {
+          "module_id": "module_2",
+          "module_name": "用户注册",
+          "test_cases": [
+            {
+              "id": "tc_2",
+              "module_id": "module_2",
+              "title": "邮箱注册成功",
+              "precondition": "邮箱未注册",
+              "test_steps": "1.输入邮箱\n2.输入验证码\n3.点击注册",
+              "expected_result": "...",
+              "test_data": "example@163.com",
+              "level": "P1",
+              "type": "functional"
+            }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### 对比测试用例文档
+
+```
+GET /api/v1/project/{project_id}/test-cases/compare
+```
+
+**说明：** 获取测试用例设计文档内容，包含原始版本和优化版本（树形结构）
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "original": [
+      {
+        "module_id": "module_1",
+        "module_name": "用户中心",
+        "test_cases": [
+          {
+            "id": "tc_1",
+            "module_id": "module_1",
+            "title": "注册成功-手机号验证通过",
+            "precondition": "手机号未注册，验证码正确",
+            "test_steps": "1.输入手机号\n2.输入验证码\n3.点击注册",
+            "expected_result": "显示注册成功提示，跳转首页",
+            "test_data": "phone:13800138000,code:123456",
+            "level": "P0",
+            "type": "functional"
+          }
+        ],
+        "children": [
+          {
+            "module_id": "module_2",
+            "module_name": "用户注册",
+            "test_cases": [],
+            "children": []
+          }
+        ]
+      }
+    ],
+    "optimized": [
+      {
+        "module_id": "module_1",
+        "module_name": "用户中心",
+        "test_cases": [],
+        "children": []
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 导出测试用例
+
+```
+GET /api/v1/project/{project_id}/test-cases/export
+```
+
+**说明：** 直接返回文件数据流
+
+**查询参数：**
+
+| 参数        | 类型     | 必填 | 说明                 |
+|-----------|--------|----|--------------------|
+| format    | string | 否  | excel/csv，默认 excel |
+| module_id | string | 否  | 筛选模块               |
+
+**响应：** 直接返回文件二进制流，Content-Type 根据 format 参数决定
 
 ---
 

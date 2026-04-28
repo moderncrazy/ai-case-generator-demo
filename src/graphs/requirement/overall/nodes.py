@@ -3,8 +3,8 @@ from langgraph.runtime import Runtime
 from langchain_core.runnables import RunnableConfig
 
 from src.context import trans_id_ctx
-from src.graphs.common.tools import tool_list as ctool_list
 from src.graphs.common.utils import workflow_node_utils, utils as cutils
+from src.graphs.common.tools import optimization_plan_tools, review_issue_tools, to_summarize_tools, tools as ctools
 from src.graphs.requirement.overall.state import State, GroupMemberState
 from src.graphs.requirement.overall.tools import (
     common_tool_list,
@@ -15,7 +15,9 @@ from src.graphs.requirement.overall.tools import (
     generate_optimization_requirement_overall_plan_output,
 )
 from src.enums.group_member_role import GroupMemberRole
-from src.enums.conversation_message_type import ConversationMessageType
+
+tool_list = (optimization_plan_tools.tool_list + review_issue_tools.tool_list
+             + to_summarize_tools.tool_list + ctools.tool_list + common_tool_list)
 
 
 async def generate_optimization_requirement_overall_plan_node(state: State, runtime: Runtime,
@@ -36,7 +38,6 @@ async def generate_optimization_requirement_overall_plan_node(state: State, runt
     project_id = state["project_id"]
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
-    tool_list = [*ctool_list, *common_tool_list]
     result = await workflow_node_utils.generate_optimization_plan(
         state,
         runtime,
@@ -68,7 +69,6 @@ async def review_optimization_requirement_overall_plan_node(state: State, runtim
     project_id = state["project_id"]
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
-    tool_list = [*ctool_list, *common_tool_list]
     result = await workflow_node_utils.review_optimization_plan(
         state,
         runtime,
@@ -102,7 +102,6 @@ async def optimize_requirement_overall_node(state: State, runtime: Runtime, conf
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
     # 发送自定义消息
     cutils.send_custom_message("产品优化需求文档中...", GroupMemberRole.PRODUCT)
-    tool_list = [*ctool_list, *common_tool_list]
     result = await workflow_node_utils.optimize_doc(
         state,
         runtime,
@@ -110,6 +109,7 @@ async def optimize_requirement_overall_node(state: State, runtime: Runtime, conf
         tool_list,
         GroupMemberRole.PRODUCT,
         optimize_requirement_overall_output,
+        GroupMemberRole.GROUP_MEMBER if state.get("review_issues") else GroupMemberRole.PM,
     )
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
@@ -135,8 +135,7 @@ async def review_requirement_overall_node(state: GroupMemberState, runtime: Runt
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 角色:{role} 进入")
     # 根据角色使用不同提示词
-    cutils.send_custom_message(f"{role}评审需求文档中...", role)
-    tool_list = [*ctool_list, *common_tool_list]
+    cutils.send_custom_message(f"{role.get_name_zh()}评审需求文档中...", role)
     result = await workflow_node_utils.review_optimization_doc(
         state,
         runtime,
@@ -169,7 +168,6 @@ async def optimize_requirement_overall_issue_node(state: State, runtime: Runtime
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
     # 发送自定义消息
     cutils.send_custom_message("整理需求文档问题中...", GroupMemberRole.PRODUCT)
-    tool_list = [*ctool_list, *common_tool_list]
     result = await workflow_node_utils.summarize_optimization_doc_issue(
         state,
         runtime,
@@ -178,7 +176,6 @@ async def optimize_requirement_overall_issue_node(state: State, runtime: Runtime
         GroupMemberRole.PRODUCT,
         optimize_requirement_overall_issue_output,
     )
-    cutils.send_custom_message("需求文档已更新，快来看看吧！", GroupMemberRole.PRODUCT, ConversationMessageType.NOTIFY)
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result

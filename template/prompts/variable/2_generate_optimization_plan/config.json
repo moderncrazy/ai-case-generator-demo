@@ -3,75 +3,118 @@
   "stage": {
     "requirement_outline_design": {
       "role_name": "需求分析师",
-      "target": "基于项目信息和客户描述，生成需求大纲和模块划分的优化方案。",
+      "target": "结合上下文用户要求和【设计背景信息】，生成需求大纲和模块划分的优化方案。",
       "stage_name": "需求大纲规划",
-      "stage_target": "基于项目信息和客户描述，生成需求大纲和模块划分的优化方案。",
+      "stage_target": "结合上下文用户要求和【设计背景信息】，生成需求大纲和模块划分的优化方案。",
       "precondition": "用户已上传原始需求或描述了项目背景",
       "next_step": "方案审核通过后，进入需求大纲生成阶段",
-      "output_tool": "generate_optimization_requirement_outline_plan_output"
+      "output_tool": "generate_optimization_requirement_outline_plan_output",
+      "workflow": [
+        "1. 根据给到的【设计背景信息】和项目信息，分析用户的改动和优化项",
+        "2. 若存在评审反馈，则将设计背景信息与评审反馈意见相结合，分析优化项",
+        "3. 结合1、2两步优化设计方案（每次编写的优化内容需要包含【完整】的步骤，不要只涵盖评审反馈内容）"
+      ]
     },
     "requirement_module_design": {
       "role_name": "需求分析师",
-      "target": "基于项目信息，设计当前需求模块的优化方案。",
+      "target": "结合上下文用户要求和【设计背景信息】，设计/优化【当前需求模块】的优化方案。",
       "stage_name": "需求模块规划",
-      "stage_target": "基于项目信息，设计当前需求模块的优化方案。",
+      "stage_target": "结合上下文用户要求和【设计背景信息】，设计/优化【当前需求模块】的优化方案。",
       "precondition": "已完成需求大纲设计",
       "next_step": "方案审核通过后，进入需求模块生成阶段",
-      "output_tool": "generate_optimization_requirement_module_plan_output"
+      "output_tool": "generate_optimization_requirement_module_plan_output",
+      "workflow": [
+        "模块状态说明：pending 表示未设计，draft 表示已设计未确认，completed 表示已确认",
+        "1. 根据给到的【设计背景信息】和项目信息，分析用户的改动和优化项",
+        "2.【必须且只能】设计 get_current_requirement_module 方法返回的模块",
+        "  - **第2步将直接决定方案生成的成败，忽略上下文中提及的其他模块**",
+        "3. 若存在评审反馈，则将设计背景信息与评审反馈意见相结合，分析优化项",
+        "4. 结合1、2两步优化设计方案（每次编写的优化内容需要包含【完整】的步骤，不要只涵盖评审反馈内容）"
+      ]
     },
     "requirement_overall_design": {
       "role_name": "产品规划师",
-      "target": "基于需求大纲和需求模块，生成当前需求整体文档的优化方案。",
+      "target": "结合上下文用户要求和【设计背景信息】，基于需求大纲和需求模块，生成当前需求整体文档的优化方案",
       "stage_name": "需求整体规划",
-      "stage_target": "基于需求大纲和需求模块，生成当前需求整体文档的优化方案。",
+      "stage_target": "结合上下文用户要求和【设计背景信息】，基于需求大纲和需求模块，生成当前需求整体文档的优化方案",
       "precondition": "已完成需求大纲和需求模块设计，正在进行整体需求文档设计",
       "next_step": "方案审核通过后，进入需求整体文档生成阶段",
-      "output_tool": "generate_optimization_requirement_overall_plan_output"
+      "output_tool": "generate_optimization_requirement_overall_plan_output",
+      "workflow": [
+        "1. 根据给到的【设计背景信息】和项目信息，分析用户的改动和优化项",
+        "2. 若存在评审反馈，则将设计背景信息与评审反馈意见相结合，分析优化项",
+        "3. 结合1、2两步优化设计方案（每次编写的优化内容需要包含【完整】的步骤，不要只涵盖评审反馈内容）"
+      ]
     },
     "system_architecture_design": {
       "role_name": "架构设计师",
-      "target": "基于需求文档，生成系统架构的优化方案。",
+      "target": "结合上下文用户要求和【设计背景信息】，基于需求文档，生成系统架构的优化方案",
       "stage_name": "系统架构规划",
-      "stage_target": "基于需求文档，生成系统架构的优化方案。",
+      "stage_target": "结合上下文用户要求和【设计背景信息】，基于需求文档，生成系统架构的优化方案",
       "precondition": "已完成需求文档设计，正在进行系统架构设计",
       "next_step": "方案审核通过后，进入系统架构生成阶段",
-      "output_tool": "generate_optimization_system_architecture_plan_output"
+      "output_tool": "generate_optimization_system_architecture_plan_output",
+      "workflow": [
+        "1. 根据给到的【设计背景信息】和项目信息，分析用户的改动和优化项",
+        "2. 若存在评审反馈，则将设计背景信息与评审反馈意见相结合，分析优化项",
+        "3. 结合1、2两步优化设计方案（每次编写的优化内容需要包含【完整】的步骤，不要只涵盖评审反馈内容）"
+      ]
     },
     "system_modules_design": {
       "role_name": "架构设计师",
-      "target": "基于需求文档和系统架构，生成系统模块的优化方案。",
+      "target": "结合上下文用户要求和【设计背景信息】，基于需求文档和系统架构，生成系统模块的优化方案",
       "stage_name": "系统模块规划",
-      "stage_target": "基于需求文档和系统架构，生成系统模块的优化方案。",
+      "stage_target": "结合上下文用户要求和【设计背景信息】，基于需求文档和系统架构，生成系统模块的优化方案",
       "precondition": "已完成系统架构设计，正在进行系统模块设计",
       "next_step": "方案审核通过后，进入系统模块生成阶段",
-      "output_tool": "generate_optimization_system_modules_plan_output"
+      "output_tool": "generate_optimization_system_modules_plan_output",
+      "workflow": [
+        "1. 根据给到的【设计背景信息】和项目信息，分析用户的改动和优化项",
+        "2. 若存在评审反馈，则将设计背景信息与评审反馈意见相结合，分析优化项",
+        "3. 结合1、2两步优化设计方案（每次编写的优化内容需要包含【完整】的步骤，不要只涵盖评审反馈内容）"
+      ]
     },
     "system_database_design": {
       "role_name": "数据库设计师",
-      "target": "基于需求文档、系统架构和系统模块，生成数据库设计的优化方案。",
+      "target": "结合上下文用户要求和【设计背景信息】，基于需求文档、系统架构和系统模块，生成数据库设计的优化方案",
       "stage_name": "数据库设计规划",
-      "stage_target": "基于需求文档、系统架构和系统模块，生成数据库设计的优化方案。",
+      "stage_target": "结合上下文用户要求和【设计背景信息】，基于需求文档、系统架构和系统模块，生成数据库设计的优化方案",
       "precondition": "已完成系统模块设计，正在进行数据库设计",
       "next_step": "方案审核通过后，进入数据库设计生成阶段",
-      "output_tool": "generate_optimization_system_database_plan_output"
+      "output_tool": "generate_optimization_system_database_plan_output",
+      "workflow": [
+        "1. 根据给到的【设计背景信息】和项目信息，分析用户的改动和优化项",
+        "2. 若存在评审反馈，则将设计背景信息与评审反馈意见相结合，分析优化项",
+        "3. 结合1、2两步优化设计方案（每次编写的优化内容需要包含【完整】的步骤，不要只涵盖评审反馈内容）"
+      ]
     },
     "system_api_design": {
       "role_name": "后端工程师",
-      "target": "基于需求文档、系统模块和数据库，生成当前系统接口的优化方案。",
+      "target": "结合上下文用户要求和【设计背景信息】，基于需求文档、系统模块和数据库，生成当前系统接口的优化方案",
       "stage_name": "系统接口规划",
-      "stage_target": "基于需求文档、系统模块和数据库，生成当前系统接口的优化方案。",
+      "stage_target": "结合上下文用户要求和【设计背景信息】，基于需求文档、系统模块和数据库，生成当前系统接口的优化方案",
       "precondition": "已完成架构、模块、数据库设计，正在进行系统接口设计",
       "next_step": "方案审核通过后，进入系统接口优化阶段",
-      "output_tool": "generate_optimization_system_api_plan_output"
+      "output_tool": "generate_optimization_system_api_plan_output",
+      "workflow": [
+        "1. 根据给到的【设计背景信息】和项目信息，分析用户的改动和优化项",
+        "2. 若存在评审反馈，则将设计背景信息与评审反馈意见相结合，分析优化项",
+        "3. 结合1、2两步优化设计方案（每次编写的优化内容需要包含【完整】的步骤，不要只涵盖评审反馈内容）"
+      ]
     },
     "test_case_design": {
       "role_name": "测试工程师",
-      "target": "基于需求文档、数据库文档和系统接口，生成测试用例的优化方案。",
+      "target": "结合上下文用户要求和【设计背景信息】，基于需求文档、数据库文档和系统接口，生成测试用例的优化方案",
       "stage_name": "测试用例规划",
-      "stage_target": "基于需求文档、数据库文档和系统接口，生成测试用例的优化方案。",
+      "stage_target": "结合上下文用户要求和【设计背景信息】，基于需求文档、数据库文档和系统接口，生成测试用例的优化方案",
       "precondition": "已完成系统接口设计，正在进行测试用例设计",
       "next_step": "方案审核通过后，进入测试用例生成阶段",
-      "output_tool": "generate_optimization_test_case_plan_output"
+      "output_tool": "generate_optimization_test_case_plan_output",
+      "workflow": [
+        "1. 根据给到的【设计背景信息】和项目信息，分析用户的改动和优化项",
+        "2. 若存在评审反馈，则将设计背景信息与评审反馈意见相结合，分析优化项",
+        "3. 结合1、2两步优化设计方案（每次编写的优化内容需要包含【完整】的步骤，不要只涵盖评审反馈内容）"
+      ]
     }
   }
 }

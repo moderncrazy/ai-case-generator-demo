@@ -38,6 +38,10 @@ def get_project_progress_keyword_processor():
     return keyword_processor
 
 
+def filter_graph_tools(content: str) -> str:
+    tools_keyword_processor = get_graph_tools_keyword_processor()
+    return tools_keyword_processor.replace_keywords(content).replace(EMPTY, "").strip()
+
 def filter_ai_output_content(content: str) -> str:
     tools_keyword_processor = get_graph_tools_keyword_processor()
     progress_keyword_processor = get_project_progress_keyword_processor()

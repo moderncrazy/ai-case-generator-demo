@@ -9,7 +9,7 @@ from src.graphs import tools
 from src.graphs import nodes
 from src.graphs import routes
 from src.graphs.state import State
-from src.graphs.common import tools as ctools
+from src.graphs.common.tools import tools as ctools
 from src.graphs.requirement.outline import graph as requirement_outline_graph
 from src.graphs.requirement.module import graph as requirement_module_graph
 from src.graphs.requirement.overall import graph as requirement_overall_graph
@@ -76,7 +76,7 @@ async def create_agent() -> CompiledStateGraph:
     agent_builder.add_conditional_edges(
         "product_manager_node",
         routes.product_manager_tool_router,
-        ["end_node", "product_manager_tool_node", *[node for node in subgraph_node.keys()]]
+        ["product_manager_node", "product_manager_tool_node", "end_node", *[node for node in subgraph_node.keys()]]
     )
     agent_builder.add_edge("product_manager_tool_node", "product_manager_node")
 
@@ -86,5 +86,6 @@ async def create_agent() -> CompiledStateGraph:
 
     sqlite_conn = await aiosqlite.connect(settings.langgraph_sqlite_checkpoint_path)
     sqlite_saver = AsyncSqliteSaver(sqlite_conn)
+    sqlite_saver = sqlite_saver.with_allowlist([("src", "enums")])
     agent = agent_builder.compile(checkpointer=sqlite_saver)
     return agent

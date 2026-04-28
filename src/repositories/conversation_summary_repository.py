@@ -2,7 +2,7 @@ import uuid
 from typing import List, Optional
 from datetime import datetime
 
-from src.models.conversation_summary import ConversationSummary
+from src.models.business.conversation_summary import ConversationSummary
 
 
 class ConversationSummaryRepository:

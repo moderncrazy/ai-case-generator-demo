@@ -9,8 +9,9 @@ from src.services.milvus_service import milvus_service
 from src.routes.api import router as api_router
 from src.routes.module import router as module_router
 from src.routes.project import router as project_router
-from src.routes.conversation_message import router as conversation_message_router
 from src.routes.test_case import router as test_case_router
+from src.routes.project_document import router as project_document_router
+from src.routes.conversation_message import router as conversation_message_router
 from src.middlewares.request_log import RequestLogMiddleware
 from src.middlewares.request_context import RequestContextMiddleware
 from src.middlewares.transaction_id_verify import TransactionIdVerifyMiddleware
@@ -51,8 +52,9 @@ app.add_exception_handler(Exception, general_exception_handler)
 app.add_exception_handler(BusinessException, business_exception_handler)
 
 # 注册路由
-app.include_router(project_router)
-app.include_router(module_router)
-app.include_router(test_case_router)
 app.include_router(api_router)
+app.include_router(module_router)
+app.include_router(project_router)
+app.include_router(test_case_router)
+app.include_router(project_document_router)
 app.include_router(conversation_message_router)

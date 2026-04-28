@@ -9,4 +9,10 @@ TRANSACTION_ID = "X-Transaction-Id"
 USER_ID_KEY = "user_id"
 
 # components key
-CHAT_POPOVER_KEY = "chat_popover"
+CHAT_EXPANDER_KEY = "chat_expander"
+
+# session state
+
+
+# error message
+SYSTEM_ERROR_MESSAGE = "系统繁忙，请稍后再试！"

@@ -20,17 +20,20 @@ class State(BaseState):
     system_architecture_content: Annotated[str, wr]
     """当前正在优化的系统架构内容"""
 
-    system_architecture_issues: Annotated[list[StateIssue], distinct_reducer]
-    """评审中针对系统架构提出的问题和建议（去重合并）"""
+    review_issues: Annotated[list[StateIssue], distinct_reducer]
+    """评审中提出的问题和建议（去重合并）"""
 
-    risks: Annotated[list[StateIssue], distinct_reducer]
-    """需要提给客户的风险点和建议（去重合并）"""
+    private_risks: Annotated[list[StateIssue], distinct_reducer]
+    """子图内部需要提给客户的风险点和建议（去重合并）"""
 
-    unclear_points: Annotated[list[StateIssue], distinct_reducer]
-    """需要让用户明确的问题和建议（去重合并）"""
+    private_unclear_points: Annotated[list[StateIssue], distinct_reducer]
+    """子图内部需要让用户明确的问题和建议（去重合并）"""
 
     private_messages: Annotated[list[AnyMessage], priority_message_reducer]
     """子图内部私聊消息（不暴露给主图）"""
+
+    optimization_plan_content: Annotated[str, wr]
+    """优化方案内容"""
 
     review_optimization_plan_result: Annotated[ReviewOptimizationPlanResult, wr]
     """审核优化方案结果"""

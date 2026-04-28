@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -21,3 +21,9 @@ class ModuleTreeNode(BaseModel):
     name: str = Field(description="模块名称")
     description: Optional[str] = Field(default=None, description="模块描述")
     children: list["ModuleTreeNode"] = Field(default_factory=list, description="子模块")
+
+
+class ModuleTreeDocumentResponse(BaseModel):
+    """模块树文档响应（原始版和优化版）"""
+    original: Optional[List[ModuleTreeNode]] = Field(default=None, description="原始模块树")
+    optimized: Optional[List[ModuleTreeNode]] = Field(default=None, description="优化模块树")

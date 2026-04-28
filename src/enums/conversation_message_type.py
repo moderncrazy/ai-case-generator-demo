@@ -16,5 +16,8 @@ class ConversationMessageType(StrEnum):
     NOTIFY = "notify"
     """通知消息"""
 
+    DOC_UPDATE = "doc_update"
+    """文档更新"""
+
     END = "end"
     """结束消息"""

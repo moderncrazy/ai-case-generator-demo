@@ -1,11 +1,12 @@
 from piccolo.columns import Varchar, Timestamp, ForeignKey
+from piccolo.table import Table
 
-from src.models.base import BaseModel
+from src.models.base import BUSINESS_DB
 from src.enums.creator_type import CreatorType
 from src.enums.project_progress import ProjectProgress
 
 
-class Project(BaseModel):
+class Project(Table, db=BUSINESS_DB):
     """项目表模型
     
     存储项目的基本信息和设计文档。

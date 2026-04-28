@@ -1,11 +1,11 @@
 from typing import Annotated, Optional
 from fastapi import APIRouter, Query, Depends
 
-from src.models.project import Project
+from src.models.business.project import Project
+from src.services.module_service import module_service
 from src.dependencies.dependencies import get_project_or_404
 from src.schemas.response import ApiResponse, ApiListResponse, ListData
-from src.schemas.module import ModuleResponse, ModuleTreeNode
-from src.services.module_service import module_service
+from src.schemas.module import ModuleResponse, ModuleTreeNode, ModuleTreeDocumentResponse
 
 # 模块路由
 router = APIRouter(prefix="/api/v1/project", tags=["模块"])
@@ -48,10 +48,26 @@ async def get_modules_tree(project: Annotated[Project, Depends(get_project_or_40
     获取项目的完整模块树形结构，体现父子模块层级关系。
     
     Args:
-        project: 项目对象（通过依赖注入获取）
+        project: 项目对象
         
     Returns:
         返回模块树形结构列表
     """
     tree = await module_service.get_modules_tree(project.id)
     return ApiResponse(data=tree)
+
+
+@router.get("/{project_id}/modules/compare", response_model=ApiResponse[ModuleTreeDocumentResponse])
+async def get_modules_compare(project: Annotated[Project, Depends(get_project_or_404)]):
+    """获取系统模块对比文档
+    
+    从 graph state 获取原始版本和优化版本的模块树形结构。
+    
+    Args:
+        project: 项目对象
+        
+    Returns:
+        返回模块对比文档（原始版和优化版）
+    """
+    result = await module_service.get_modules_compare(project.id)
+    return ApiResponse(data=result)

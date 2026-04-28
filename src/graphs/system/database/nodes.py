@@ -5,7 +5,7 @@ from langchain_core.runnables import RunnableConfig
 
 from src.context import trans_id_ctx
 from src.utils import utils as gutils
-from src.graphs.common.tools import tool_list as ctool_list
+from src.graphs.common.tools import optimization_plan_tools, review_issue_tools, tools as ctools
 from src.graphs.common.utils import workflow_node_utils, utils as cutils
 from src.graphs.system.database.state import State, GroupMemberState
 from src.graphs.system.database.tools import (
@@ -15,10 +15,13 @@ from src.graphs.system.database.tools import (
     review_optimization_system_database_plan_output,
     generate_optimization_system_database_plan_output,
 )
+from src.enums.project_doc_type import ProjectDocType
 from src.enums.group_member_role import GroupMemberRole
 from src.enums.reducer_action_type import ReducerActionType
 from src.enums.conversation_message_type import ConversationMessageType
 from src.repositories.project_repository import project_repository, ProjectUpdate
+
+tool_list = optimization_plan_tools.tool_list + review_issue_tools.tool_list + ctools.tool_list + common_tool_list
 
 
 async def generate_optimization_system_database_plan_node(state: State, runtime: Runtime,
@@ -27,7 +30,6 @@ async def generate_optimization_system_database_plan_node(state: State, runtime:
     project_id = state["project_id"]
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
-    tool_list = [*ctool_list, *common_tool_list]
     result = await workflow_node_utils.generate_optimization_plan(
         state,
         runtime,
@@ -47,7 +49,6 @@ async def review_optimization_system_database_plan_node(state: State, runtime: R
     project_id = state["project_id"]
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
-    tool_list = [*ctool_list, *common_tool_list]
     result = await workflow_node_utils.review_optimization_plan(
         state,
         runtime,
@@ -81,7 +82,6 @@ async def optimize_system_database_node(state: State, runtime: Runtime, config: 
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
     # 发送自定义消息
     cutils.send_custom_message("DBA优化数据库文档中...", GroupMemberRole.DBA)
-    tool_list = [*ctool_list, *common_tool_list]
     result = await workflow_node_utils.optimize_doc(
         state,
         runtime,
@@ -89,6 +89,7 @@ async def optimize_system_database_node(state: State, runtime: Runtime, config: 
         tool_list,
         GroupMemberRole.DBA,
         optimize_system_database_output,
+        GroupMemberRole.GROUP_MEMBER if state.get("review_issues") else GroupMemberRole.PM,
     )
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
@@ -114,8 +115,7 @@ async def review_system_database_node(state: GroupMemberState, runtime: Runtime,
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 角色:{role} 进入")
     # 根据角色使用不同提示词
-    cutils.send_custom_message(f"{role}评审数据库文档中...", role)
-    tool_list = [*ctool_list, *common_tool_list]
+    cutils.send_custom_message(f"{role.get_name_zh()}评审数据库文档中...", role)
     result = await workflow_node_utils.review_optimization_doc(
         state,
         runtime,
@@ -145,7 +145,7 @@ async def review_system_database_aggregator_node(state: State) -> State:
     project_id = state["project_id"]
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
     # 如果评审通过 则回复用户确认数据库
-    if not state["system_database_issues"]:
+    if not state["review_issues"]:
         # 如果原始数据库内容为空 则保存当前版本为原始数据库
         if not state.get("original_database"):
             await project_repository.update(
@@ -156,6 +156,12 @@ async def review_system_database_aggregator_node(state: State) -> State:
                 f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 创建原始数据库文档入库")
         cutils.send_custom_message(
             "数据库文档已更新，快来看看吧！", GroupMemberRole.DBA, ConversationMessageType.NOTIFY)
+        # 发送文档更新消息
+        cutils.send_custom_message(
+            ProjectDocType.SYSTEM_DATABASE.value,
+            GroupMemberRole.PRODUCT,
+            ConversationMessageType.DOC_UPDATE
+        )
         # 使用DBA最后一次优化的 message 返回客户
         message = workflow_node_utils.get_latest_role_message(GroupMemberRole.DBA, state["private_messages"])
         # 回复客户确认数据库 并赋值
@@ -165,7 +171,5 @@ async def review_system_database_aggregator_node(state: State) -> State:
             "original_database": state.get("original_database") or state["system_database_content"],
             "optimized_database": state["system_database_content"],
         }
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_json(result)}")
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result

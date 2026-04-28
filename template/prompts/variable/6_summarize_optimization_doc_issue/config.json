@@ -2,13 +2,25 @@
   "common": {},
   "stage": {
     "requirement_module_design": {
-      "output_tool": "optimize_requirement_module_issue_output"
+      "output_tool": "optimize_requirement_module_issue_output",
+      "stage_name": "需求模块优化评审后问题整理",
+      "stage_target": "结合上下文信息和核心任务，整理优化内容、整合各角色的评审意见",
+      "precondition": "需求模块设计AI成员评审通过",
+      "next_step": "将整合后的问题和建议发送给客户，让客户决策"
     },
     "requirement_overall_design": {
-      "output_tool": "optimize_requirement_overall_issue_output"
+      "output_tool": "optimize_requirement_overall_issue_output",
+      "stage_name": "整体需求优化评审后问题整理",
+      "stage_target": "结合上下文信息和核心任务，整理优化内容、整合各角色的评审意见",
+      "precondition": "整体需求设计AI成员评审通过",
+      "next_step": "将整合后的问题和建议发送给客户，让客户决策"
     },
     "system_architecture_design": {
-      "output_tool": "optimize_system_architecture_issue_output"
+      "output_tool": "optimize_system_architecture_issue_output",
+      "stage_name": "系统架构优化评审后问题整理",
+      "stage_target": "结合上下文信息和核心任务，整理优化内容、整合各角色的评审意见",
+      "precondition": "系统架构设计AI成员评审通过",
+      "next_step": "将整合后的问题和建议发送给客户，让客户决策"
     }
   }
 }

@@ -3,11 +3,13 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel
 
-from src.models.module import Module
+from src.models.business.module import Module
 
 
 class ModuleCreate(BaseModel):
     """创建模块参数"""
+    id: str
+    """模块 ID"""
     project_id: str
     """所属项目 ID"""
     name: str
@@ -20,6 +22,18 @@ class ModuleCreate(BaseModel):
 
 class ModuleUpdate(BaseModel):
     """更新模块参数"""
+    name: Optional[str] = None
+    """模块名称"""
+    parent_id: Optional[str] = None
+    """父模块 ID"""
+    description: Optional[str] = None
+    """模块描述"""
+
+
+class ModuleBulkUpdate(BaseModel):
+    """更新模块参数"""
+    id: str
+    """模块 ID"""
     name: str
     """模块名称"""
     parent_id: Optional[str] = None
@@ -50,7 +64,7 @@ class ModuleRepository:
         now = datetime.now()
         results = await self.model.insert(
             self.model(
-                id=str(uuid.uuid4()),
+                id=module.id or str(uuid.uuid4()),
                 project_id=module.project_id,
                 parent_id=module.parent_id,
                 name=module.name,
@@ -63,10 +77,7 @@ class ModuleRepository:
 
     async def update(
             self,
-            id: str,
-            name: Optional[str] = None,
-            parent_id: Optional[str] = None,
-            description: Optional[str] = None,
+            module: ModuleUpdate
     ) -> None:
         """更新模块
         
@@ -77,12 +88,12 @@ class ModuleRepository:
             description: 模块描述
         """
         update_data = {self.model.updated_at: datetime.now()}
-        if name is not None:
-            update_data[self.model.name] = name
-        if parent_id is not None:
-            update_data[self.model.parent_id] = parent_id
-        if description is not None:
-            update_data[self.model.description] = description
+        if module.name is not None:
+            update_data[self.model.name] = module.name
+        if module.parent_id is not None:
+            update_data[self.model.parent_id] = module.parent_id
+        if module.description is not None:
+            update_data[self.model.description] = module.description
 
         await self.model.update(update_data).where(
             self.model.id == id
@@ -180,7 +191,7 @@ class ModuleRepository:
             self.model.project_id == project_id
         )
 
-    async def bulk_update(self, project_id: str, modules: List[ModuleUpdate]) -> List[str]:
+    async def bulk_update(self, project_id: str, modules: List[ModuleBulkUpdate]) -> List[str]:
         """批量更新模块（先删除项目下所有模块再插入）
 
         Args:
@@ -196,7 +207,7 @@ class ModuleRepository:
         now = datetime.now()
         instances = [
             self.model(
-                id=str(uuid.uuid4()),
+                id=item.id or str(uuid.uuid4()),
                 project_id=project_id,
                 parent_id=item.parent_id,
                 name=item.name,

@@ -40,14 +40,14 @@ class Settings(BaseSettings):
     minimax_api_host: str = Field(default="https://api.minimaxi.com/anthropic", description="Minimax API Host")
     minimax_mcp_host: str = Field(default="https://api.minimaxi.com", description="Minimax MCP Host")
     minimax_max_tokens: int = Field(default=16384, description="Minimax Max Tokens")
-    minimax_temperature: float = Field(default=0.4, description="Minimax Temperature")
+    minimax_temperature: float = Field(default=1, description="Minimax Temperature")
 
     ollama_model: str = Field(default="qwen3.5:9b-q8_0", description="Ollama Model")
     ollama_api_host: str = Field(default="http://localhost:11434", description="Ollama API Host")
     ollama_max_tokens: int = Field(default=16384, description="Ollama Max Tokens")
     ollama_temperature: float = Field(default=0.3, description="Ollama Temperature")
 
-    model_max_context_token: int = Field(default=1000, description="Max Context Token")
+    model_max_context_token: int = Field(default=5000, description="Max Context Token")
     model_output_retry: int = Field(default=5, description="Model Output Retry")
     model_structured_output_retry: int = Field(default=5, description="Model Structured Output Retry")
 
@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     business_database_path: Path = Field(
         default=BASE_DIR / "data/db/business.db",
         description="Business Database Path"
+    )
+    piccolo_migrations_path: Path = Field(
+        default=BASE_DIR / "data/db/migrations",
+        description="Piccolo Migrations Path"
     )
 
     # Embedding Model
@@ -120,9 +124,6 @@ def setup_logging(setting: Settings) -> None:
         serialize=True
     )
 
-
-# 设置 PICCOLO_CONF
-os.environ.setdefault("PICCOLO_CONF", "src.models.base")
 
 # 设置 HF 模型离线调用
 os.environ.setdefault("HF_HUB_OFFLINE", "1")

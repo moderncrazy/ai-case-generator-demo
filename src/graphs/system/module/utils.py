@@ -47,7 +47,7 @@ def validate_modules_to_str(modules: list[SystemModule]) -> str:
                 elif parent_id not in module_map:
                     not_found_parent_id.append(module_id)
                 else:
-                    dfs(parent_id, path + [module["name"]])
+                    dfs(parent_id, path + [module.name])
 
         color[module_id] = 2  # 标记为黑色（完成）
 
@@ -66,4 +66,4 @@ def validate_modules_to_str(modules: list[SystemModule]) -> str:
         error_message += f"模块循环引用：{",".join(circular_reference)}\n"
     if not_found_parent_id:
         error_message += f"父级Id不存在：{",".join(not_found_parent_id)}\n"
-    return error_message
+    return f"模块校验失败：{error_message}重新生成" if error_message else ""

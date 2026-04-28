@@ -5,7 +5,6 @@ from langgraph.graph import END
 from langchain.messages import AIMessage
 
 from src.context import trans_id_ctx
-from src.utils import utils as gutils
 from src.graphs.common.utils import workflow_router_utils
 from src.graphs.requirement.module.state import State, GroupMemberState
 from src.enums.group_member_role import GroupMemberRole
@@ -26,6 +25,7 @@ def generate_optimization_requirement_module_plan_tool_router(state: State) -> L
 
 
 def review_optimization_requirement_module_plan_tool_router(state: State) -> Literal[
+    "review_optimization_requirement_module_plan_node"
     "review_optimization_requirement_module_plan_tool_node",
     "optimize_requirement_module_node",
     "generate_optimization_requirement_module_plan_node",
@@ -34,6 +34,7 @@ def review_optimization_requirement_module_plan_tool_router(state: State) -> Lit
     project_id = state["project_id"]
     result = workflow_router_utils.review_optimization_plan_tool_router(
         state,
+        "review_optimization_requirement_module_plan_node",
         "review_optimization_requirement_module_plan_tool_node",
         "optimize_requirement_module_node",
         "generate_optimization_requirement_module_plan_node",
@@ -53,6 +54,7 @@ def review_requirement_module_tool_router(state: GroupMemberState) -> Literal[
 
 
 def optimize_requirement_module_tool_router(state: State) -> Literal[
+                                                                 "optimize_requirement_module_node",
                                                                  "optimize_requirement_module_tool_node",
                                                                  "review_requirement_module_node"] | list[Send]:
     """优化工具调用路由（并发多角色评审）
@@ -62,20 +64,24 @@ def optimize_requirement_module_tool_router(state: State) -> Literal[
     - 否：并发生成 多个角色进行评审
     """
     project_id = state["project_id"]
-    if isinstance(state["private_messages"][-1], AIMessage) and state["private_messages"][-1].tool_calls:
-        logger.info(
-            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:optimize_requirement_module_tool_node")
-        return "optimize_requirement_module_tool_node"
+    result = workflow_router_utils.optimize_doc_tool_router(
+        state,
+        "optimize_requirement_module_node",
+        "optimize_requirement_module_tool_node",
+        "review_requirement_module_node",
+        [
+            GroupMemberRole.PM,
+            GroupMemberRole.ARCHITECT,
+            GroupMemberRole.FRONTEND,
+            GroupMemberRole.BACKEND,
+            GroupMemberRole.TEST
+        ]
+    )
+    if isinstance(result, str):
+        logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{result}")
     else:
-        # 角色列表
-        roles = [GroupMemberRole.PM,
-                 GroupMemberRole.ARCHITECT,
-                 GroupMemberRole.FRONTEND,
-                 GroupMemberRole.BACKEND,
-                 GroupMemberRole.TEST]
-        logger.info(
-            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:review_requirement_module_node")
-        return [Send("review_requirement_module_node", {"role": role, **state}) for role in roles]
+        logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:review_requirement_module_node")
+    return result
 
 
 def review_requirement_module_aggregator_router(state: State) -> Literal[
@@ -87,12 +93,13 @@ def review_requirement_module_aggregator_router(state: State) -> Literal[
     - 无问题：进入问题整理节点
     """
     project_id = state["project_id"]
-    destination_node = "optimize_requirement_module_issue_node"
-    if state["requirement_module_issues"]:
-        destination_node = "optimize_requirement_module_node"
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{destination_node}")
-    return destination_node
+    result = workflow_router_utils.review_optimize_doc_aggregator_router(
+        state,
+        "optimize_requirement_module_node",
+        "optimize_requirement_module_issue_node"
+    )
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{result}")
+    return result
 
 
 def optimize_requirement_module_issue_router(state: State) -> Literal[

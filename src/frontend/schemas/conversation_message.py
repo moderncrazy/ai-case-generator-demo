@@ -15,8 +15,10 @@ from src.frontend.enums.requirement_module_status import RequirementModuleStatus
 class HistoryConversationMessage(BaseModel):
     """历史对话消息响应"""
     id: str = Field(description="对话ID")
+    project_id: str = Field(description="项目Id")
     role: ConversationRole = Field(description="角色: user/assistant/system")
     content: str = Field(description="消息内容")
+    metadata: dict = Field(default={}, description="元数据")
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
 
 
@@ -27,6 +29,7 @@ class ConversationMessage(BaseModel):
     assistant_role: Optional[GroupMemberRole] = Field(default=None, description="assistant角色")
     type: ConversationMessageType = Field(description="消息类型: message/stream/notify/end")
     content: str = Field(description="消息内容")
+    metadata: dict = Field(default={}, description="元数据")
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
 
 

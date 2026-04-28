@@ -1,12 +1,12 @@
-from loguru import logger
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from src import constant as const
-from src.graphs.common import tools as ctools
 from src.graphs.system.api import routes, nodes, tools
 from src.graphs.system.api.state import State, GroupMemberState
+from src.graphs.common.tools import optimization_plan_tools, review_issue_tools, tools as ctools
+
+tool_node_tools = optimization_plan_tools.tool_list + review_issue_tools.tool_list + ctools.tool_list + tools.tool_list
 
 
 def create_group_member_review_agent() -> CompiledStateGraph:
@@ -23,7 +23,7 @@ def create_group_member_review_agent() -> CompiledStateGraph:
 
     agent_builder.add_node("review_system_api_node", nodes.review_system_api_node)
     agent_builder.add_node("review_system_api_tool_node",
-                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
+                           ToolNode(tool_node_tools, messages_key="private_messages"))
 
     agent_builder.add_edge(START, "review_system_api_node")
     agent_builder.add_conditional_edges(
@@ -56,17 +56,17 @@ def create_agent() -> CompiledStateGraph:
     agent_builder.add_node("generate_optimization_system_api_plan_node",
                            nodes.generate_optimization_system_api_plan_node)
     agent_builder.add_node("generate_optimization_system_api_plan_tool_node",
-                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
+                           ToolNode(tool_node_tools, messages_key="private_messages"))
 
     # 审核方案节点
     agent_builder.add_node("review_optimization_system_api_plan_node", nodes.review_optimization_system_api_plan_node)
     agent_builder.add_node("review_optimization_system_api_plan_tool_node",
-                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
+                           ToolNode(tool_node_tools, messages_key="private_messages"))
 
     # 优化节点
     agent_builder.add_node("optimize_system_api_node", nodes.optimize_system_api_node)
     agent_builder.add_node("optimize_system_api_tool_node",
-                           ToolNode(ctools.tool_list + tools.tool_list, messages_key="private_messages"))
+                           ToolNode(tool_node_tools, messages_key="private_messages"))
 
     # review 子图
     agent_builder.add_node("review_system_api_node", create_group_member_review_agent())
@@ -88,6 +88,7 @@ def create_agent() -> CompiledStateGraph:
         "review_optimization_system_api_plan_node",
         routes.review_optimization_system_api_plan_tool_router,
         [
+            "review_optimization_system_api_plan_node",
             "review_optimization_system_api_plan_tool_node",
             "optimize_system_api_node",
             "generate_optimization_system_api_plan_node",
@@ -99,7 +100,7 @@ def create_agent() -> CompiledStateGraph:
     agent_builder.add_conditional_edges(
         "optimize_system_api_node",
         routes.optimize_system_api_tool_router,
-        ["optimize_system_api_tool_node", "review_system_api_node"]
+        ["optimize_system_api_node", "optimize_system_api_tool_node", "review_system_api_node"]
     )
     agent_builder.add_edge("optimize_system_api_tool_node", "optimize_system_api_node")
 

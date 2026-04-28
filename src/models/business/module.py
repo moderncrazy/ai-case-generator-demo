@@ -1,10 +1,11 @@
 from piccolo.columns import Varchar, Timestamp, ForeignKey
+from piccolo.table import Table
 
-from src.models.project import Project
-from src.models.base import BaseModel
+from src.models.base import BUSINESS_DB
+from src.models.business.project import Project
 
 
-class Module(BaseModel):
+class Module(Table, db=BUSINESS_DB):
     """模块表模型
     
     存储系统模块的层级结构，支持父子模块关系。

@@ -20,11 +20,14 @@ class State(BaseState):
     system_apis: Annotated[list[StateApi], wr]
     """当前正在优化的系统接口列表"""
 
-    system_api_issues: Annotated[list[StateIssue], distinct_reducer]
-    """评审中针对系统接口提出的问题和建议（去重合并）"""
+    review_issues: Annotated[list[StateIssue], distinct_reducer]
+    """评审中提出的问题和建议（去重合并）"""
 
     private_messages: Annotated[list[AnyMessage], priority_message_reducer]
     """子图内部私聊消息（不暴露给主图）"""
+
+    optimization_plan_content: Annotated[str, wr]
+    """优化方案内容"""
 
     review_optimization_plan_result: Annotated[ReviewOptimizationPlanResult, wr]
     """审核优化方案结果"""

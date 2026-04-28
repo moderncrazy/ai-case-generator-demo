@@ -1,11 +1,11 @@
 from typing import Annotated, Optional
 from fastapi import APIRouter, Query, Depends
 
-from src.models.project import Project
+from src.models.business.project import Project
+from src.services.api_service import api_service
 from src.dependencies.dependencies import get_project_or_404
 from src.schemas.response import ApiResponse, ApiListResponse, ListData
-from src.schemas.api import ApiResponse as ApiResponseSchema, ApiTreeNode
-from src.services.api_service import api_service
+from src.schemas.api import ApiResponse as ApiResponseSchema, ApiTreeNode, ApiTreeDocumentResponse
 
 # 接口路由
 router = APIRouter(prefix="/api/v1/project", tags=["接口"])
@@ -55,3 +55,19 @@ async def get_apis_tree(project: Annotated[Project, Depends(get_project_or_404)]
     """
     tree = await api_service.get_apis_tree(project.id)
     return ApiResponse(data=tree)
+
+
+@router.get("/{project_id}/apis/compare", response_model=ApiResponse[ApiTreeDocumentResponse])
+async def get_apis_compare(project: Annotated[Project, Depends(get_project_or_404)]):
+    """获取 API 对比文档
+    
+    从 graph state 获取原始版本和优化版本的 API 树形结构。
+    
+    Args:
+        project: 项目对象（通过依赖注入获取）
+        
+    Returns:
+        返回 API 对比文档（原始版和优化版）
+    """
+    result = await api_service.get_apis_compare(project.id)
+    return ApiResponse(data=result)

@@ -1,16 +1,17 @@
 from typing import Annotated
 from fastapi import APIRouter, Form, UploadFile, Depends, BackgroundTasks
 
-from src.models.project import Project
+from src.models.business.project import Project
 from src.dependencies.dependencies import get_project_or_404
 from src.schemas.response import ApiListResponse, ListData
+from src.schemas.conversation_message import HistoryConversationMessage
 from src.services.conversation_message_service import conversation_message_service
 
 # 对话消息路由
 router = APIRouter(prefix="/api/v1/project", tags=["对话消息"])
 
 
-@router.get("/{project_id}/messages", response_model=ApiListResponse[dict])
+@router.get("/{project_id}/messages", response_model=ApiListResponse[HistoryConversationMessage])
 async def list_messages(
         project: Annotated[Project, Depends(get_project_or_404)],
         page: int = 1,

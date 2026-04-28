@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 
-from src.models.project import Project
+from src.models.business.project import Project
 from src.enums.error_message import ErrorMessage
 from src.exceptions.exceptions import BusinessException
 from src.repositories.project_repository import project_repository

@@ -7,4 +7,5 @@ root_path = str(Path(__file__).resolve().parent.parent.parent)
 if root_path not in sys.path:
     sys.path.append(root_path)
 
+
 st.switch_page("pages/home.py")

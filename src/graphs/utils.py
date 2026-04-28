@@ -1,7 +1,9 @@
-from src.utils import utils as gutils
+from langchain.messages import AIMessage, HumanMessage, ToolMessage, AnyMessage
+
+from src.exceptions.exceptions import BusinessException
+from src.utils import sensitive_word_utils, utils as gutils
 from src.graphs.state import State
 from src.graphs.common.schemas import StateRequirementModule
-from src.exceptions.exceptions import BusinessException
 from src.enums.error_message import ErrorMessage
 from src.enums.requirement_module_status import RequirementModuleStatus
 
@@ -20,6 +22,22 @@ def validate_requirement_module_exist(name: str, modules: list[StateRequirementM
     """
     for module in modules:
         if module["name"] == name:
+            return True
+    return False
+
+
+def validate_requirement_module_completed(name: str, modules: list[StateRequirementModule] | None) -> bool:
+    """验证指定需求模块是否已确认
+
+    Args:
+        name: 模块名称
+        modules: 需求模块列表
+
+    Returns:
+        确认返回 True，未确认返回 False
+    """
+    for module in modules:
+        if module["name"] == name and module["status"] == RequirementModuleStatus.COMPLETED:
             return True
     return False
 
@@ -76,3 +94,29 @@ def validate_state_fields_to_exception(state: State, fields: list[str] | None = 
             if state.get(field):
                 error_message = f"{gutils.get_field_doc(State, field)}不为空"
                 raise BusinessException(ErrorMessage.FLOW_VALIDATE_FAILED.code, error_message)
+
+
+def latest_human_message_append_system_hint(messages: list[AnyMessage]) -> list[AnyMessage]:
+    """对最新一条 HumanMessage 增加系统提示"""
+    if messages:
+        temp_msgs = messages.copy()
+        gen = (index for index, item in reversed(list(enumerate(messages))) if isinstance(item, HumanMessage))
+        try:
+            index = next(gen)
+            content = f"{temp_msgs[index].content}\n\n（【系统提示】：\n**1. ⚠️【必须】使用 product_manager_output 方法输出**\n**2. ⚠️【禁止】自行设计任何项目文档，必须调用下游agent生成**\n**3. 若任务明确【直接执行流程】**）"
+            temp_msgs[index] = HumanMessage(content=content)
+            return temp_msgs
+        except StopIteration:
+            return messages
+    return messages
+
+
+def optimize_history_messages_to_subgraph(messages: list[AnyMessage]) -> list[AnyMessage]:
+    """将历史消息中的 工具调用、工具输出、工具名称 都删掉，防止子图对pm方法的误用，并且将所有消息转为 AIMessage"""
+    results = []
+    for message in messages:
+        if isinstance(message, HumanMessage) or (isinstance(message, AIMessage) and not message.tool_calls):
+            # 过滤方法名
+            content = sensitive_word_utils.filter_graph_tools(message.text)
+            results.append(AIMessage(content))
+    return results

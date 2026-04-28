@@ -6,18 +6,18 @@ from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
 from langchain.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage, RemoveMessage
 
+from src.config import settings
 from src import constant as const
 from src.context import trans_id_ctx
-from src.config import settings
 from src.utils import file_utils, mcp_utils, prompt_utils, utils as gutils
+from src.graphs import utils
 from src.graphs.state import State
 from src.graphs.schemas import FileSummaryOutput
+from src.graphs.tools import tool_list, product_manager_output
 from src.graphs.common.llms import default_model
 from src.graphs.common.schemas import StateProjectFile
-from src.graphs.common.tools import tool_list as ctool_list
-from src.graphs.tools import tool_list, product_manager_output
-from src.graphs.common.utils import structured_output_utils, utils as cutils
-from src.services.api_service import api_service
+from src.graphs.common.tools.tools import tool_list as ctool_list
+from src.graphs.common.utils import structured_output_utils, repository_utils, utils as cutils
 from src.services.milvus_service import milvus_service
 from src.enums.project_progress import ProjectProgress
 from src.enums.group_member_role import GroupMemberRole
@@ -72,7 +72,7 @@ async def load_project_node(state: State) -> State:
     requirement_module = orjson.loads(project.requirement_module_design or "[]")
     modules = await module_repository.list_by_project(project_id)
     modules = [item.to_dict() for item in modules]
-    apis = await api_service.list_by_project_to_state_api(project_id)
+    apis = await  repository_utils.list_by_project_to_state_api(project_id)
     test_cases = await test_case_repository.list_by_project(project_id)
     test_cases = [item.to_dict() for item in test_cases]
     project_files = await project_file_repository.list_by_project(project_id)
@@ -188,7 +188,9 @@ async def product_manager_node(state: State, runtime: Runtime, config: RunnableC
     cutils.send_custom_message("需求理解中...", GroupMemberRole.PM)
     # 根据项目阶段匹配 Prompt
     system_prompt = prompt_utils.get_product_manager_prompt(project_progress, state["history_summary"])
-    messages = [SystemMessage(content=system_prompt), *state["messages"]]
+    # 对最新一条 HumanMessage 增加系统提示
+    history_messages = utils.latest_human_message_append_system_hint(state["messages"])
+    messages = [SystemMessage(content=system_prompt), *history_messages]
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 项目进度:{project_progress} 收到消息:{gutils.to_one_line(str(state["messages"][-1].content))}")
     # 绑定查询方法和结构化输出方法
@@ -216,4 +218,4 @@ async def end_node(state: State) -> State:
     # 发送结束消息
     cutils.send_custom_message(END, GroupMemberRole.PM, ConversationMessageType.END)
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 流程结束")
-    return {"new_file_list": []}
+    return {"new_file_list": [], "private_messages": []}

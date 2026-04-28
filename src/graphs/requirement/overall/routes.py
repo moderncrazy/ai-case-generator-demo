@@ -25,6 +25,7 @@ def generate_optimization_requirement_overall_plan_tool_router(state: State) -> 
 
 
 def review_optimization_requirement_overall_plan_tool_router(state: State) -> Literal[
+    "review_optimization_requirement_overall_plan_node",
     "review_optimization_requirement_overall_plan_tool_node",
     "optimize_requirement_overall_node",
     "generate_optimization_requirement_overall_plan_node",
@@ -33,6 +34,7 @@ def review_optimization_requirement_overall_plan_tool_router(state: State) -> Li
     project_id = state["project_id"]
     result = workflow_router_utils.review_optimization_plan_tool_router(
         state,
+        "review_optimization_requirement_overall_plan_node",
         "review_optimization_requirement_overall_plan_tool_node",
         "optimize_requirement_overall_node",
         "generate_optimization_requirement_overall_plan_node"
@@ -52,6 +54,7 @@ def review_requirement_overall_tool_router(state: GroupMemberState) -> Literal[
 
 
 def optimize_requirement_overall_tool_router(state: State) -> Literal[
+                                                                  "optimize_requirement_overall_node",
                                                                   "optimize_requirement_overall_tool_node",
                                                                   "review_requirement_overall_node"] | list[Send]:
     """优化工具调用路由（并发多角色评审）
@@ -67,20 +70,24 @@ def optimize_requirement_overall_tool_router(state: State) -> Literal[
         工具节点名称或 Send 对象列表（并发评审）
     """
     project_id = state["project_id"]
-    if isinstance(state["private_messages"][-1], AIMessage) and state["private_messages"][-1].tool_calls:
-        logger.info(
-            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:optimize_requirement_overall_tool_node")
-        return "optimize_requirement_overall_tool_node"
+    result = workflow_router_utils.optimize_doc_tool_router(
+        state,
+        "optimize_requirement_overall_node",
+        "optimize_requirement_overall_tool_node",
+        "review_requirement_overall_node",
+        [
+            GroupMemberRole.PM,
+            GroupMemberRole.ARCHITECT,
+            GroupMemberRole.FRONTEND,
+            GroupMemberRole.BACKEND,
+            GroupMemberRole.TEST
+        ]
+    )
+    if isinstance(result, str):
+        logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{result}")
     else:
-        # 角色列表
-        roles = [GroupMemberRole.PM,
-                 GroupMemberRole.ARCHITECT,
-                 GroupMemberRole.FRONTEND,
-                 GroupMemberRole.BACKEND,
-                 GroupMemberRole.TEST]
-        logger.info(
-            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:review_requirement_overall_node")
-        return [Send("review_requirement_overall_node", {"role": role, **state}) for role in roles]
+        logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:review_requirement_overall_node")
+    return result
 
 
 def review_requirement_overall_aggregator_router(state: State) -> Literal[
@@ -98,11 +105,13 @@ def review_requirement_overall_aggregator_router(state: State) -> Literal[
         目标节点名称
     """
     project_id = state["project_id"]
-    destination_node = "optimize_requirement_overall_issue_node"
-    if state["requirement_overall_issues"]:
-        destination_node = "optimize_requirement_overall_node"
-    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{destination_node}")
-    return destination_node
+    result = workflow_router_utils.review_optimize_doc_aggregator_router(
+        state,
+        "optimize_requirement_overall_node",
+        "optimize_requirement_overall_issue_node"
+    )
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 路由至:{result}")
+    return result
 
 
 def optimize_requirement_overall_issue_tool_router(state: State) -> Literal[

@@ -1,10 +1,11 @@
 from piccolo.columns import Varchar, Timestamp, ForeignKey
+from piccolo.table import Table
 
-from src.models.project import Project
-from src.models.base import BaseModel
+from src.models.base import BUSINESS_DB
+from src.models.business.project import Project
 
 
-class OperationLog(BaseModel):
+class OperationLog(Table, db=BUSINESS_DB):
     """操作日志表模型
     
     记录项目中的关键操作，用于审计和追踪。

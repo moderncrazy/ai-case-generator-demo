@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
 
-from src.models.project import Project
+from src.models.business.project import Project
 from src.enums.creator_type import CreatorType
 from src.enums.project_progress import ProjectProgress
 
@@ -184,6 +184,19 @@ class ProjectRepository:
 
         projects = [Project(**item) for item in results]
         return projects, total
+
+    async def delete_by_id(self, id: str) -> int:
+        """根据 ID 删除项目
+        
+        Args:
+            id: 项目 ID
+            
+        Returns:
+            删除的记录数
+        """
+        return await self.model.delete().where(
+            self.model.id == id
+        )
 
 
 # 全局单例实例

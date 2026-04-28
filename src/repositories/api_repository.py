@@ -3,12 +3,14 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional, List
 
-from src.models.api import Api
+from src.models.business.api import Api
 from src.enums.http_method import HttpMethod
 
 
 class ApiCreate(BaseModel):
     """创建接口参数"""
+    id: str
+    """API ID"""
     project_id: str
     """所属项目 ID"""
     name: str
@@ -59,6 +61,8 @@ class ApiUpdate(BaseModel):
 
 class ApiBulkUpdate(BaseModel):
     """更新接口参数"""
+    id: str
+    """API ID"""
     name: str
     """接口名称"""
     method: HttpMethod
@@ -103,7 +107,7 @@ class ApiRepository:
         now = datetime.now()
         results = await self.model.insert(
             self.model(
-                id=str(uuid.uuid4()),
+                id=api.id or str(uuid.uuid4()),
                 project_id=api.project_id,
                 module_id=api.module_id,
                 name=api.name,
@@ -132,7 +136,7 @@ class ApiRepository:
             id: 接口 ID
             api: 更新参数
         """
-        update_data:dict = {self.model.updated_at: datetime.now()}
+        update_data: dict = {self.model.updated_at: datetime.now()}
         if api.name is not None:
             update_data[self.model.name] = api.name
         if api.method is not None:
@@ -246,7 +250,7 @@ class ApiRepository:
         now = datetime.now()
         instances = [
             self.model(
-                id=str(uuid.uuid4()),
+                id=item.id or str(uuid.uuid4()),
                 project_id=project_id,
                 module_id=item.module_id,
                 name=item.name,

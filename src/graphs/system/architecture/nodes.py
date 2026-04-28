@@ -3,8 +3,8 @@ from langgraph.runtime import Runtime
 from langchain_core.runnables import RunnableConfig
 
 from src.context import trans_id_ctx
-from src.graphs.common.tools import tool_list as ctool_list
 from src.graphs.common.utils import workflow_node_utils, utils as cutils
+from src.graphs.common.tools import optimization_plan_tools, review_issue_tools, to_summarize_tools, tools as ctools
 from src.graphs.system.architecture.state import State, GroupMemberState
 from src.graphs.system.architecture.tools import (
     common_tool_list,
@@ -15,16 +15,16 @@ from src.graphs.system.architecture.tools import (
     generate_optimization_system_architecture_plan_output,
 )
 from src.enums.group_member_role import GroupMemberRole
-from src.enums.conversation_message_type import ConversationMessageType
+
+tool_list = (optimization_plan_tools.tool_list + review_issue_tools.tool_list
+             + to_summarize_tools.tool_list + ctools.tool_list + common_tool_list)
 
 
 async def generate_optimization_system_architecture_plan_node(state: State, runtime: Runtime,
                                                               config: RunnableConfig) -> State:
     """生成优化方案节点"""
     project_id = state["project_id"]
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
-    tool_list = [*ctool_list, *common_tool_list]
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
     result = await workflow_node_utils.generate_optimization_plan(
         state,
         runtime,
@@ -33,8 +33,7 @@ async def generate_optimization_system_architecture_plan_node(state: State, runt
         GroupMemberRole.ARCHITECT,
         generate_optimization_system_architecture_plan_output,
     )
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result
 
 
@@ -42,9 +41,7 @@ async def review_optimization_system_architecture_plan_node(state: State, runtim
                                                             config: RunnableConfig) -> State:
     """审核优化方案节点"""
     project_id = state["project_id"]
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
-    tool_list = [*ctool_list, *common_tool_list]
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
     result = await workflow_node_utils.review_optimization_plan(
         state,
         runtime,
@@ -54,8 +51,7 @@ async def review_optimization_system_architecture_plan_node(state: State, runtim
         review_optimization_system_architecture_plan_output,
         GroupMemberRole.ARCHITECT,
     )
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result
 
 
@@ -74,11 +70,9 @@ async def optimize_system_architecture_node(state: State, runtime: Runtime, conf
         更新后的状态（包含优化后的架构内容）
     """
     project_id = state["project_id"]
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
     # 发送自定义消息
     cutils.send_custom_message("架构优化系统架构中...", GroupMemberRole.ARCHITECT)
-    tool_list = [*ctool_list, *common_tool_list]
     result = await workflow_node_utils.optimize_doc(
         state,
         runtime,
@@ -86,9 +80,9 @@ async def optimize_system_architecture_node(state: State, runtime: Runtime, conf
         tool_list,
         GroupMemberRole.ARCHITECT,
         optimize_system_architecture_output,
+        GroupMemberRole.GROUP_MEMBER if state.get("review_issues") else GroupMemberRole.PM,
     )
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result
 
 
@@ -108,11 +102,9 @@ async def review_system_architecture_node(state: GroupMemberState, runtime: Runt
     """
     role = state["role"]
     project_id = state["project_id"]
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 角色:{role} 进入")
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 角色:{role} 进入")
     # 根据角色使用不同提示词
-    cutils.send_custom_message(f"{role}评审系统架构中...", role)
-    tool_list = [*ctool_list, *common_tool_list]
+    cutils.send_custom_message(f"{role.get_name_zh()}评审系统架构中...", role)
     result = await workflow_node_utils.review_optimization_doc(
         state,
         runtime,
@@ -121,8 +113,7 @@ async def review_system_architecture_node(state: GroupMemberState, runtime: Runt
         review_system_architecture_output,
         GroupMemberRole.ARCHITECT
     )
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 角色:{role} 完成")
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 角色:{role} 完成")
     return result
 
 
@@ -140,11 +131,9 @@ async def optimize_system_architecture_issue_node(state: State, runtime: Runtime
         更新后的状态（包含最终风险点和不明确点）
     """
     project_id = state["project_id"]
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
     # 发送自定义消息
     cutils.send_custom_message("整理系统架构问题中...", GroupMemberRole.ARCHITECT)
-    tool_list = [*ctool_list, *common_tool_list]
     result = await workflow_node_utils.summarize_optimization_doc_issue(
         state,
         runtime,
@@ -153,8 +142,5 @@ async def optimize_system_architecture_issue_node(state: State, runtime: Runtime
         GroupMemberRole.ARCHITECT,
         optimize_system_architecture_issue_output,
     )
-    cutils.send_custom_message(
-        "架构文档已更新，快来看看吧！", GroupMemberRole.ARCHITECT, ConversationMessageType.NOTIFY)
-    logger.info(
-        f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result

@@ -26,4 +26,4 @@ def validate_module_ids_str(apis: list[SystemApi], modules: list[StateModule]) -
     error_message = ""
     if module_id_not_found:
         error_message += f"模块Id无效的接口：{",".join(module_id_not_found)}\n"
-    return error_message
+    return f"接口校验失败：{error_message}重新生成" if error_message else ""

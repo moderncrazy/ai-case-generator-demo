@@ -1,7 +1,11 @@
+import sys
 import uuid
 import httpx
 import asyncio
 import streamlit as st
+from pathlib import Path
+from loguru import logger
+from loguru._logger import Logger
 from streamlit_local_storage import LocalStorage
 
 from src.frontend import constant as const
@@ -35,19 +39,6 @@ def get_local_storage() -> LocalStorage:
 
 
 @st.cache_resource
-def _get_async_http_client():
-    return httpx.AsyncClient(timeout=st.secrets["server"]["http_timeout"])
-
-
-def get_async_http_client():
-    client = _get_async_http_client()
-    if client.is_closed:
-        st.cache_resource.clear()
-        client = _get_async_http_client()
-    return client
-
-
-@st.cache_resource
 def _get_http_client():
     return httpx.Client(timeout=st.secrets["server"]["http_timeout"])
 
@@ -58,3 +49,24 @@ def get_http_client():
         st.cache_resource.clear()
         client = _get_http_client()
     return client
+
+
+@st.cache_resource
+def get_logger() -> Logger:
+    """初始化日志配置"""
+    logger.remove()
+    log_path = Path(st.secrets["server"]["log_path"])
+    log_path.mkdir(exist_ok=True)
+
+    # 打印配置
+    logger.add(sink=sys.stdout, level=st.secrets["server"]["log_level"])
+    logger.add(
+        sink=log_path / "web.log",
+        level=st.secrets["server"]["log_level"],
+        rotation=f"{st.secrets["server"]["log_rotation_size"]} MB",
+        retention=f"{st.secrets["server"]["log_retention_days"]} days",
+        compression="zip",
+        enqueue=True,
+        serialize=True
+    )
+    return logger

@@ -3,50 +3,175 @@
   "stage": {
     "requirement_outline_design": {
       "role_name": "资深产品经理",
-      "target": "根据原始需求，生成/优化需求大纲。",
+      "target": "结合原始需求和上下文信息，生成/优化需求大纲",
+      "stage_name": "需求大纲设计/优化",
+      "stage_target": "根据原始需求和上下文信息，生成/优化需求大纲",
+      "precondition": "客户上传或说明了初步需求",
+      "next_step": "将生成/优化完成的需求大纲发送给客户",
       "output_tool": "optimize_requirement_outline_output",
+      "workflow": [
+        "1. 根据【优化方案内容】和项目信息，理解用户的改动和优化项",
+        "2. 优化设计内容",
+        "3. 调用输出工具发送给客户评审"
+      ],
       "include_file": "requirement_outline.md.j2"
     },
     "requirement_module_design": {
       "role_name": "资深产品专家",
-      "target": "根据需求大纲，生成/优化【指定模块】的详细设计文档。",
+      "target": "结合上下文用户要求和AI团队成员意见，生成/优化【当前模块】的详细设计文档。【不要擅自设计其他模块】",
+      "stage_name": "需求模块设计/优化",
+      "stage_target": "结合上下文用户要求和AI团队成员意见，生成/优化【当前模块】的详细设计文档。【不要擅自设计其他模块】",
+      "precondition": "已生成需求大纲和模块列表",
+      "next_step": "将当前模块发送至AI团队成员（PM、架构、前端、后端...）进行评审",
       "output_tool": "optimize_requirement_module_output",
+      "workflow": [
+        "模块状态说明：pending 表示未设计，draft 表示已设计未确认，completed 表示已确认",
+        "1. 根据【优化方案内容】和项目信息，理解用户的改动和优化项",
+        "2. 根据 get_review_issues 方法返回的评审意见，理解项目成员提出的问题",
+        "3. 识别超纲问题，调用 remove_review_issues_by_ids 删除后续设计阶段的问题",
+        "4. 判断必要性，每个问题都需要根据**项目核心目标**判断是否必须满足，无需满足的设计文档中标注并删除",
+        "5. 优化设计内容（优化后的设计内容需含盖剩余 review_issues 问题）",
+        "6. 调用 remove_review_issues_by_ids 工具删空 review_issues",
+        "7. 调用输出工具发送给AI团队成员进行评审"
+      ],
+      "risk_rules": [
+        "提给用户：只提【业务层面】的关键风险，可能导致核心流程无法交付",
+        "风险必须是用户能做决策的：如业务方向偏差、关键依赖缺失、法规合规、竞品威胁"
+      ],
+      "unclear_point_rules": [
+        "提给用户：只提【业务决策层面】的关键问题，没有答案就无法继续设计",
+        "问题必须是用户能做业务判断的：如优先级选择、功能范围、目标用户定位、边界条件"
+      ],
       "include_file": "requirement_module.md.j2"
     },
     "requirement_overall_design": {
       "role_name": "资深产品经理",
-      "target": "将各需求模块生成/优化，整合成完整 PRD，确保逻辑闭环、术语统一。",
+      "target": "结合上下文用户要求和AI团队成员意见，将各需求模块生成/优化，整合成完整 PRD，确保逻辑闭环、术语统一",
+      "stage_name": "整体需求设计/优化",
+      "stage_target": "结合上下文用户要求和AI团队成员意见，将各需求模块生成/优化，整合成完整 PRD，确保逻辑闭环、术语统一",
+      "precondition": "所有需求模块详细设计已完成",
+      "next_step": "将当前PRD发送至AI团队成员（PM、架构、前端、后端...）进行评审",
       "output_tool": "optimize_requirement_overall_output",
+      "workflow": [
+        "1. 根据【优化方案内容】和项目信息，理解用户的改动和优化项",
+        "2. 根据 get_review_issues 方法返回的评审意见，理解项目成员提出的问题",
+        "3. 识别超纲问题，调用 remove_review_issues_by_ids 删除后续设计阶段的问题",
+        "4. 判断必要性，每个问题都需要根据**项目核心目标**判断是否必须满足，无需满足的设计文档中标注并删除",
+        "5. 优化设计内容（优化后的设计内容需含盖剩余 review_issues 问题）",
+        "6. 调用 remove_review_issues_by_ids 工具删空 review_issues",
+        "7. 调用输出工具发送给AI团队成员进行评审"
+      ],
+      "risk_rules": [
+        "提给用户：只提【业务层面】的关键风险，可能导致项目整体失败",
+        "风险必须是用户能做决策的：如业务模式不可行、关键资源缺失、市场风险、法规风险"
+      ],
+      "unclear_point_rules": [
+        "提给用户：只提【业务方向层面】的关键问题，没有答案就无法确定整体方向",
+        "问题必须是用户能做业务判断的：如业务模式选择、目标用户定义、核心价值定位"
+      ],
       "include_file": "requirement_overall.md.j2"
     },
     "system_architecture_design": {
       "role_name": "资深架构师",
-      "target": "根据需求文档，生成/优化系统架构设计。",
+      "target": "结合上下文用户要求和AI团队成员意见，根据需求文档，生成/优化系统架构设计",
+      "stage_name": "系统架构设计/优化",
+      "stage_target": "结合上下文用户要求和AI团队成员意见，根据需求文档，生成/优化系统架构设计",
+      "precondition": "需求文档已完成",
+      "next_step": "将当前架构设计发送至AI团队成员（PM、架构、前端、后端...）进行评审",
       "output_tool": "optimize_system_architecture_output",
+      "workflow": [
+        "1. 根据【优化方案内容】和项目信息，理解用户的改动和优化项",
+        "2. 根据 get_review_issues 方法返回的评审意见，理解项目成员提出的问题",
+        "3. 识别超纲问题，调用 remove_review_issues_by_ids 删除后续设计阶段的问题",
+        "4. 判断必要性，每个问题都需要根据**项目核心目标**判断是否必须满足，无需满足的设计文档中标注并删除",
+        "5. 优化设计内容（优化后的设计内容需含盖剩余 review_issues 问题）",
+        "6. 调用 remove_review_issues_by_ids 工具删空 review_issues",
+        "7. 调用输出工具发送给AI团队成员进行评审"
+      ],
+      "risk_rules": [
+        "提给用户：只提【技术可行性层面】的关键风险，可能导致架构无法落地",
+        "风险必须是用户能做决策的：如技术储备不足、团队能力缺口、第三方依赖风险"
+      ],
+      "unclear_point_rules": [
+        "提给用户：只提【业务优先级层面】的关键问题，不同选择会影响架构设计",
+        "问题必须是用户能做业务判断的：如性能要求优先级、可用性要求、预算限制"
+      ],
       "include_file": "system_architecture.md.j2"
     },
     "system_modules_design": {
       "role_name": "资深架构师",
-      "target": "根据需求文档和架构设计，生成/优化系统模块结构。",
+      "target": "结合上下文用户要求和AI团队成员意见，根据需求文档和架构设计，拆分生成/优化系统模块结构",
+      "stage_name": "系统模块设计/优化",
+      "stage_target": "结合上下文用户要求和AI团队成员意见，根据需求文档和架构设计，拆分生成/优化系统模块结构",
+      "precondition": "架构设计已完成",
+      "next_step": "将当前系统模块结构发送至AI团队成员（PM、架构、前端、后端...）进行评审",
       "output_tool": "optimize_system_module_output",
+      "workflow": [
+        "1. 根据【优化方案内容】和项目信息，理解用户的改动和优化项",
+        "2. 根据 get_review_issues 方法返回的评审意见，理解项目成员提出的问题",
+        "3. 识别超纲问题，调用 remove_review_issues_by_ids 删除后续设计阶段的问题",
+        "4. 判断必要性，每个问题都需要根据**项目核心目标**判断是否必须满足，无需满足的设计文档中标注并删除",
+        "5. 优化设计内容（优化后的设计内容需含盖剩余 review_issues 问题）",
+        "6. 调用 remove_review_issues_by_ids 工具删空 review_issues",
+        "7. 调用输出工具发送给AI团队成员进行评审"
+      ],
       "include_file": "system_modules.md.j2"
     },
     "system_database_design": {
       "role_name": "数据库专家",
-      "target": "根据需求文档、架构设计和系统架构文档，设计/优化数据库表结构。",
+      "target": "结合上下文用户要求和AI团队成员意见，根据需求文档、架构设计和系统架构文档，设计/优化数据库表结构",
+      "stage_name": "数据库设计/优化",
+      "stage_target": "结合上下文用户要求和AI团队成员意见，根据需求文档、架构设计和系统架构文档，设计/优化数据库表结构",
+      "precondition": "系统模块设计已完成",
+      "next_step": "将当前数据库表结构发送至AI团队成员（PM、架构、后端、运维...）进行评审",
       "output_tool": "optimize_system_database_output",
+      "workflow": [
+        "1. 根据【优化方案内容】和项目信息，理解用户的改动和优化项",
+        "2. 根据 get_review_issues 方法返回的评审意见，理解项目成员提出的问题",
+        "3. 识别超纲问题，调用 remove_review_issues_by_ids 删除后续设计阶段的问题",
+        "4. 判断必要性，每个问题都需要根据**项目核心目标**判断是否必须满足，无需满足的设计文档中标注并删除",
+        "5. 优化设计内容（优化后的设计内容需含盖剩余 review_issues 问题）",
+        "6. 调用 remove_review_issues_by_ids 工具删空 review_issues",
+        "7. 调用输出工具发送给AI团队成员进行评审"
+      ],
       "include_file": "system_database.md.j2"
     },
     "system_api_design": {
       "role_name": "资深后端工程师",
-      "target": "根据需求文档、架构设计和数据库文档，生成/优化系统接口定义。",
+      "target": "结合上下文用户要求和AI团队成员意见，根据需求文档、架构设计和数据库文档，生成/优化系统接口定义",
+      "stage_name": "API设计/优化",
+      "stage_target": "结合上下文用户要求和AI团队成员意见，根据需求文档、架构设计和数据库文档，生成/优化系统接口定义",
+      "precondition": "数据库设计已完成",
+      "next_step": "将当前系统接口定义发送至AI团队成员（PM、架构、后端、测试...）进行评审",
       "output_tool": "optimize_system_api_output",
+      "workflow": [
+        "1. 根据【优化方案内容】和项目信息，理解用户的改动和优化项",
+        "2. 根据 get_review_issues 方法返回的评审意见，理解项目成员提出的问题",
+        "3. 识别超纲问题，调用 remove_review_issues_by_ids 删除后续设计阶段的问题",
+        "4. 判断必要性，每个问题都需要根据**项目核心目标**判断是否必须满足，无需满足的设计文档中标注并删除",
+        "5. 优化设计内容（优化后的设计内容需含盖剩余 review_issues 问题）",
+        "6. 调用 remove_review_issues_by_ids 工具删空 review_issues",
+        "7. 调用输出工具发送给AI团队成员进行评审"
+      ],
       "include_file": "system_api.md.j2"
     },
     "test_case_design": {
       "role_name": "资深测试工程师",
-      "target": "根据需求文档、数据库和接口文档，生成/优化测试用例。",
+      "target": "结合上下文用户要求和AI团队成员意见，根据需求文档、数据库和接口文档，生成/优化测试用例",
+      "stage_name": "测试用例设计/优化",
+      "stage_target": "结合上下文用户要求和AI团队成员意见，根据需求文档、数据库和接口文档，生成/优化测试用例",
+      "precondition": "系统接口设计已完成",
+      "next_step": "将当前测试用例发送至AI团队成员（PM、架构、前端、后端...）进行评审",
       "output_tool": "optimize_test_case_output",
+      "workflow": [
+        "1. 根据【优化方案内容】和项目信息，理解用户的改动和优化项",
+        "2. 根据 get_review_issues 方法返回的评审意见，理解项目成员提出的问题",
+        "3. 识别超纲问题，调用 remove_review_issues_by_ids 删除后续设计阶段的问题",
+        "4. 判断必要性，每个问题都需要根据**项目核心目标**判断是否必须满足，无需满足的设计文档中标注并删除",
+        "5. 优化设计内容（优化后的设计内容需含盖剩余 review_issues 问题）",
+        "6. 调用 remove_review_issues_by_ids 工具删空 review_issues",
+        "7. 调用输出工具发送给AI团队成员进行评审"
+      ],
       "include_file": "test_case.md.j2"
     }
   }

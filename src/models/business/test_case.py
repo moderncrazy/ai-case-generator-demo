@@ -1,13 +1,14 @@
 from piccolo.columns import Varchar, Timestamp, ForeignKey
+from piccolo.table import Table
 
-from src.models.base import BaseModel
-from src.models.project import Project
-from src.models.module import Module
+from src.models.base import BUSINESS_DB
+from src.models.business.module import Module
+from src.models.business.project import Project
 from src.enums.test_case_type import TestCaseType
 from src.enums.test_case_level import TestCaseLevel
 
 
-class TestCase(BaseModel):
+class TestCase(Table, db=BUSINESS_DB):
     """测试用例表模型
     
     存储测试用例的定义信息。

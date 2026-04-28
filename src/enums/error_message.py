@@ -15,6 +15,7 @@ class ErrorMessage(Enum):
     PROJECT_FILE_EXIST_ERROR = (4007, "项目文件已存在")
     PROJECT_NAME_EXIST_ERROR = (4008, "项目名称已存在")
     PROJECT_OCCUPIED_ERROR = (4009, "项目被其他用户使用中")
+    PROJECT_SYSTEM_NOT_ALLOW_DELETE_ERROR = (4010, "系统创建的项目不允许删除")
     LLM_ERROR = (4100, "模型调用异常")
     FLOW_VALIDATE_FAILED = (4101, "流程验证失败")
 

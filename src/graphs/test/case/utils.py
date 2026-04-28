@@ -26,4 +26,4 @@ def validate_module_ids_str(test_cases: list[TestCase], modules: list[StateModul
     error_message = ""
     if module_id_not_found:
         error_message += f"模块Id无效的测试用例：{",".join(module_id_not_found)}\n"
-    return error_message
+    return f"测试用例校验失败：{error_message}重新生成" if error_message else ""

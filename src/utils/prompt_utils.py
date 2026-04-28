@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from datetime import datetime
 from functools import lru_cache
 from jinja2 import Environment, FileSystemLoader
 
@@ -39,7 +40,8 @@ def get_product_manager_prompt(progress: ProjectProgress, history_summary: str =
         **PRODUCT_MANAGER_PROMPT_CONFIG["common"],
         **PRODUCT_MANAGER_PROMPT_CONFIG["stage"][progress.value],
         common_tool_calls=COMMON_TOOL_CALL_CONFIG[progress.value],
-        history_summary=history_summary
+        history_summary=history_summary,
+        datetime=str(datetime.now()),
     )
     return result
 
@@ -51,6 +53,7 @@ def get_generate_optimization_plan_prompt(progress: ProjectProgress) -> str:
         **GENERATE_OPTIMIZATION_PLAN_PROMPT_CONFIG["stage"][progress.value],
         common_tool_calls=COMMON_TOOL_CALL_CONFIG[progress.value],
         stage_tool_calls=STAGE_TOOL_CALL_CONFIG[progress.value],
+        datetime=str(datetime.now()),
     )
     return result
 
@@ -62,6 +65,7 @@ def get_review_optimization_plan_prompt(progress: ProjectProgress) -> str:
         **REVIEW_OPTIMIZATION_PLAN_PROMPT_CONFIG["stage"][progress.value],
         common_tool_calls=COMMON_TOOL_CALL_CONFIG[progress.value],
         stage_tool_calls=STAGE_TOOL_CALL_CONFIG[progress.value],
+        datetime=str(datetime.now()),
     )
     return result
 
@@ -73,6 +77,7 @@ def get_optimization_doc_prompt(progress: ProjectProgress) -> str:
         **OPTIMIZATION_DOC_PROMPT_CONFIG["stage"][progress.value],
         common_tool_calls=COMMON_TOOL_CALL_CONFIG[progress.value],
         stage_tool_calls=STAGE_TOOL_CALL_CONFIG[progress.value],
+        datetime=str(datetime.now()),
     )
     return result
 
@@ -85,6 +90,7 @@ def get_review_optimization_doc_prompt(progress: ProjectProgress, role: GroupMem
         **REVIEW_OPTIMIZATION_DOC_PROMPT_CONFIG["stage"][progress.value]["role"][role.value],
         common_tool_calls=COMMON_TOOL_CALL_CONFIG[progress.value],
         stage_tool_calls=STAGE_TOOL_CALL_CONFIG[progress.value],
+        datetime=str(datetime.now()),
     )
     return result
 
@@ -96,5 +102,6 @@ def get_summarize_optimization_doc_issue_prompt(progress: ProjectProgress) -> st
         **SUMMARIZE_OPTIMIZATION_DOC_ISSUE_PROMPT_CONFIG["stage"][progress.value],
         common_tool_calls=COMMON_TOOL_CALL_CONFIG[progress.value],
         stage_tool_calls=STAGE_TOOL_CALL_CONFIG[progress.value],
+        datetime=str(datetime.now()),
     )
     return result

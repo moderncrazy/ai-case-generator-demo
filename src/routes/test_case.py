@@ -1,13 +1,13 @@
 from typing import Annotated, Optional
 from fastapi import APIRouter, Query, Depends
 
-from src.models.project import Project
+from src.models.business.project import Project
 from src.dependencies.dependencies import get_project_or_404
-from src.schemas.response import ApiResponse, ApiListResponse, ListData
-from src.schemas.test_case import TestCaseResponse, TestCaseTreeNode
 from src.services.test_case_service import test_case_service
-from src.enums.test_case_level import TestCaseLevel
 from src.enums.test_case_type import TestCaseType
+from src.enums.test_case_level import TestCaseLevel
+from src.schemas.response import ApiResponse, ApiListResponse, ListData
+from src.schemas.test_case import TestCaseResponse, TestCaseTreeNode, TestCaseTreeDocumentResponse
 
 # 测试用例路由
 router = APIRouter(prefix="/api/v1/project", tags=["测试用例"])
@@ -63,3 +63,19 @@ async def get_test_cases_tree(project: Annotated[Project, Depends(get_project_or
     """
     tree = await test_case_service.get_test_cases_tree(project.id)
     return ApiResponse(data=tree)
+
+
+@router.get("/{project_id}/test-cases/compare", response_model=ApiResponse[TestCaseTreeDocumentResponse])
+async def get_test_cases_compare(project: Annotated[Project, Depends(get_project_or_404)]):
+    """获取测试用例对比文档
+    
+    从 graph state 获取原始版本和优化版本的测试用例树形结构。
+    
+    Args:
+        project: 项目对象（通过依赖注入获取）
+        
+    Returns:
+        返回测试用例对比文档（原始版和优化版）
+    """
+    result = await test_case_service.get_test_cases_compare(project.id)
+    return ApiResponse(data=result)

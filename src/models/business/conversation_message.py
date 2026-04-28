@@ -1,10 +1,11 @@
 from piccolo.columns import Varchar, Timestamp, ForeignKey
+from piccolo.table import Table
 
-from src.models.project import Project
-from src.models.base import BaseModel
+from src.models.base import BUSINESS_DB
+from src.models.business.project import Project
 
 
-class ConversationMessage(BaseModel):
+class ConversationMessage(Table, db=BUSINESS_DB):
     """对话消息表模型
     
     存储项目对话中的消息记录。

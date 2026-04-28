@@ -3,13 +3,15 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel
 
-from src.models.test_case import TestCase
+from src.models.business.test_case import TestCase
 from src.enums.test_case_level import TestCaseLevel
 from src.enums.test_case_type import TestCaseType
 
 
 class TestCaseCreate(BaseModel):
     """创建测试用例参数"""
+    id: str
+    """测试用例 ID"""
     project_id: str
     """所属项目 ID"""
     title: str
@@ -52,6 +54,8 @@ class TestCaseUpdate(BaseModel):
 
 class TestCaseBulkUpdate(BaseModel):
     """批量更新测试用例参数"""
+    id: str
+    """测试用例 ID"""
     title: str
     """用例标题"""
     module_id: str
@@ -92,7 +96,7 @@ class TestCaseRepository:
         now = datetime.now()
         results = await self.model.insert(
             self.model(
-                id=str(uuid.uuid4()),
+                id=test_case.id or str(uuid.uuid4()),
                 project_id=test_case.project_id,
                 module_id=test_case.module_id,
                 title=test_case.title,
@@ -247,7 +251,7 @@ class TestCaseRepository:
         now = datetime.now()
         instances = [
             self.model(
-                id=str(uuid.uuid4()),
+                id=item.id or str(uuid.uuid4()),
                 project_id=project_id,
                 module_id=item.module_id,
                 title=item.title,

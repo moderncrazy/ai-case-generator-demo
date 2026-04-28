@@ -1,5 +1,6 @@
 import io
 import base64
+import shutil
 import pymupdf
 import pyclamd
 from PIL import Image
@@ -302,3 +303,14 @@ def unlink_file(file_path: str | Path):
     """
     path = Path(file_path)
     path.unlink(missing_ok=True)
+
+
+def delete_project_directory(project_id: str):
+    """删除项目目录及其所有文件
+    
+    Args:
+        project_id: 项目 ID（目录名）
+    """
+    project_dir = settings.project_file_base_path / project_id
+    if project_dir.exists() and project_dir.is_dir():
+        shutil.rmtree(project_dir)

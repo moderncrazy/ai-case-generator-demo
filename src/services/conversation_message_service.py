@@ -1,43 +1,30 @@
 import uuid
+import orjson
 import asyncio
 import traceback
 
 from loguru import logger
-from typing import Optional
+from collections import deque
 from datetime import datetime
 from fastapi import UploadFile, BackgroundTasks
 from fastapi.responses import StreamingResponse
-from langgraph.graph import END
 from langchain_core.messages.utils import trim_messages, count_tokens_approximately
 from langchain.messages import SystemMessage, AIMessage, AIMessageChunk, HumanMessage, RemoveMessage
 
 from src.context import trans_id_ctx
 from src.config import settings
+from src.enums.conversation_message_status import ConversationMessageStatus
 from src.utils import utils, file_utils, sensitive_word_utils
-from src.models.project import Project
+from src.models.business.project import Project
 from src.agents.main_agent import main_agent
-from src.graphs.state import State
 from src.graphs.common.utils import utils as cutils
 from src.graphs.common.llms import default_model
-from src.graphs.common.schemas import (
-    StateApi,
-    StateIssue,
-    StateModule,
-    StateTestCase,
-    StateNewProjectFile,
-    StateRequirementModule,
-)
+from src.graphs.common.schemas import StateNewProjectFile
 from src.exceptions.exceptions import BusinessException
 from src.schemas.conversation_message import (
-    ContextApi,
-    ContextIssue,
-    ApiModuleTree,
-    ModuleTreeNode,
-    ContextTestCase,
-    TestCaseModuleTree,
     ConversationMessage,
     ConversationContext,
-    ContextRequirementModule,
+    HistoryConversationMessage,
     ConversationMessageResponse,
 )
 from src.repositories.project_file_repository import project_file_repository
@@ -65,7 +52,7 @@ class ConversationMessageService:
             project_id: str,
             page: int = 1,
             page_size: int = 20,
-    ) -> tuple[list[dict], int]:
+    ) -> tuple[list[HistoryConversationMessage], int]:
         """获取对话历史
         
         分页获取项目的对话历史消息。
@@ -83,272 +70,11 @@ class ConversationMessageService:
             page=page,
             page_size=page_size,
         )
-        return [msg.to_dict() for msg in messages], total
-
-    @staticmethod
-    def build_context_from_state(state: State) -> ConversationContext:
-        """从 State 构建对话上下文
-        
-        根据项目当前进度，从状态中提取相应的上下文信息。
-        
-        Args:
-            state: 项目状态
-            
-        Returns:
-            对话上下文对象
-        """
-        progress = state.get("project_progress", ProjectProgress.INIT)
-        progress = ProjectProgress(progress)
-        context = ConversationContext(project_progress=progress)
-
-        match progress:
-            case ProjectProgress.INIT:
-                pass
-            case ProjectProgress.REQUIREMENT_OUTLINE_DESIGN:
-                context.requirement_outline = state.get("requirement_outline")
-                context.requirement_modules = ConversationMessageService._parse_state_requirement_modules(
-                    state.get("requirement_modules"))
-            case ProjectProgress.REQUIREMENT_MODULE_DESIGN:
-                context.requirement_outline = state.get("requirement_outline")
-                context.requirement_modules = ConversationMessageService._parse_state_requirement_modules(
-                    state.get("requirement_modules"))
-                context.risks = ConversationMessageService._parse_state_issues(state.get("risks"))
-                context.unclear_points = ConversationMessageService._parse_state_issues(state.get("unclear_points"))
-            case ProjectProgress.REQUIREMENT_OVERALL_DESIGN:
-                context.original_requirement = state.get("original_requirement")
-                context.optimized_requirement = state.get("optimized_requirement")
-                context.risks = ConversationMessageService._parse_state_issues(state.get("risks"))
-                context.unclear_points = ConversationMessageService._parse_state_issues(state.get("unclear_points"))
-            case ProjectProgress.SYSTEM_ARCHITECTURE_DESIGN:
-                context.original_architecture = state.get("original_architecture")
-                context.optimized_architecture = state.get("optimized_architecture")
-                context.risks = ConversationMessageService._parse_state_issues(state.get("risks"))
-                context.unclear_points = ConversationMessageService._parse_state_issues(state.get("unclear_points"))
-            case ProjectProgress.SYSTEM_MODULES_DESIGN:
-                context.original_modules_tree = ConversationMessageService._build_module_tree_from_modules(
-                    state.get("original_modules"))
-                context.optimized_modules_tree = ConversationMessageService._build_module_tree_from_modules(
-                    state.get("optimized_modules"))
-            case ProjectProgress.SYSTEM_DATABASE_DESIGN:
-                context.original_database = state.get("original_database")
-                context.optimized_database = state.get("optimized_database")
-            case ProjectProgress.SYSTEM_API_DESIGN:
-                modules = state["optimized_modules"]
-                context.original_apis_tree = ConversationMessageService._build_apis_tree_from_modules(
-                    modules, state.get("original_apis"))
-                context.optimized_apis_tree = ConversationMessageService._build_apis_tree_from_modules(
-                    modules, state.get("optimized_apis"))
-            case ProjectProgress.TEST_CASE_DESIGN:
-                modules = state["optimized_modules"]
-                context.original_test_cases_tree = ConversationMessageService._build_test_cases_tree_from_modules(
-                    modules, state.get("original_test_cases"))
-                context.optimized_test_cases_tree = ConversationMessageService._build_test_cases_tree_from_modules(
-                    modules, state.get("optimized_test_cases"))
-            case ProjectProgress.COMPLETED:
-                context.requirement_outline = state.get("requirement_outline")
-                context.requirement_modules = ConversationMessageService._parse_state_requirement_modules(
-                    state.get("requirement_modules"))
-                context.original_architecture = state.get("original_architecture")
-                context.optimized_architecture = state.get("optimized_architecture")
-                context.original_database = state.get("original_database")
-                context.optimized_database = state.get("optimized_database")
-
-        return context
-
-    @staticmethod
-    def _parse_state_requirement_modules(modules: list[StateRequirementModule]) -> Optional[
-        list[ContextRequirementModule]]:
-        """解析 State 中的需求模块
-        
-        将状态中的需求模块数据转换为对话上下文格式。
-        
-        Args:
-            modules: 状态中的模块列表
-            
-        Returns:
-            上下文模块列表
-        """
-        if not modules:
-            return None
-        return [ContextRequirementModule.model_validate(item) for item in modules]
-
-    @staticmethod
-    def _parse_state_issues(issues: list[StateIssue]) -> Optional[list[ContextIssue]]:
-        """解析 State 中的风险点/疑问
-        
-        Args:
-            issues: 状态中的问题列表
-            
-        Returns:
-            上下文问题列表
-        """
-        if not issues:
-            return None
-        return [ContextIssue.model_validate(item) for item in issues]
-
-    @staticmethod
-    def _build_module_tree_from_modules(modules: list[StateModule]) -> Optional[list[ModuleTreeNode]]:
-        """从模块数据构建模块树
-        
-        Args:
-            modules: 状态中的模块列表
-            
-        Returns:
-            模块树形结构
-        """
-        if not modules:
-            return None
-        # 转换为 dict，方便查找
-        module_dict = {}
-        for item in modules:
-            module_dict[item["id"]] = item
-        # 找到根节点（parent_id 为 None）
-        tree = []
-        for id, item in module_dict.items():
-            if not item.get("parent_id"):
-                tree.append(ConversationMessageService._build_module_node(id, module_dict))
-        return tree if tree else None
-
-    @staticmethod
-    def _build_module_node(module_id: str, module_dict: dict[str, StateModule]) -> ModuleTreeNode:
-        """递归构建模块节点
-        
-        Args:
-            module_id: 模块 ID
-            module_dict: 模块字典
-            
-        Returns:
-            模块树节点
-        """
-        data = module_dict[module_id]
-        children = []
-        for mid, m in module_dict.items():
-            if m.get("parent_id") == module_id:
-                children.append(ConversationMessageService._build_module_node(mid, module_dict))
-        return ModuleTreeNode(
-            id=module_id,
-            parent_id=data.get("parent_id"),
-            name=data["name"],
-            description=data.get("description"),
-            children=children
-        )
-
-    @staticmethod
-    def _build_apis_tree_from_modules(modules: list[StateModule], apis: list[StateApi]) -> Optional[
-        list[ApiModuleTree]]:
-        """从模块和 API 数据构建 API 树
-        
-        Args:
-            modules: 状态中的模块列表
-            apis: 状态中的 API 列表
-            
-        Returns:
-            API 模块树形结构
-        """
-        # 构建模块字典
-        module_dict = {}
-        for m in modules:
-            mid = m.get("id")
-            if mid:
-                module_dict[mid] = m
-        # 按 module_id 分组 APIs
-        apis_by_module = {}
-        if isinstance(apis, list):
-            for api in apis:
-                module_id = api.get("module_id")
-                if module_id:
-                    if module_id not in apis_by_module:
-                        apis_by_module[module_id] = []
-                    apis_by_module[module_id].append(ContextApi.model_validate(api))
-        # 构建树
-        tree = []
-        for mid, m in module_dict.items():
-            if m.get("parent_id") is None:
-                tree.append(ConversationMessageService._build_api_module_node(mid, module_dict, apis_by_module))
-        return tree if tree else None
-
-    @staticmethod
-    def _build_api_module_node(module_id: str, module_dict: dict[str, StateModule],
-                               apis_by_module: dict[str, list[ContextApi]]) -> ApiModuleTree:
-        """递归构建 API 模块节点
-        
-        Args:
-            module_id: 模块 ID
-            module_dict: 模块字典
-            apis_by_module: 按模块分组的 API 字典
-            
-        Returns:
-            API 模块树节点
-        """
-        data = module_dict[module_id]
-        children = []
-        for mid, m in module_dict.items():
-            if m.get("parent_id") == module_id:
-                children.append(ConversationMessageService._build_api_module_node(mid, module_dict, apis_by_module))
-        return ApiModuleTree(
-            module_id=module_id,
-            module_name=data.get("name", ""),
-            apis=apis_by_module.get(module_id, []),
-            children=children
-        )
-
-    @staticmethod
-    def _build_test_cases_tree_from_modules(modules: list[StateModule], test_cases_data: list[StateTestCase]) -> \
-            Optional[list[TestCaseModuleTree]]:
-        """从模块和测试用例数据构建测试用例树
-        
-        Args:
-            modules: 状态中的模块列表
-            test_cases_data: 状态中的测试用例列表
-            
-        Returns:
-            测试用例模块树形结构
-        """
-        # 构建模块字典
-        module_dict = {}
-        for item in modules:
-            module_dict[item["id"]] = item
-        # 按 module_id 分组测试用例
-        tcs_by_module = {}
-        if isinstance(test_cases_data, list):
-            for tc in test_cases_data:
-                module_id = tc.get("module_id")
-                if module_id:
-                    if module_id not in tcs_by_module:
-                        tcs_by_module[module_id] = []
-                    tcs_by_module[module_id].append(ContextTestCase.model_validate(tc))
-        # 构建树
-        tree = []
-        for mid, m in module_dict.items():
-            if m.get("parent_id") is None:
-                tree.append(ConversationMessageService._build_test_case_module_node(mid, module_dict, tcs_by_module))
-        return tree if tree else None
-
-    @staticmethod
-    def _build_test_case_module_node(module_id: str, module_dict: dict[str, StateModule],
-                                     tcs_by_module: dict[str, list[ContextTestCase]]) -> TestCaseModuleTree:
-        """递归构建测试用例模块节点
-        
-        Args:
-            module_id: 模块 ID
-            module_dict: 模块字典
-            tcs_by_module: 按模块分组的测试用例字典
-            
-        Returns:
-            测试用例模块树节点
-        """
-        data = module_dict[module_id]
-        children = []
-        for mid, m in module_dict.items():
-            if m.get("parent_id") == module_id:
-                children.append(
-                    ConversationMessageService._build_test_case_module_node(mid, module_dict, tcs_by_module))
-        return TestCaseModuleTree(
-            module_id=module_id,
-            module_name=data.get("name", ""),
-            test_cases=tcs_by_module.get(module_id, []),
-            children=children
-        )
+        messages = [
+            HistoryConversationMessage.model_validate({**msg.to_dict(), "metadata": orjson.loads(msg.metadata or "{}")})
+            for msg in messages
+        ]
+        return messages, total
 
     @staticmethod
     async def _start_agent(project: Project, message: str, file_list: list[StateNewProjectFile] | None, queue):
@@ -362,25 +88,26 @@ class ConversationMessageService:
             file_list: 上传的文件列表
             queue: 消息队列，用于异步通信
         """
+        custom_messages = []
         try:
-            # 消息内容 如果消息与上次一样则不再发送
-            message_content = ""
+            # 最近3条消息内容 如果消息在该列表则不再发送
+            latest_message_content_list = deque(maxlen=3)
             async for chunk in await main_agent.astream(project.id, message, file_list):
                 # 将 chunk 转为 SSE 格式
                 match chunk["type"]:
                     case "custom":
-                        msg_type = chunk["data"]["type"]
-                        msg_content = chunk["data"]["message"]
-                        msg_assistant_role = chunk["data"]["role"]
-                        if msg_content and msg_content != message_content:
-                            message_content = msg_content
-                            # 创建对话
-                            msg_id = await conversation_message_repository.create(
-                                project_id=project.id,
-                                role=ConversationRole.SYSTEM,
-                                content=msg_content)
+                        msg_type = chunk["data"].type
+                        msg_content = chunk["data"].message
+                        msg_assistant_role = chunk["data"].role
+                        # 如果内容存在 且未发送过 则发送
+                        if (msg_content
+                                and msg_content != (custom_messages[-1] if custom_messages else None)
+                                and msg_content not in latest_message_content_list):
+                            if msg_type in [ConversationMessageType.STAGE, ConversationMessageType.MESSAGE]:
+                                custom_messages.append(msg_content)
+                            latest_message_content_list.append(msg_content)
                             msg_response = ConversationMessage(
-                                id=msg_id,
+                                id="",
                                 role=ConversationRole.SYSTEM,
                                 assistant_role=msg_assistant_role,
                                 type=msg_type,
@@ -400,19 +127,28 @@ class ConversationMessageService:
                             if isinstance(msg, AIMessage):
                                 msg_content = msg.content
                                 # 如果是正式回话 则记录并返回
-                                if msg_content and msg_content != message_content and not msg.tool_calls:
-                                    message_content = msg_content
+                                if msg_content and not msg.tool_calls and msg_content not in latest_message_content_list:
+                                    latest_message_content_list.append(msg_content)
+                                    msg_metadata = {
+                                        "custom_messages": custom_messages.copy(),
+                                        "status": ConversationMessageStatus.SUCCESS.value
+                                    }
+                                    # 清空自定义消息
+                                    custom_messages.clear()
                                     # 创建对话
                                     msg_id = await conversation_message_repository.create(
                                         project_id=project.id,
                                         role=ConversationRole.ASSISTANT,
-                                        content=msg_content)
+                                        content=msg_content,
+                                        metadata=utils.to_json(msg_metadata),
+                                    )
+                                    # 生成响应格式
                                     msg_response = ConversationMessage(
                                         id=msg_id,
                                         role=ConversationRole.ASSISTANT,
                                         type=ConversationMessageType.MESSAGE,
                                         content=msg_content,
-                                        created_at=datetime.now()
+                                        metadata=msg_metadata,
                                     )
                                     response = ConversationMessageResponse(
                                         message=msg_response,
@@ -431,11 +167,11 @@ class ConversationMessageService:
                                                    if block["type"] not in ["tool_call_chunk"]])
                             # 过滤系统工具
                             msg_content = sensitive_word_utils.filter_ai_output_content(msg_content)
-                            if msg_content and msg_content != message_content:
-                                message_content = msg_content
+                            if msg_content and msg_content not in latest_message_content_list:
+                                latest_message_content_list.append(msg_content)
                                 msg_response = ConversationMessage(
                                     id="",
-                                    role=ConversationRole.ASSISTANT,
+                                    role=ConversationRole.SYSTEM,
                                     assistant_role=metadata.get("role"),
                                     type=ConversationMessageType.STREAM,
                                     content=msg_content,
@@ -450,6 +186,31 @@ class ConversationMessageService:
                     case _:
                         print(chunk)
         except Exception as e:
+            # 创建系统异常对话
+            msg_content = "系统繁忙，请稍后再试！"
+            msg_metadata = {
+                "custom_messages": custom_messages,
+                "status": ConversationMessageStatus.FAILED.value
+            }
+            msg_id = await conversation_message_repository.create(
+                project_id=project.id,
+                role=ConversationRole.SYSTEM,
+                content=msg_content,
+                metadata=utils.to_json(msg_metadata),
+            )
+            # 生成响应格式
+            msg_response = ConversationMessage(
+                id=msg_id,
+                role=ConversationRole.SYSTEM,
+                type=ConversationMessageType.MESSAGE,
+                content=msg_content,
+                metadata=msg_metadata,
+            )
+            response = ConversationMessageResponse(
+                message=msg_response,
+                context=ConversationContext(project_progress=ProjectProgress(project.progress))
+            )
+            await queue.put(f"data: {response.model_dump_json()}\n\n")
             await queue.put("error: \n\n")
             logger.error(
                 f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 异常:{str(e)}\n异常栈:{traceback.format_exc()}")

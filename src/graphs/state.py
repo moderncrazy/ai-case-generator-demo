@@ -47,37 +47,37 @@ class State(MessagesState):
     original_requirement: Annotated[str, Doc("原始需求文档内容"), wr]
     """原始PRD内容"""
 
-    optimized_requirement: Annotated[str, Doc("优化后需求文档内容"), wr]
+    optimized_requirement: Annotated[str, Doc("当前需求文档内容"), wr]
     """优化后PRD内容"""
 
     original_architecture: Annotated[str, Doc("原始架构设计"), wr]
     """原始架构设计"""
 
-    optimized_architecture: Annotated[str, Doc("优化后架构设计"), wr]
+    optimized_architecture: Annotated[str, Doc("当前架构设计"), wr]
     """优化后架构设计"""
 
     original_modules: Annotated[list[StateModule], Doc("原始模块设计"), wr]
     """原始模块设计"""
 
-    optimized_modules: Annotated[list[StateModule], Doc("优化后模块设计"), wr]
+    optimized_modules: Annotated[list[StateModule], Doc("当前模块设计"), wr]
     """优化后模块设计"""
 
     original_database: Annotated[str, Doc("原始数据库设计"), wr]
     """原始数据库设计"""
 
-    optimized_database: Annotated[str, Doc("优化后数据库设计"), wr]
+    optimized_database: Annotated[str, Doc("当前数据库设计"), wr]
     """优化后数据库设计"""
 
     original_apis: Annotated[list[StateApi], Doc("原始系统接口设计"), wr]
     """原始API设计"""
 
-    optimized_apis: Annotated[list[StateApi], Doc("优化后系统接口设计"), wr]
+    optimized_apis: Annotated[list[StateApi], Doc("当前系统接口设计"), wr]
     """优化后API设计"""
 
     original_test_cases: Annotated[list[StateTestCase], Doc("原始测试用例设计"), wr]
     """原始测试用例设计"""
 
-    optimized_test_cases: Annotated[list[StateTestCase], Doc("优化后测试用例设计"), wr]
+    optimized_test_cases: Annotated[list[StateTestCase], Doc("当前测试用例设计"), wr]
     """优化后测试用例设计"""
 
     risks: Annotated[list[StateIssue], Doc("风险点"), wr]
@@ -89,8 +89,17 @@ class State(MessagesState):
     metadata: Annotated[dict[str, Any], Doc("元数据"), wr]
     """元数据（可用于子图传参）"""
 
+    private_risks: Annotated[list[StateIssue], wr]
+    """子图内部需要提给客户的风险点和建议（不设置reducer等子图覆盖）"""
+
+    private_unclear_points: Annotated[list[StateIssue], wr]
+    """子图内部需要让用户明确的问题和建议（不设置reducer等子图覆盖）"""
+
     private_messages: Annotated[list[AnyMessage], Doc("私聊记录"), wr]
     """用于子图私聊（不设置reducer等子图覆盖）"""
 
     pm_next_step: Annotated[PMNextStep, Doc("PM下一步操作"), wr]
     """下一步执行"""
+
+    node_rollback: Annotated[bool, Doc("节点回滚"), wr]
+    """节点回滚重新执行某个操作"""

@@ -23,3 +23,5 @@ EXPOSE 8000
 COPY ./ /app
 
 ENTRYPOINT ["uvicorn","src.main:app"]
+
+CMD ["--host", "0.0.0.0", "--port", "8000"]

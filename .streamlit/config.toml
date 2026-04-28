@@ -3,6 +3,8 @@ showSidebarNavigation = false
 
 [server]
 headless = true
+address = "0.0.0.0"
+enableXsrfProtection = true
 
 [theme]
 baseFontSize = 15

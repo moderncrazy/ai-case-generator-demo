@@ -154,7 +154,7 @@ uvicorn src.main:app --reload       # 后端 API http://localhost:8000
 streamlit run src/frontend/web.py   # 前端 UI  http://localhost:8501
 ```
 
-### ClamAV 依赖
+### 依赖
 
 ```bash
 # 启动依赖服务（ClamAV、Redis）

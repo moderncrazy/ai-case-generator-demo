@@ -47,5 +47,5 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             process_time = time.perf_counter() - start_time
             logger.error(
                 f"{request.method} {request.url.path} trance_id:{transaction_id} query:{dict(request.query_params)} "
-                f"error:{e} | {process_time * 1000:.0f}ms"
+                f"error:{str(e)} | {process_time * 1000:.0f}ms"
             )

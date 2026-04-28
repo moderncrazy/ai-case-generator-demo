@@ -195,9 +195,10 @@ async def product_manager_node(state: State, runtime: Runtime, config: RunnableC
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 项目进度:{project_progress} 收到消息:{gutils.to_one_line(str(state["messages"][-1].content))}")
     # 绑定查询方法和结构化输出方法
     metadata = {"role": GroupMemberRole.PM}
-    llm_with_tool = default_model.bind_tools([*tool_list, *ctool_list], tool_choice="any", strict=True)
+    bind_tool_list = [*tool_list, *ctool_list]
+    llm_with_tool = default_model.bind_tools(bind_tool_list, tool_choice="any", strict=True)
     result = await structured_output_utils.llm_tool_structured_output(
-        llm_with_tool, state, runtime, config, messages, product_manager_output, metadata=metadata)
+        llm_with_tool, state, runtime, config, messages, bind_tool_list, product_manager_output, metadata=metadata)
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result

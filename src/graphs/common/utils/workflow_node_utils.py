@@ -88,10 +88,11 @@ async def generate_optimization_plan(state: AnyState, runtime: Runtime, config: 
     # 添加角色
     metadata = {"role": role}
     # 绑定查询方法和结构化输出方法
-    llm_with_tool = default_model.bind_tools([*tool_list, output_tool], tool_choice="any", strict=True)
+    bind_tool_list = [*tool_list, output_tool]
+    llm_with_tool = default_model.bind_tools(bind_tool_list, tool_choice="any", strict=True)
     result = await structured_output_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
-                                                                      output_tool, messages_key=message_key,
-                                                                      metadata=metadata)
+                                                                      bind_tool_list, output_tool,
+                                                                      messages_key=message_key, metadata=metadata)
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result
 
@@ -113,10 +114,11 @@ async def review_optimization_plan(state: AnyState, runtime: Runtime, config: Ru
     # 添加角色
     metadata = {"role": role}
     # 绑定查询方法和结构化输出方法
-    llm_with_tool = default_model.bind_tools([*tool_list, output_tool], tool_choice="any", strict=True)
+    bind_tool_list = [*tool_list, output_tool]
+    llm_with_tool = default_model.bind_tools(bind_tool_list, tool_choice="any", strict=True)
     result = await structured_output_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
-                                                                      output_tool, messages_key=message_key,
-                                                                      metadata=metadata)
+                                                                      bind_tool_list, output_tool,
+                                                                      messages_key=message_key, metadata=metadata)
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result
 
@@ -136,10 +138,11 @@ async def optimize_doc(state: AnyState, runtime: Runtime, config: RunnableConfig
     # 添加角色
     metadata = {"role": role}
     # 绑定查询方法和结构化输出方法
-    llm_with_tool = default_model.bind_tools([*tool_list, output_tool], tool_choice="any", strict=True)
+    bind_tool_list = [*tool_list, output_tool]
+    llm_with_tool = default_model.bind_tools(bind_tool_list, tool_choice="any", strict=True)
     result = await structured_output_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
-                                                                      output_tool, messages_key=message_key,
-                                                                      metadata=metadata)
+                                                                      bind_tool_list, output_tool,
+                                                                      messages_key=message_key, metadata=metadata)
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result
 
@@ -160,10 +163,11 @@ async def review_optimization_doc(state: AnyState, runtime: Runtime, config: Run
     # 添加角色
     metadata = {"role": role}
     # 绑定查询方法和结构化输出方法
-    llm_with_tool = default_model.bind_tools([*tool_list, output_tool], tool_choice="any", strict=True)
+    bind_tool_list = [*tool_list, output_tool]
+    llm_with_tool = default_model.bind_tools(bind_tool_list, tool_choice="any", strict=True)
     try:
         result = await structured_output_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config,
-                                                                          messages, output_tool,
+                                                                          messages, bind_tool_list, output_tool,
                                                                           messages_key=message_key, metadata=metadata)
     except Exception as e:
         # 如果异常则跳过这个review 避免影响整个流程
@@ -190,9 +194,10 @@ async def summarize_optimization_doc_issue(state: AnyState, runtime: Runtime, co
     # 添加角色
     metadata = {"role": role}
     # 绑定查询方法和结构化输出方法
-    llm_with_tool = default_model.bind_tools([*tool_list, output_tool], tool_choice="any", strict=True)
+    bind_tool_list = [*tool_list, output_tool]
+    llm_with_tool = default_model.bind_tools(bind_tool_list, tool_choice="any", strict=True)
     result = await structured_output_utils.llm_tool_structured_output(llm_with_tool, state, runtime, config, messages,
-                                                                      output_tool, messages_key=message_key,
-                                                                      metadata=metadata)
+                                                                      bind_tool_list, output_tool,
+                                                                      messages_key=message_key, metadata=metadata)
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result

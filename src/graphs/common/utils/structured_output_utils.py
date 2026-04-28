@@ -21,7 +21,8 @@ from src.exceptions.exceptions import BusinessException
 AnyState = TypeVar("AnyState", bound=State)
 
 
-def create_tool_runtime(tool_call_id: str, state: AnyState, runtime: Runtime, config: RunnableConfig) -> ToolRuntime:
+def create_tool_runtime(tool_call_id: str, tool_list: list[BaseTool], state: AnyState, runtime: Runtime,
+                        config: RunnableConfig) -> ToolRuntime:
     """创建 ToolRuntime
 
     构建一个 ToolRuntime 实例，用于在 tool 调用时传递上下文信息。
@@ -29,6 +30,7 @@ def create_tool_runtime(tool_call_id: str, state: AnyState, runtime: Runtime, co
 
     Args:
         tool_call_id: 工具调用ID
+        tool_list: 工具列表
         state: LangGraph 状态
         runtime: LangGraph 运行时
         config: 运行时配置
@@ -36,12 +38,12 @@ def create_tool_runtime(tool_call_id: str, state: AnyState, runtime: Runtime, co
     Returns:
         创建的 ToolRuntime 实例
     """
-    args = {"tool_call_id": tool_call_id, "state": state, "config": config}
+    args = {"tool_call_id": tool_call_id, "tools": tool_list, "state": state, "config": config}
     # 遍历 ToolRuntime 属性
     for key in [key for key in inspect.signature(ToolRuntime.__init__).parameters.keys() if
                 # 排除以下属性
-                key not in ["self", "tool_call_id", "state", "config"]]:
-        args[key] = getattr(runtime, key)
+                key not in ["self", "tool_call_id", "tools", "state", "config"]]:
+        args[key] = getattr(runtime, key, None)
     return ToolRuntime(**args)
 
 
@@ -63,8 +65,8 @@ def mock_ai_message_in_structured_output(tool_call_id: str, tool_name: str, tool
 
 
 async def llm_tool_structured_output(llm: BaseChatModel, state: AnyState, runtime: Runtime, config: RunnableConfig,
-                                     messages: list, structured_output_func: BaseTool, messages_key: str = "messages",
-                                     metadata: dict | None = None) -> AnyState:
+                                     messages: list, tool_list: list[BaseTool], structured_output_func: BaseTool,
+                                     messages_key: str = "messages", metadata: dict | None = None) -> AnyState:
     """LLM 调用 tool 进行结构化输出
     
     核心的结构化输出方法，实现以下逻辑：
@@ -80,6 +82,7 @@ async def llm_tool_structured_output(llm: BaseChatModel, state: AnyState, runtim
         runtime: LangGraph 运行时
         config: 运行时配置
         messages: 消息列表
+        tool_list: 工具列表
         structured_output_func: 结构化输出方法
         messages_key: 消息存储的 state key，默认为 "messages"
         metadata: 额外元数据，也会传递给 llm 在输出的 AIMessage 里可获取
@@ -128,7 +131,7 @@ async def llm_tool_structured_output(llm: BaseChatModel, state: AnyState, runtim
         elif message_output.tool_calls[0]["name"] == func_name:
             tool_call_id = message_output.tool_calls[0]["id"]
             tool_call_args = message_output.tool_calls[0]["args"]
-            tool_runtime = create_tool_runtime(tool_call_id, state, runtime, config)
+            tool_runtime = create_tool_runtime(tool_call_id, tool_list, state, runtime, config)
             logger.info(f"{log_prefix} 结构化输出:{gutils.to_json(tool_call_args)}")
             try:
                 return await structured_output_func.ainvoke({**tool_call_args, "runtime": tool_runtime})

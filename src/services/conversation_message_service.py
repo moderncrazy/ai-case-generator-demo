@@ -370,7 +370,11 @@ class ConversationMessageService:
                     # 执行上下文压缩
                     background_tasks.add_task(ConversationMessageService._compress_context, project.id)
 
-            return StreamingResponse(event_generator(), media_type="text/event-stream")
+            return StreamingResponse(
+                event_generator(),
+                headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache", "Connection": "keep-alive"},
+                media_type="text/event-stream"
+            )
         else:
             # 删除已上传的文件
             for file in graph_file_list:

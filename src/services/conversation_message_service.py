@@ -373,7 +373,7 @@ class ConversationMessageService:
             return StreamingResponse(
                 event_generator(),
                 headers={
-                    "Expires": 0,
+                    "Expires": "0",
                     "Pragma": "no-cache",
                     "X-Accel-Buffering": "no",
                     "Connection": "keep-alive",

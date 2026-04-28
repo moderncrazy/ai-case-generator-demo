@@ -118,7 +118,7 @@ class ProjectService:
             response = client.delete(
                 f"{SERVER_HOST}/api/v1/project/{project_id}",
                 headers={const.TRANSACTION_ID: trans_id},
-                json={user_id: user_id}
+                params={"user_id": user_id}
             )
             resp = response.json()
             if resp.get("code") == 200:

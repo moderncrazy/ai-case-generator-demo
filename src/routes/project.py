@@ -1,5 +1,5 @@
 from typing import Annotated, Optional
-from fastapi import APIRouter, Query, Body, Depends
+from fastapi import APIRouter, Query, Depends
 
 from src.models.business.project import Project
 from src.enums.project_progress import ProjectProgress
@@ -68,7 +68,7 @@ async def get_project_basic_info(project: Annotated[Project, Depends(get_project
 
 
 @router.delete("/{project_id}", response_model=ApiResponse[None])
-async def delete_project(user_id: Annotated[str, Body(embed=True)],
+async def delete_project(user_id: Annotated[str, Query()],
                          project: Annotated[Project, Depends(get_project_or_404)]):
     """删除项目
     

@@ -372,7 +372,14 @@ class ConversationMessageService:
 
             return StreamingResponse(
                 event_generator(),
-                headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache", "Connection": "keep-alive"},
+                headers={
+                    "Expires": 0,
+                    "Pragma": "no-cache",
+                    "X-Accel-Buffering": "no",
+                    "Connection": "keep-alive",
+                    "Transfer-Encoding": "chunked",
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                },
                 media_type="text/event-stream"
             )
         else:

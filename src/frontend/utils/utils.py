@@ -1,10 +1,10 @@
 import sys
 import uuid
 import httpx
-import asyncio
 import streamlit as st
 from pathlib import Path
 from loguru import logger
+from httpx import Response
 from loguru._logger import Logger
 from streamlit_local_storage import LocalStorage
 
@@ -40,9 +40,31 @@ def get_local_storage() -> LocalStorage:
     return LocalStorage()
 
 
+def _http_client_log(response: Response):
+    logger = get_logger()
+    url = response.url
+    method = response.request.method
+    req_data = response.request.content.decode("utf-8") or None
+    trans_id = response.request.headers.get(const.TRANSACTION_ID)
+    # 若是流式请求 则不打印响应
+    if response.headers.get("Transfer-Encoding"):
+        resp_data = "[stream]"
+    else:
+        resp_data = response.read().decode("utf-8") or None
+    if response.status_code == 200:
+        logger.info(f"{method} {url} trans_id:{trans_id} req_data:{req_data} resp_code:200 resp_data:{resp_data}")
+    else:
+        logger.error(
+            f"{method} {url} trans_id:{trans_id} req_data:{req_data} resp_code:{response.status_code} resp_data:{resp_data}")
+
+
 @st.cache_resource
 def _get_http_client():
-    return httpx.Client(timeout=st.secrets["server"]["http_timeout"])
+    return httpx.Client(
+        timeout=st.secrets["server"]["http_timeout"],
+        headers={const.REMOTE_ADDR: st.context.headers.get(const.REMOTE_ADDR, st.context.ip_address or "127.0.0.1")},
+        event_hooks={"response": [_http_client_log]}
+    )
 
 
 def get_http_client():

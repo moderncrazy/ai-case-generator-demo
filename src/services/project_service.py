@@ -32,7 +32,7 @@ class ProjectService:
     """
 
     @staticmethod
-    async def create_project(data: ProjectCreate) -> dict[str, str]:
+    async def create_project(data: ProjectCreate, client_ip: str) -> dict[str, str]:
         """创建项目
         
         创建新项目，初始化基本信息。
@@ -40,6 +40,7 @@ class ProjectService:
         
         Args:
             data: 项目创建参数（名称、描述等）
+            client_ip: 客户端Ip
             
         Returns:
             包含新建项目 ID 的字典
@@ -48,14 +49,32 @@ class ProjectService:
             BusinessException: 项目名称已存在
         """
         try:
-            project_id = await project_repository.create(
-                name=data.name,
-                description=data.description,
-                creator_type=CreatorType.USER
-            )
-            return {"id": project_id}
+            lock_result = await redis_service.get_create_project_lock(client_ip)
+            if lock_result:
+                logger.info(f"trans_id:{trans_id_ctx.get()} 项目名称:{data.name} 客户端IP:{client_ip} 创建项目取锁成功")
+                project_id = await project_repository.create(
+                    name=data.name,
+                    description=data.description,
+                    creator_type=CreatorType.USER
+                )
+                return {"id": project_id}
+            else:
+                logger.warning(
+                    f"trans_id:{trans_id_ctx.get()} 项目名称:{data.name} 客户端IP:{client_ip} 创建项目取锁失败")
+                raise BusinessException.from_error_message(ErrorMessage.CREATE_PROJECT_RATE_LIMIT_ERROR)
         except IntegrityError:
+            # 创建失败 解锁
+            await redis_service.unlock_create_project_lock(client_ip)
+            logger.warning(
+                f"trans_id:{trans_id_ctx.get()} 项目名称:{data.name} 客户端IP:{client_ip} 业务异常:{ErrorMessage.PROJECT_NAME_EXIST_ERROR.message} 创建项目解锁")
             raise BusinessException.from_error_message(ErrorMessage.PROJECT_NAME_EXIST_ERROR)
+        except Exception as e:
+            if not isinstance(e, BusinessException):
+                # 创建失败 解锁
+                await redis_service.unlock_create_project_lock(client_ip)
+                logger.warning(
+                    f"trans_id:{trans_id_ctx.get()} 项目名称:{data.name} 客户端IP:{client_ip} 系统异常:{str(e)} 创建项目解锁")
+            raise e
 
     @staticmethod
     async def list_projects(

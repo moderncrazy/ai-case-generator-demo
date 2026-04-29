@@ -162,12 +162,11 @@ async def review_system_database_aggregator_node(state: State) -> State:
             GroupMemberRole.PRODUCT,
             ConversationMessageType.DOC_UPDATE
         )
-        # 使用DBA最后一次优化的 message 返回客户
-        message = workflow_node_utils.get_latest_role_message(GroupMemberRole.DBA, state["private_messages"])
         # 回复客户确认数据库 并赋值
         result = {
             "private_messages": ReducerActionType.RESET,
-            "messages": [AIMessage(content=message.content, name=GroupMemberRole.DBA.value)],
+            "messages": [AIMessage(content="数据库文档优化完成，请在项目文档处查看，若需要更新请告诉我！",
+                                   name=GroupMemberRole.DBA.value)],
             "original_database": state.get("original_database") or state["system_database_content"],
             "optimized_database": state["system_database_content"],
         }

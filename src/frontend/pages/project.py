@@ -105,9 +105,9 @@ def show_project_file_type(file_container, project: ProjectBasicInfoResponse):
                     with file_container:
                         original, optimized = adjustable_columns(2, labels=["原始文档", "优化后文档"])
                         with original:
-                            st.markdown(ApiService.get_markdown_by_apis_tree(resp.original))
+                            ApiService.show_apis_in_tree(resp.original)
                         with optimized:
-                            st.markdown(ApiService.get_markdown_by_apis_tree(resp.optimized))
+                            ApiService.show_apis_in_tree(resp.optimized)
         case ProjectDocType.TEST_CASE:
             if project.has_test_cases:
                 resp = TestCaseService.get_test_cases_compare(project.id)
@@ -115,9 +115,9 @@ def show_project_file_type(file_container, project: ProjectBasicInfoResponse):
                     with file_container:
                         original, optimized = adjustable_columns(2, labels=["原始文档", "优化后文档"])
                         with original:
-                            st.markdown(TestCaseService.get_markdown_by_test_cases_tree(resp.original))
+                            TestCaseService.show_test_cases_in_tree(resp.original)
                         with optimized:
-                            st.markdown(TestCaseService.get_markdown_by_test_cases_tree(resp.optimized))
+                            TestCaseService.show_test_cases_in_tree(resp.optimized)
         case ProjectDocType.ISSUES:
             with file_container:
                 risks, unclear_points = adjustable_columns(2, labels=["风险点", "待明确问题"])

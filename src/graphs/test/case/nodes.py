@@ -149,14 +149,13 @@ async def review_test_case_aggregator_node(state: State) -> State:
             GroupMemberRole.PRODUCT,
             ConversationMessageType.DOC_UPDATE
         )
-        # 使用测试最后一次优化的 message 返回客户
-        message = workflow_node_utils.get_latest_role_message(GroupMemberRole.TEST, state["private_messages"])
         # 回复客户确认测试用例 并赋值
         result = {
             "private_messages": ReducerActionType.RESET,
-            "messages": [AIMessage(content=message.content, name=GroupMemberRole.TEST.value)],
-            "original_cases": state.get("original_test_cases") or state["test_cases"],
-            "optimized_modules": state["test_cases"],
+            "messages": [AIMessage(content="测试用例优化完成，请在项目文档处查看，若需要更新请告诉我！",
+                                   name=GroupMemberRole.TEST.value)],
+            "original_test_cases": state.get("original_test_cases") or state["test_cases"],
+            "optimized_test_cases": state["test_cases"],
         }
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result

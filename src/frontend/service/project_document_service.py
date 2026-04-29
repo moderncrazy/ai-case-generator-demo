@@ -34,7 +34,7 @@ class ProjectDocumentService:
             if resp.get("code") == 200:
                 return TextDocumentResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -55,7 +55,7 @@ class ProjectDocumentService:
             if resp.get("code") == 200:
                 return RequirementModulesResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -76,7 +76,7 @@ class ProjectDocumentService:
             if resp.get("code") == 200:
                 return TextDocumentResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -97,7 +97,7 @@ class ProjectDocumentService:
             if resp.get("code") == 200:
                 return CompareTextDocumentResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -118,7 +118,7 @@ class ProjectDocumentService:
             if resp.get("code") == 200:
                 return TextDocumentResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -139,7 +139,7 @@ class ProjectDocumentService:
             if resp.get("code") == 200:
                 return CompareTextDocumentResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -160,7 +160,7 @@ class ProjectDocumentService:
             if resp.get("code") == 200:
                 return TextDocumentResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -181,7 +181,7 @@ class ProjectDocumentService:
             if resp.get("code") == 200:
                 return CompareTextDocumentResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -202,7 +202,7 @@ class ProjectDocumentService:
             if resp.get("code") == 200:
                 return IssuesResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(

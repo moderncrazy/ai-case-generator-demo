@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 from loguru import logger
-from langgraph.types import Command
+from langgraph.types import Command, Overwrite
 from langchain.tools import tool, ToolRuntime, BaseTool
 from langchain.messages import ToolMessage, AIMessage, HumanMessage
 
@@ -20,7 +20,6 @@ from src.graphs.schemas import PMOutput
 from src.graphs.common.utils import structured_output_utils, repository_utils, utils as cutils
 from src.exceptions.exceptions import BusinessException
 from src.repositories.project_repository import project_repository, ProjectUpdate
-from src.repositories.module_repository import module_repository, ModuleBulkUpdate
 from src.repositories.test_case_repository import test_case_repository, TestCaseBulkUpdate
 
 
@@ -259,7 +258,8 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
         state_update: State = {
             "node_rollback": False,
             "pm_next_step": next_step,
-            "messages": [],
+            # 将工具调用全部删除，让 llm 保持清醒
+            "messages": Overwrite(value=cutils.remove_tool_messages(runtime.state["messages"])),
             "private_risks": runtime.state.get("risks"),
             "private_unclear_points": runtime.state.get("unclear_points"),
             "private_messages": [
@@ -271,10 +271,10 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
         match next_step:
             # 结束对话
             case PMNextStep.END:
-                state_update["messages"].append(AIMessage(content=message, name=GroupMemberRole.PM.value))
+                state_update["messages"] = [AIMessage(content=message, name=GroupMemberRole.PM.value)]
             # 进入需求大纲设计阶段
             case PMNextStep.REQUIREMENT_OUTLINE_DESIGN:
-                # 更新数据库状态
+                # 更新项目状态
                 project_update = ProjectUpdate(progress=ProjectProgress.REQUIREMENT_OUTLINE_DESIGN)
                 # 更新 state
                 state_update["project_progress"] = ProjectProgress.REQUIREMENT_OUTLINE_DESIGN
@@ -297,7 +297,7 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                             runtime.state["metadata"]["module"], runtime.state["requirement_modules"])):
                     raise BusinessException(ErrorMessage.FLOW_VALIDATE_FAILED.code,
                                             "当前模块未确认，确认后再设计其他模块")
-                # 更新数据库状态
+                # 更新项目状态
                 project_update = ProjectUpdate(
                     progress=ProjectProgress.REQUIREMENT_MODULE_DESIGN,
                     requirement_outline_design=runtime.state["requirement_outline"]
@@ -317,7 +317,7 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                     if msg := utils.validate_requirement_modules_completed_to_str(
                             runtime.state.get("requirement_modules")):
                         raise BusinessException(ErrorMessage.FLOW_VALIDATE_FAILED.code, msg)
-                # 更新数据库状态
+                # 更新项目状态
                 project_update = ProjectUpdate(
                     progress=ProjectProgress.REQUIREMENT_OVERALL_DESIGN,
                     requirement_module_design=gutils.to_json(runtime.state["requirement_modules"])
@@ -334,7 +334,7 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                         fields=["optimized_requirement"],
                         none_fields=["risks", "unclear_points"]
                     )
-                # 更新数据库状态
+                # 更新项目状态
                 project_update = ProjectUpdate(
                     progress=ProjectProgress.SYSTEM_ARCHITECTURE_DESIGN,
                     requirement_overall_design=runtime.state["optimized_requirement"]
@@ -351,7 +351,7 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                         fields=["optimized_architecture"],
                         none_fields=["risks", "unclear_points"]
                     )
-                # 更新数据库状态
+                # 更新项目状态
                 project_update = ProjectUpdate(
                     progress=ProjectProgress.SYSTEM_MODULES_DESIGN,
                     architecture_design=runtime.state["optimized_architecture"]
@@ -362,17 +362,9 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
             case PMNextStep.SYSTEM_DATABASE_DESIGN:
                 # 若从之前阶段跳转而来则校验上一步完整性
                 if runtime.state["project_progress"].idx < ProjectProgress.SYSTEM_DATABASE_DESIGN.idx:
-                    # 检查系统模块是否完整
-                    utils.validate_state_fields_to_exception(
-                        runtime.state,
-                        fields=["optimized_modules"],
-                    )
-                    # 更新系统模块
-                    await module_repository.bulk_update(
-                        project_id,
-                        [ModuleBulkUpdate(**item) for item in runtime.state["optimized_modules"]]
-                    )
-                # 更新数据库状态
+                    # 检查系统模块是否完整并落库
+                    await utils.validate_modules_completed_and_save(runtime.state)
+                # 更新项目状态
                 project_update = ProjectUpdate(progress=ProjectProgress.SYSTEM_DATABASE_DESIGN)
                 # 更新state
                 state_update["project_progress"] = ProjectProgress.SYSTEM_DATABASE_DESIGN
@@ -380,15 +372,18 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
             case PMNextStep.SYSTEM_API_DESIGN:
                 # 若从之前阶段跳转而来则校验上一步完整性
                 if runtime.state["project_progress"].idx < ProjectProgress.SYSTEM_API_DESIGN.idx:
-                    # 检查系统数据库是否完整
-                    utils.validate_state_fields_to_exception(
-                        runtime.state,
-                        fields=["optimized_database"],
-                    )
+                    # 检查系统模块是否完整并落库
+                    await utils.validate_modules_completed_and_save(runtime.state)
+                    # # 检查系统数据库是否完整
+                    # utils.validate_state_fields_to_exception(
+                    #     runtime.state,
+                    #     fields=["optimized_database"],
+                    # )
                 # 更新项目状态和数据库文档
                 project_update = ProjectUpdate(
                     progress=ProjectProgress.SYSTEM_API_DESIGN,
-                    database_design=runtime.state["optimized_database"]
+                    # 若数据库存在则更新
+                    database_design=runtime.state.get("optimized_database")
                 )
                 # 更新state
                 state_update["project_progress"] = ProjectProgress.SYSTEM_API_DESIGN
@@ -396,14 +391,18 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
             case PMNextStep.TEST_CASE_DESIGN:
                 # 若从之前阶段跳转而来则校验上一步完整性
                 if runtime.state["project_progress"].idx < ProjectProgress.TEST_CASE_DESIGN.idx:
-                    # 检查API设计是否完整
-                    utils.validate_state_fields_to_exception(
-                        runtime.state,
-                        fields=["optimized_apis"]
-                    )
-                    # 批量更新接口
-                    await repository_utils.bulk_update_by_state_apis(project_id, runtime.state["optimized_apis"])
-                # 更新数据库状态
+                    # 检查系统模块是否完整并落库
+                    await utils.validate_modules_completed_and_save(runtime.state)
+                    # 如果存在接口则更新
+                    if runtime.state.get("optimized_apis"):
+                        # # 检查API设计是否完整
+                        # utils.validate_state_fields_to_exception(
+                        #     runtime.state,
+                        #     fields=["optimized_apis"]
+                        # )
+                        # 批量更新接口
+                        await repository_utils.bulk_update_by_state_apis(project_id, runtime.state["optimized_apis"])
+                # 更新项目状态
                 project_update = ProjectUpdate(progress=ProjectProgress.TEST_CASE_DESIGN)
                 # 更新state
                 state_update["project_progress"] = ProjectProgress.TEST_CASE_DESIGN
@@ -421,10 +420,11 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                         project_id,
                         [TestCaseBulkUpdate(**item) for item in runtime.state["optimized_test_cases"]]
                     )
-                # 更新数据库状态
+                # 更新项目状态
                 project_update = ProjectUpdate(progress=ProjectProgress.COMPLETED)
                 # 更新state
                 state_update["project_progress"] = ProjectProgress.COMPLETED
+                state_update["messages"] = [AIMessage(content=message, name=GroupMemberRole.PM.value)]
         # 如果 project_update 存在则更新项目
         if project_update:
             await project_repository.update(project_id, project_update=project_update)

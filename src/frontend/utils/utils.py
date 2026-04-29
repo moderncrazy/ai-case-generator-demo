@@ -17,9 +17,11 @@ def init_page():
         page_icon=const.BASE_DIR / "static/favicon.png",
         layout="wide",
     )
-    # 确保每个 Streamlit 页面运行都在独立的 Event Loop 中
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    # 根据配置隐藏 toolbar
+    toolbar_mode = st.get_option("client.toolbarMode")
+    if toolbar_mode == "minimal":
+        st.html(f"""<style>header[data-testid="stHeader"] {{height: 2rem; width: 2rem;}}</style>""")
+        st.html(f"""<style>div[data-testid="stMainBlockContainer"] {{padding-top: 1rem;}}</style>""")
     get_user_id()
 
 

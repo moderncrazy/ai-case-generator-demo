@@ -27,6 +27,8 @@ from src.schemas.conversation_message import (
     HistoryConversationMessage,
     ConversationMessageResponse,
 )
+from src.repositories.writes_repository import writes_repository
+from src.repositories.checkpoints_repository import checkpoints_repository
 from src.repositories.project_file_repository import project_file_repository
 from src.repositories.conversation_message_repository import conversation_message_repository
 from src.repositories.conversation_summary_repository import conversation_summary_repository
@@ -277,6 +279,16 @@ class ConversationMessageService:
                         logger.error(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 生成摘要响应异常:{result}")
                 else:
                     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 上下文未达压缩上限")
+                # 删除历史 checkpoint
+                checkpoint_count = 0
+                async for snapshot in agent.aget_state_history(config=config):
+                    # 若 checkpoint_id 非当前 state checkpoint_id 则删除
+                    checkpoint_id = snapshot.config["configurable"]["checkpoint_id"]
+                    if checkpoint_id != state_snapshot.config["configurable"]["checkpoint_id"]:
+                        checkpoint_count += 1
+                        await writes_repository.delete_by_checkpoint_id(checkpoint_id)
+                        await checkpoints_repository.delete_by_checkpoint_id(checkpoint_id)
+                logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 删除:{checkpoint_count}条checkpoint")
                 await redis_service.unlock_compress_context_lock(project_id)
                 logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 上下文压缩解锁")
             else:
@@ -295,98 +307,117 @@ class ConversationMessageService:
             background_tasks: BackgroundTasks = None,
     ) -> StreamingResponse:
         """项目对话"""
-        # 上传文件检查
-        conversation_message_id = str(uuid.uuid4())
-        graph_file_list: list[StateNewProjectFile] = []
-        project_file_total_size = await project_file_repository.get_total_size(project.id)
-        if files:
-            for file in files:
-                # 检查文件类型
-                file_type = file_utils.get_file_type(file.filename)
-                if file_type not in settings.project_file_types:
-                    raise BusinessException.from_error_message(ErrorMessage.FILE_TYPE_ERROR)
-                # 文件大小检查
-                if file.size > settings.project_file_max_size:
-                    raise BusinessException.from_error_message(ErrorMessage.FILE_SIZE_ERROR)
-                # 检查项目文件总大小，未超过则累加
-                if (file.size + project_file_total_size) > settings.project_file_total_max_size:
-                    raise BusinessException.from_error_message(ErrorMessage.PROJECT_FILE_TOTAL_SIZE_ERROR)
-                else:
-                    project_file_total_size += file.size
-                # 检查文件是否存在
-                if await project_file_repository.get_by_project_and_name(project.id, file.filename):
-                    raise BusinessException.from_error_message(ErrorMessage.PROJECT_FILE_EXIST_ERROR)
-                # 存储文件
-                file_path = file_utils.save_project_file(project.id, file.filename, await file.read())
-                # 检查文件安全性
-                scan_result = file_utils.scan_file_with_clamav(file_path)
-                # 不安全则删除文件
-                if not scan_result:
-                    file_path.unlink(missing_ok=True)
-                    raise BusinessException.from_error_message(ErrorMessage.FILE_EXCEPTION_ERROR)
-                graph_file_list.append(StateNewProjectFile(
-                    conversation_message_id=conversation_message_id,
-                    name=file.filename,
-                    path=str(file_path),
-                    type=file_type,
-                    size=file.size,
-                    created_at=datetime.now()
-                ))
+        try:
+            # 获取项目占用锁
+            occupy_lock_result = await redis_service.get_project_occupy_lock(project.id, user_id)
+            if occupy_lock_result:
+                logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 项目占用取锁成功")
+                # 获取项目对话限速锁
+                discuss_lock_result = await redis_service.get_project_discuss_lock(project.id)
+                if discuss_lock_result:
+                    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 项目限速取锁成功")
+                    # 上传文件检查
+                    conversation_message_id = str(uuid.uuid4())
+                    graph_file_list: list[StateNewProjectFile] = []
+                    project_file_total_size = await project_file_repository.get_total_size(project.id)
+                    if files:
+                        for file in files:
+                            # 检查文件类型
+                            file_type = file_utils.get_file_type(file.filename)
+                            if file_type not in settings.project_file_types:
+                                raise BusinessException.from_error_message(ErrorMessage.FILE_TYPE_ERROR)
+                            # 文件大小检查
+                            if file.size > settings.project_file_max_size:
+                                raise BusinessException.from_error_message(ErrorMessage.FILE_SIZE_ERROR)
+                            # 检查项目文件总大小，未超过则累加
+                            if (file.size + project_file_total_size) > settings.project_file_total_max_size:
+                                raise BusinessException.from_error_message(ErrorMessage.PROJECT_FILE_TOTAL_SIZE_ERROR)
+                            else:
+                                project_file_total_size += file.size
+                            # 检查文件是否存在
+                            if await project_file_repository.get_by_project_and_name(project.id, file.filename):
+                                raise BusinessException.from_error_message(ErrorMessage.PROJECT_FILE_EXIST_ERROR)
+                            # 存储文件
+                            file_path = file_utils.save_project_file(project.id, file.filename, await file.read())
+                            # 检查文件安全性
+                            scan_result = file_utils.scan_file_with_clamav(file_path)
+                            # 不安全则删除文件
+                            if not scan_result:
+                                file_path.unlink(missing_ok=True)
+                                raise BusinessException.from_error_message(ErrorMessage.FILE_EXCEPTION_ERROR)
+                            graph_file_list.append(StateNewProjectFile(
+                                conversation_message_id=conversation_message_id,
+                                name=file.filename,
+                                path=str(file_path),
+                                type=file_type,
+                                size=file.size,
+                                created_at=datetime.now()
+                            ))
 
-        lock_result = await redis_service.get_project_occupy_lock(project.id, user_id)
-        if lock_result:
-            logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 项目占用取锁成功")
-            # 创建用户对话记录
-            await conversation_message_repository.create(
-                id=conversation_message_id,
-                project_id=project.id,
-                role=ConversationRole.USER,
-                content=message)
+                    # 创建用户对话记录
+                    await conversation_message_repository.create(
+                        id=conversation_message_id,
+                        project_id=project.id,
+                        role=ConversationRole.USER,
+                        content=message)
 
-            # 进行项目对话
-            async def event_generator():
-                # 创建异步任务发送心跳包 保持链接
-                queue = asyncio.Queue()
-                heart_task = asyncio.create_task(ConversationMessageService._send_heartbeat(queue))
-                agent_task = asyncio.create_task(
-                    ConversationMessageService._start_agent(project, message, graph_file_list, queue))
-                try:
-                    while True:
+                    # 进行项目对话
+                    async def event_generator():
+                        # 创建异步任务发送心跳包 保持链接
+                        queue = asyncio.Queue()
+                        heart_task = asyncio.create_task(ConversationMessageService._send_heartbeat(queue))
+                        agent_task = asyncio.create_task(
+                            ConversationMessageService._start_agent(project, message, graph_file_list, queue))
                         try:
-                            # 每秒检查队列，有数据 不为 None 则发送给前端
-                            data = await asyncio.wait_for(queue.get(), timeout=1)
-                            if data is None:
-                                break
-                            yield data
-                        except asyncio.TimeoutError:
-                            continue
-                except Exception as e:
-                    logger.error(
-                        f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 异常:{str(e)}\n异常栈:{traceback.format_exc()}")
-                finally:
-                    agent_task.cancel()
-                    heart_task.cancel()
-                    logger.info(f"trans_id:{trans_id_ctx.get(None)} 项目Id:{project.id} 对话结束")
-                    # 执行上下文压缩
-                    background_tasks.add_task(ConversationMessageService._compress_context, project.id)
+                            while True:
+                                try:
+                                    # 每秒检查队列，有数据 不为 None 则发送给前端
+                                    data = await asyncio.wait_for(queue.get(), timeout=1)
+                                    if data is None:
+                                        break
+                                    yield data
+                                except asyncio.TimeoutError:
+                                    continue
+                        except Exception as e:
+                            logger.error(
+                                f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 异常:{str(e)}\n异常栈:{traceback.format_exc()}")
+                        finally:
+                            agent_task.cancel()
+                            heart_task.cancel()
+                            logger.info(f"trans_id:{trans_id_ctx.get(None)} 项目Id:{project.id} 对话结束")
+                            # 执行上下文压缩
+                            background_tasks.add_task(ConversationMessageService._compress_context, project.id)
 
-            return StreamingResponse(
-                event_generator(),
-                headers={
-                    "Expires": "0",
-                    "Pragma": "no-cache",
-                    "X-Accel-Buffering": "no",
-                    "Connection": "keep-alive",
-                    "Transfer-Encoding": "chunked",
-                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-                },
-                media_type="text/event-stream"
-            )
-        else:
-            # 删除已上传的文件
-            for file in graph_file_list:
-                file_utils.unlink_file(file["path"])
-            raise BusinessException.from_error_message(ErrorMessage.PROJECT_OCCUPIED_ERROR)
+                    return StreamingResponse(
+                        event_generator(),
+                        headers={
+                            "Expires": "0",
+                            "Pragma": "no-cache",
+                            "X-Accel-Buffering": "no",
+                            "Connection": "keep-alive",
+                            "Transfer-Encoding": "chunked",
+                            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                        },
+                        media_type="text/event-stream"
+                    )
+                else:
+                    logger.warning(f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 项目限速取锁失败")
+                    raise BusinessException.from_error_message(ErrorMessage.PROJECT_DISCUSS_RATE_LIMIT_ERROR)
+            else:
+                logger.warning(f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 项目占用取锁失败")
+                raise BusinessException.from_error_message(ErrorMessage.PROJECT_OCCUPIED_ERROR)
+        except BusinessException as e:
+            # 若报错非 占用 和 限速 则解锁限速
+            if e.code not in [ErrorMessage.PROJECT_OCCUPIED_ERROR.code,
+                              ErrorMessage.PROJECT_DISCUSS_RATE_LIMIT_ERROR.code]:
+                await redis_service.unlock_project_discuss_lock(project.id)
+                logger.warning(f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 业务异常:{e.message} 项目限速解锁")
+            raise e
+        except Exception as e:
+            # 其他错误 解锁限速
+            await redis_service.unlock_project_discuss_lock(project.id)
+            logger.warning(f"trans_id:{trans_id_ctx.get()} 项目Id:{project.id} 系统异常:{str(e)} 项目限速解锁")
+            raise e
 
 
 # 导出单例

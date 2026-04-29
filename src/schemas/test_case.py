@@ -17,7 +17,7 @@ class TestCaseResponse(BaseModel):
     test_data: str = Field(description="测试数据")
     level: TestCaseLevel = Field(description="用例等级")
     type: TestCaseType = Field(description="用例类型")
-    created_at: datetime = Field(description="创建时间")
+    created_at: Optional[datetime] = Field(default=None, description="创建时间")
 
 
 class TestCaseTreeNode(BaseModel):

@@ -104,6 +104,8 @@ class Settings(BaseSettings):
     # lock
     project_occupy_lock_expire: int = Field(default=300, description="Project Occupy Lock Expire")
     compress_context_lock_expire: int = Field(default=300, description="Compress Context Lock Expire")
+    create_project_lock_expire: int = Field(default=30, description="Create Project Lock Expire")
+    project_discuss_lock_expire: int = Field(default=5, description="Project Discuss Lock Expire")
 
 
 # 日志初始化配置

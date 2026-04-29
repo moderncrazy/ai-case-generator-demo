@@ -3,6 +3,7 @@ from langgraph.prebuilt import ToolNode
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
 from src.config import settings
 from src.graphs import tools
@@ -85,7 +86,16 @@ async def create_agent() -> CompiledStateGraph:
         agent_builder.add_edge(node, "end_node")
 
     sqlite_conn = await aiosqlite.connect(settings.langgraph_sqlite_checkpoint_path)
-    sqlite_saver = AsyncSqliteSaver(sqlite_conn)
-    sqlite_saver = sqlite_saver.with_allowlist([("src", "enums")])
+    serde = JsonPlusSerializer(
+        allowed_msgpack_modules=[
+            ("src.enums.pm_next_step", "PMNextStep"),
+            ('src.enums.test_case_type', 'TestCaseType'),
+            ('src.enums.test_case_level', 'TestCaseLevel'),
+            ("src.enums.project_progress", "ProjectProgress"),
+            ("src.enums.project_progress", "ProjectProgress"),
+            ('src.enums.requirement_module_status', 'RequirementModuleStatus'),
+        ]
+    )
+    sqlite_saver = AsyncSqliteSaver(sqlite_conn, serde=serde)
     agent = agent_builder.compile(checkpointer=sqlite_saver)
     return agent

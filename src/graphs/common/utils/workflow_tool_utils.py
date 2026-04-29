@@ -39,15 +39,6 @@ def validate_review_optimization_plan_output_to_str(output: ReviewOptimizationPl
     return error_message
 
 
-def remove_tool_messages(messages: list[AnyMessage]) -> list[AnyMessage]:
-    """将历史消息中的 工具调用、工具输出 都删掉，防止上下文超限"""
-    results = messages.copy()
-    for message in messages:
-        if isinstance(message, ToolMessage) or (isinstance(message, AIMessage) and message.tool_calls):
-            results.remove(message)
-    return results
-
-
 def generate_optimization_plan_output(output: GenerateOptimizationPlanOutput, runtime: ToolRuntime,
                                       role: GroupMemberRole, message_key="private_messages") -> Command:
     optimization_plan = utils.format_generate_optimization_plan_output_to_str(output)
@@ -56,7 +47,7 @@ def generate_optimization_plan_output(output: GenerateOptimizationPlanOutput, ru
     return Command(update={
         "optimization_plan_content": optimization_plan,
         # 重写消息列表 删除所有tool调用
-        message_key: Overwrite(value=remove_tool_messages([*runtime.state[message_key], result_message]))
+        message_key: Overwrite(value=utils.remove_tool_messages([*runtime.state[message_key], result_message]))
     })
 
 
@@ -98,7 +89,7 @@ def review_optimization_plan_output(output: ReviewOptimizationPlanOutput, runtim
         return Command(update={
             "node_rollback": False,
             # 重写消息列表 删除所有tool调用
-            message_key: Overwrite(value=remove_tool_messages([*runtime.state[message_key], result_message])),
+            message_key: Overwrite(value=utils.remove_tool_messages([*runtime.state[message_key], result_message])),
             "review_optimization_plan_result": output.result
         })
 
@@ -133,7 +124,7 @@ def optimize_doc_output(
     return Command(update={
         "node_rollback": False,
         # 重写消息列表 删除所有tool调用
-        message_key: Overwrite(value=remove_tool_messages([*runtime.state[message_key], result_message])),
+        message_key: Overwrite(value=utils.remove_tool_messages([*runtime.state[message_key], result_message])),
         "review_reply_message_id": str(uuid.uuid4()),
         content_key: output.model_dump()[content_key],
         "review_issues": ReducerActionType.RESET,
@@ -171,7 +162,7 @@ def optimize_doc_to_summarize_output(
     return Command(update={
         "node_rollback": False,
         # 重写消息列表 删除所有tool调用
-        message_key: Overwrite(value=remove_tool_messages([*runtime.state[message_key], result_message])),
+        message_key: Overwrite(value=utils.remove_tool_messages([*runtime.state[message_key], result_message])),
         "review_reply_message_id": str(uuid.uuid4()),
         content_key: output.model_dump()[content_key],
         "review_issues": ReducerActionType.RESET,
@@ -197,7 +188,7 @@ def review_optimization_doc_output(
         ))
     return Command(update={
         # 重写消息列表 删除所有tool调用
-        message_key: Overwrite(value=remove_tool_messages([*runtime.state[message_key], *messages])),
+        message_key: Overwrite(value=utils.remove_tool_messages([*runtime.state[message_key], *messages])),
         "review_issues": [item.model_dump() for item in (output.review_issues or [])],
     })
 
@@ -222,7 +213,7 @@ def review_optimization_doc_to_summarize_output(output: ReviewOptimizationDocToS
         )
     return Command(update={
         # 重写消息列表 删除所有tool调用
-        message_key: Overwrite(value=remove_tool_messages([*runtime.state[message_key], message])),
+        message_key: Overwrite(value=utils.remove_tool_messages([*runtime.state[message_key], message])),
         "review_issues": [item.model_dump() for item in (output.review_issues or [])],
         "private_risks": [item.model_dump() for item in (output.risks or [])],
         "private_unclear_points": [item.model_dump() for item in (output.unclear_points or [])],

@@ -179,14 +179,13 @@ async def review_system_api_aggregator_node(state: State) -> State:
             GroupMemberRole.PRODUCT,
             ConversationMessageType.DOC_UPDATE
         )
-        # 使用后端最后一次优化的 message 返回客户
-        message = workflow_node_utils.get_latest_role_message(GroupMemberRole.BACKEND, state["private_messages"])
         # 回复客户确认接口 并赋值
         result = {
             "private_messages": ReducerActionType.RESET,
-            "messages": [AIMessage(content=message.content, name=GroupMemberRole.BACKEND.value)],
+            "messages": [AIMessage(content="接口文档优化完成，请在项目文档处查看，若需要更新请告诉我！",
+                                   name=GroupMemberRole.BACKEND.value)],
             "original_apis": state.get("original_apis") or state["system_apis"],
-            "optimized_modules": state["system_apis"],
+            "optimized_apis": state["system_apis"],
         }
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
     return result

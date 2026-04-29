@@ -1,5 +1,5 @@
 from typing import Annotated, Optional
-from fastapi import APIRouter, Query, Depends
+from fastapi import APIRouter, Query, Depends, Request
 
 from src.models.business.project import Project
 from src.enums.project_progress import ProjectProgress
@@ -13,18 +13,19 @@ router = APIRouter(prefix="/api/v1/project", tags=["项目"])
 
 
 @router.post("", response_model=ApiResponse[dict])
-async def create_project(data: ProjectCreate):
+async def create_project(data: ProjectCreate, request: Request):
     """创建项目
     
     创建新项目，初始化项目的基本信息。
     
     Args:
         data: 项目创建参数（包含名称、描述等）
-        
+        request: 请求对象
+
     Returns:
         返回新建项目的 ID
     """
-    result = await project_service.create_project(data)
+    result = await project_service.create_project(data, request.client.host)
     return ApiResponse(data=result)
 
 

@@ -27,7 +27,7 @@ class ApiResponse(BaseModel):
     request_body: Optional[List[ApiRequestParam]] = Field(default=None, description="请求体参数")
     response_schema: str = Field(description="响应示例")
     test_script: Optional[str] = Field(default=None, description="测试脚本")
-    created_at: datetime = Field(description="创建时间")
+    created_at: Optional[datetime] = Field(default=None, description="创建时间")
 
 
 class ApiTreeNode(BaseModel):

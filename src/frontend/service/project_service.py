@@ -1,4 +1,5 @@
 import uuid
+import time
 import traceback
 import streamlit as st
 from datetime import datetime
@@ -6,6 +7,7 @@ from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 from src.frontend.utils import utils
 from src.frontend import constant as const
+from src.frontend.exceptions.exceptions import BusinessException
 from src.frontend.schemas.response import ListResponse, ErrorResponse
 from src.frontend.schemas.project import ProjectListItem, ProjectBasicInfoResponse
 from src.frontend.schemas.conversation_message import (
@@ -36,7 +38,7 @@ class ProjectService:
             if resp.get("code") == 200:
                 return resp["data"]["id"]
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -58,7 +60,7 @@ class ProjectService:
             if resp.get("code") == 200:
                 return ListResponse[ProjectListItem].model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -79,7 +81,7 @@ class ProjectService:
             if resp.get("code") == 200:
                 return ProjectBasicInfoResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -102,7 +104,7 @@ class ProjectService:
             if resp.get("code") == 200:
                 return ListResponse[HistoryConversationMessage].model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -124,7 +126,7 @@ class ProjectService:
             if resp.get("code") == 200:
                 return True
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return False
         except Exception as e:
             logger.error(
@@ -144,7 +146,6 @@ class ProjectService:
                 headers={const.TRANSACTION_ID: trans_id, "Accept": "text/event-stream"}
         ) as response:
             for line in response.iter_lines():
-                print(f"{datetime.now()} {line}")
                 if line and not line.startswith("heartbeat:"):
                     if line.startswith("error:"):
                         logger.error(
@@ -158,9 +159,12 @@ class ProjectService:
                         try:
                             # 尝试用 error response 解析
                             error_resp = ErrorResponse.model_validate_json(line)
-                            st.toast(error_resp.message, icon="⚠️", duration="long")
-                            raise Exception(error_resp.message)
+                            raise BusinessException(error_resp.code, error_resp.message, error_resp.error)
+                        except BusinessException as e:
+                            logger.error(
+                                f"trans_id:{trans_id} 项目Id:{project_id} 用户Id:{user_id} 消息:{message} 响应内容:{line}")
+                            raise e
                         except Exception as e:
                             logger.error(
-                                f"trans_id:{trans_id} 项目Id:{project_id} 用户Id:{user_id} 消息:{message} 项目对话失败:{str(e)} 异常栈:\n{traceback.format_exc()}")
+                                f"trans_id:{trans_id} 项目Id:{project_id} 用户Id:{user_id} 消息:{message} 响应内容:{line} 项目对话失败:{str(e)} 异常栈:\n{traceback.format_exc()}")
                             raise e

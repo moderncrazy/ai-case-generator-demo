@@ -14,8 +14,10 @@ class ErrorMessage(Enum):
     PROJECT_FILE_TOTAL_SIZE_ERROR = (4006, "项目文件总体过大")
     PROJECT_FILE_EXIST_ERROR = (4007, "项目文件已存在")
     PROJECT_NAME_EXIST_ERROR = (4008, "项目名称已存在")
-    PROJECT_OCCUPIED_ERROR = (4009, "项目被其他用户使用中")
+    PROJECT_OCCUPIED_ERROR = (4009, "抱歉，项目被其他用户使用中，请尝试更换项目")
     PROJECT_SYSTEM_NOT_ALLOW_DELETE_ERROR = (4010, "系统创建的项目不允许删除")
+    CREATE_PROJECT_RATE_LIMIT_ERROR = (4011, "项目创建频繁，请稍后再试")
+    PROJECT_DISCUSS_RATE_LIMIT_ERROR = (4012, "项目对话频繁，请稍后再试")
     LLM_ERROR = (4100, "模型调用异常")
     FLOW_VALIDATE_FAILED = (4101, "流程验证失败")
 

@@ -5,6 +5,8 @@ from src.config import settings
 PROJECT_OCCUPY_LOCK_KEY = "project_occupy_lock_{project_id}"
 DISCUSS_PROJECT_LOCK_KEY = "discuss_project_lock_{project_id}"
 COMPRESS_CONTEXT_LOCK_KEY = "compress_context_lock_{project_id}"
+CREATE_PROJECT_LOCK_KEY = "create_project_lock_{client_ip}"
+PROJECT_DISCUSS_LOCK_KEY = "project_discuss_lock_{project_id}"
 
 
 class RedisService:
@@ -37,7 +39,27 @@ class RedisService:
                 return True
         return result
 
-    async def get_compress_context_lock(self, project_id: str):
+    async def get_create_project_lock(self, client_ip: str) -> bool:
+        """项目创建并发锁"""
+        key = CREATE_PROJECT_LOCK_KEY.format(client_ip=client_ip)
+        return await self.redis.set(key, client_ip, nx=True, ex=settings.create_project_lock_expire)
+
+    async def unlock_create_project_lock(self, client_ip: str):
+        """项目创建并发解锁"""
+        key = CREATE_PROJECT_LOCK_KEY.format(client_ip=client_ip)
+        return await self.redis.delete(key)
+
+    async def get_project_discuss_lock(self, project_id: str) -> bool:
+        """项目对话并发锁"""
+        key = PROJECT_DISCUSS_LOCK_KEY.format(project_id=project_id)
+        return await self.redis.set(key, project_id, nx=True, ex=settings.project_discuss_lock_expire)
+
+    async def unlock_project_discuss_lock(self, project_id: str):
+        """项目对话并发解锁"""
+        key = PROJECT_DISCUSS_LOCK_KEY.format(project_id=project_id)
+        return await self.redis.delete(key)
+
+    async def get_compress_context_lock(self, project_id: str) -> bool:
         """上下文压缩并发锁"""
         key = COMPRESS_CONTEXT_LOCK_KEY.format(project_id=project_id)
         return await self.redis.set(key, project_id, nx=True, ex=settings.compress_context_lock_expire)

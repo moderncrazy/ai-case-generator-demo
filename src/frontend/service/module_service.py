@@ -35,7 +35,7 @@ class ModuleService:
             if resp.get("code") == 200:
                 return ListResponse[ModuleResponse].model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -56,7 +56,7 @@ class ModuleService:
             if resp.get("code") == 200:
                 return [ModuleTreeNode.model_validate(item) for item in resp.get("data", [])]
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -77,7 +77,7 @@ class ModuleService:
             if resp.get("code") == 200:
                 return ModuleTreeDocumentResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(

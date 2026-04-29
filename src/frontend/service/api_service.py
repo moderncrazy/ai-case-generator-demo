@@ -1,6 +1,6 @@
 import uuid
 import traceback
-
+import pandas as pd
 import streamlit as st
 
 from src.frontend.utils import utils
@@ -35,7 +35,7 @@ class ApiService:
             if resp.get("code") == 200:
                 return ListResponse[ApiResponse].model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -56,7 +56,7 @@ class ApiService:
             if resp.get("code") == 200:
                 return [ApiTreeNode.model_validate(item) for item in resp.get("data", [])]
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -77,7 +77,7 @@ class ApiService:
             if resp.get("code") == 200:
                 return ApiTreeDocumentResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -85,55 +85,76 @@ class ApiService:
             return None
 
     @staticmethod
-    def get_markdown_by_apis_tree(api_tree_nodes: list[ApiTreeNode], level: int = 1) -> str:
+    def show_apis_in_tree(api_tree_nodes: list[ApiTreeNode], level: int = 1):
         """将 API 树转换为 Markdown 格式文档"""
-        content = ""
         if api_tree_nodes:
             for node in api_tree_nodes:
                 # 模块标题
-                content += f"{'#' * level} {node.module_name}\n\n"
+                st.markdown(f"{'#' * level} {node.module_name}")
                 for api in node.apis:
                     # 接口名称
-                    content += f"- {api.name}\n\n"
+                    st.markdown(f"- {api.name}")
                     # 方法和路径（代码块）
-                    content += f"```\n[{api.method.value}] {api.path}\n```\n\n"
+                    st.markdown(f"```[{api.method.value}] {api.path}```")
                     # 接口描述
                     if api.description:
-                        content += f"{api.description}\n\n"
+                        st.markdown(f"> {api.description}")
                     # 请求头参数
                     if api.request_headers:
-                        content += "**请求头参数**\n\n"
-                        content += "| 字段名 | 类型 | 是否必填 | 描述 |\n"
-                        content += "| ------ | ---- | -------- | ---- |\n"
-                        for param in api.request_headers:
-                            content += f"| {param.name} | {param.type} | {'是' if param.required else '否'} | {param.description} |\n"
-                        content += "\n"
+                        st.markdown("**请求头参数**")
+                        header_dt = pd.DataFrame(
+                            [
+                                [
+                                    i.name,
+                                    i.type,
+                                    {'是' if i.required else '否'},
+                                    i.description
+                                ] for i in api.request_headers
+                            ],
+                            columns=["字段名", "类型", "是否必填", "描述"]
+                        )
+                        st.dataframe(header_dt, height="content")
                     # 查询参数
                     if api.request_params:
-                        content += "**查询参数**\n\n"
-                        content += "| 字段名 | 类型 | 是否必填 | 描述 |\n"
-                        content += "| ------ | ---- | -------- | ---- |\n"
-                        for param in api.request_params:
-                            content += f"| {param.name} | {param.type} | {'是' if param.required else '否'} | {param.description} |\n"
-                        content += "\n"
+                        st.markdown("**查询参数**")
+                        param_dt = pd.DataFrame(
+                            [
+                                [
+                                    i.name,
+                                    i.type,
+                                    {'是' if i.required else '否'},
+                                    i.description
+                                ] for i in api.request_params
+                            ],
+                            columns=["字段名", "类型", "是否必填", "描述"]
+                        )
+                        st.dataframe(param_dt, height="content")
                     # 请求体参数
                     if api.request_body:
-                        content += "**请求体参数**\n\n"
-                        content += "| 字段名 | 类型 | 是否必填 | 描述 |\n"
-                        content += "| ------ | ---- | -------- | ---- |\n"
-                        for param in api.request_body:
-                            content += f"| {param.name} | {param.type} | {'是' if param.required else '否'} | {param.description} |\n"
-                        content += "\n"
+                        st.markdown("**请求体参数**")
+                        body_dt = pd.DataFrame(
+                            [
+                                [
+                                    i.name,
+                                    i.type,
+                                    {'是' if i.required else '否'},
+                                    i.description
+                                ] for i in api.request_body
+                            ],
+                            columns=["字段名", "类型", "是否必填", "描述"]
+                        )
+                        st.dataframe(body_dt, height="content")
                     # 响应示例
                     if api.response_schema:
-                        content += "### 响应示例\n\n"
-                        content += "```json\n"
-                        content += f"{api.response_schema}\n"
-                        content += "```\n\n"
+                        st.markdown("### 响应示例")
+                        st.markdown(f"""
+                        ```json
+                        {api.response_schema}
+                        ```
+                        """)
                 # 递归处理子模块
                 if node.children:
-                    content += ApiService.get_markdown_by_apis_tree(node.children, level + 1)
-        return content
+                    ApiService.show_apis_in_tree(node.children, level + 1)
 
 
 # 导出单例

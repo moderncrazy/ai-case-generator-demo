@@ -10,8 +10,8 @@ class ModuleResponse(BaseModel):
     parent_id: Optional[str] = Field(default=None, description="父模块ID")
     name: str = Field(description="模块名称")
     description: Optional[str] = Field(default=None, description="模块描述")
-    created_at: datetime = Field(description="创建时间")
-    updated_at: datetime = Field(description="更新时间")
+    created_at: Optional[datetime] = Field(default=None, description="创建时间")
+    updated_at: Optional[datetime] = Field(default=None, description="更新时间")
 
 
 class ModuleTreeNode(BaseModel):

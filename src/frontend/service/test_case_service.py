@@ -1,7 +1,8 @@
 import uuid
 import traceback
-
+import pandas as pd
 import streamlit as st
+from streamlit import _DeltaGenerator
 
 from src.frontend.utils import utils
 from src.frontend import constant as const
@@ -45,7 +46,7 @@ class TestCaseService:
             if resp.get("code") == 200:
                 return ListResponse[TestCaseResponse].model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -66,7 +67,7 @@ class TestCaseService:
             if resp.get("code") == 200:
                 return [TestCaseTreeNode.model_validate(item) for item in resp.get("data", [])]
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -87,7 +88,7 @@ class TestCaseService:
             if resp.get("code") == 200:
                 return TestCaseTreeDocumentResponse.model_validate(resp["data"])
             else:
-                st.toast(resp.get("message", const.SYSTEM_ERROR_MESSAGE), icon="⚠️", duration="long")
+                st.toast(f"###### {resp.get("message", const.SYSTEM_ERROR_MESSAGE)}", icon="⚠️", duration="long")
                 return None
         except Exception as e:
             logger.error(
@@ -95,32 +96,32 @@ class TestCaseService:
             return None
 
     @staticmethod
-    def get_markdown_by_test_cases_tree(tree_nodes: list[TestCaseTreeNode], level: int = 1) -> str:
+    def show_test_cases_in_tree(tree_nodes: list[TestCaseTreeNode], level: int = 1):
         """将测试用例树转换为 Markdown 格式文档"""
-        content = ""
         if tree_nodes:
             for node in tree_nodes:
                 # 模块标题
-                content += f"{'#' * level} {node.module_name}\n\n"
+                st.markdown(f"{'#' * level} {node.module_name}")
                 # 测试用例表格
                 if node.test_cases:
-                    content += "| 用例标题 | 用例等级 | 用例类型 | 前置条件 | 测试步骤 | 预期结果 | 测试数据 |\n"
-                    content += "| -------- | -------- | -------- | -------- | -------- | -------- | -------- |\n"
-                    for tc in node.test_cases:
-                        # 处理单元格内容中的换行和特殊字符
-                        precondition = tc.precondition.replace("\n", "<br>") if tc.precondition else ""
-                        test_steps = tc.test_steps.replace("\n", "<br>")
-                        expected_result = tc.expected_result.replace("\n", "<br>")
-                        test_data = tc.test_data.replace("\n", "<br>")
-                        level_value = tc.level.value
-                        type_value = tc.type.value
-                        content += f"| {tc.title} | {level_value} | {type_value} | {precondition} | {test_steps} | {expected_result} | {test_data} |\n"
-                    content += "\n"
-
+                    df = pd.DataFrame(
+                        [
+                            [
+                                i.title,
+                                i.level.value,
+                                i.type.value,
+                                i.precondition,
+                                i.test_steps,
+                                i.expected_result,
+                                i.test_data
+                            ] for i in node.test_cases
+                        ],
+                        columns=["用例标题", "等级", "类型", "前置条件", "测试步骤", "预期结果", "测试数据"]
+                    )
+                    st.dataframe(df, height="content")
                 # 递归处理子模块
                 if node.children:
-                    content += TestCaseService.get_markdown_by_test_cases_tree(node.children, level + 1)
-        return content
+                    TestCaseService.show_test_cases_in_tree(node.children, level + 1)
 
 
 # 导出单例

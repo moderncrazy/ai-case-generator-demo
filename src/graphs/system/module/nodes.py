@@ -160,12 +160,11 @@ async def review_system_module_aggregator_node(state: State) -> State:
             GroupMemberRole.PRODUCT,
             ConversationMessageType.DOC_UPDATE
         )
-        # 使用架构最后一次优化的 message 返回客户
-        message = workflow_node_utils.get_latest_role_message(GroupMemberRole.ARCHITECT, state["private_messages"])
         # 回复客户确认模块 并赋值
         result = {
             "private_messages": ReducerActionType.RESET,
-            "messages": [AIMessage(content=message.content, name=GroupMemberRole.ARCHITECT.value)],
+            "messages": [AIMessage(content="系统模块优化完成，请在项目文档处查看，若需要更新请告诉我！",
+                                   name=GroupMemberRole.ARCHITECT.value)],
             "original_modules": state.get("original_modules") or state["system_modules"],
             "optimized_modules": state["system_modules"],
         }

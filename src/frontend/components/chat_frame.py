@@ -8,13 +8,14 @@ from enum import StrEnum
 from collections.abc import Callable
 from streamlit import _DeltaGenerator
 
-from src.frontend.enums.conversation_message_status import ConversationMessageStatus
 from src.frontend.utils import utils
 from src.frontend import constant as const
+from src.frontend.exceptions.exceptions import BusinessException
 from src.frontend.service.project_service import ProjectService
-from src.frontend.enums.conversation_role import ConversationRole
 from src.frontend.schemas.conversation_message import ConversationMessage
+from src.frontend.enums.conversation_role import ConversationRole
 from src.frontend.enums.conversation_message_type import ConversationMessageType
+from src.frontend.enums.conversation_message_status import ConversationMessageStatus
 
 CHAT_INPUT_KEY = "chat_input"
 CHAT_CONTEXT_CONTAINER_KEY = "chat_context_container"
@@ -29,6 +30,8 @@ STATE_CHAT_PROJECT_ID = "chat_project_id"
 STATE_CHAT_INPUT_DISABLED = "chat_input_disabled"
 
 CONST_CUSTOM_MESSAGES_KEY = "custom_messages"
+
+logger = utils.get_logger()
 
 
 class OnChangeEvent(StrEnum):
@@ -134,7 +137,7 @@ def config_style():
 
 def scroll_to_bottom():
     """滚动聊天框和状态栏到底部"""
-    components.html(
+    st.iframe(
         f"""
         <script>
             const _force_rerun = "{str(uuid.uuid4())}";
@@ -153,7 +156,7 @@ def scroll_to_bottom():
             setTimeout(function() {{ clearInterval(scrollInterval); }}, 0);
         </script>
         """,
-        height=0,
+        height=1,
     )
 
 
@@ -170,8 +173,6 @@ def load_history(project_id: str):
 
 
 def show_message(chat_context_container: _DeltaGenerator):
-    # if chat_context_container.button("加载更多历史消息"):
-    #     print("加载更多历史消息")
     # 显示消息
     if st.session_state[STATE_CHAT_MESSAGES]:
         for msg in st.session_state[STATE_CHAT_MESSAGES]:
@@ -235,8 +236,7 @@ def chat_frame(project_id: str, on_change: Callable[[OnChangeEvent, dict], None]
     """固定在右侧的聊天窗口"""
 
     # UI 组件
-    chat_expander = st.expander(":material/chat: Chat", key=const.CHAT_EXPANDER_KEY,
-                                on_change=lambda: print(st.session_state[const.CHAT_EXPANDER_KEY]))
+    chat_expander = st.expander(":material/chat: Chat", key=const.CHAT_EXPANDER_KEY, on_change=lambda: None)
 
     # 默认不禁用聊天
     if st.session_state.get(STATE_CHAT_INPUT_DISABLED) is None:
@@ -311,14 +311,23 @@ def chat_frame(project_id: str, on_change: Callable[[OnChangeEvent, dict], None]
                                 yield response.message.content
                         # 通知消息 弹出通知
                         elif response.message.type == ConversationMessageType.NOTIFY:
-                            st.toast(response.message.content, icon="🎉", duration="long")
+                            st.toast(f"###### {response.message.content}", icon="🎉", duration="long")
                         elif response.message.type == ConversationMessageType.DOC_UPDATE:
                             # 如果存在回调方法 则执行
                             if on_change:
                                 on_change(OnChangeEvent.PROJECT_DOC_UPDATE, {"content": response.message.content})
                         scroll_to_bottom()
+                except BusinessException as e:
+                    # 加入异常提示消息
+                    st.session_state[STATE_CHAT_MESSAGES].append(ConversationMessage(
+                        id=str(uuid.uuid4()),
+                        role=ConversationRole.SYSTEM,
+                        type=ConversationMessageType.MESSAGE,
+                        content=e.message
+                    ))
+                    message_status.update(label=e.message, expanded=False, state="error")
                 except Exception as e:
-                    print(f"对话接口异常:{traceback.format_exc()}")
+                    logger.error(f"项目Id:{project_id} 项目对话异常:{str(e)} 异常栈:\n{traceback.format_exc()}")
                     message_status.update(label=MESSAGE_STATUS_ERROR_LABEL, expanded=False, state="error")
 
             # 为流消息准备的markdown

@@ -273,3 +273,12 @@ def send_custom_message(message: str, role: GroupMemberRole,
     """发送自定义消息"""
     writer = get_stream_writer()
     writer(CustomMessage(type=type, role=role, message=message))
+
+
+def remove_tool_messages(messages: list[AnyMessage]) -> list[AnyMessage]:
+    """将历史消息中的 工具调用、工具输出 都删掉，防止上下文超限"""
+    results = messages.copy()
+    for message in messages:
+        if isinstance(message, ToolMessage) or (isinstance(message, AIMessage) and message.tool_calls):
+            results.remove(message)
+    return results

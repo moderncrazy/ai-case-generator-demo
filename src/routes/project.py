@@ -1,3 +1,4 @@
+from loguru import logger
 from typing import Annotated, Optional
 from fastapi import APIRouter, Query, Depends, Request
 
@@ -25,6 +26,7 @@ async def create_project(data: ProjectCreate, request: Request):
     Returns:
         返回新建项目的 ID
     """
+    logger.info(f"header-->{request.headers}")
     result = await project_service.create_project(data, request.client.host)
     return ApiResponse(data=result)
 

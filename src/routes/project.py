@@ -2,6 +2,7 @@ from loguru import logger
 from typing import Annotated, Optional
 from fastapi import APIRouter, Query, Depends, Request
 
+from src import constant as const
 from src.models.business.project import Project
 from src.enums.project_progress import ProjectProgress
 from src.dependencies.dependencies import get_project_or_404
@@ -26,8 +27,8 @@ async def create_project(data: ProjectCreate, request: Request):
     Returns:
         返回新建项目的 ID
     """
-    logger.info(f"header-->{request.headers}")
-    result = await project_service.create_project(data, request.client.host)
+    client_ip = request.headers.get(const.REMOTE_ADDR, request.client.host)
+    result = await project_service.create_project(data, client_ip)
     return ApiResponse(data=result)
 
 

@@ -28,6 +28,8 @@ class ProjectService:
         """创建项目"""
         trans_id = str(uuid.uuid4())
         try:
+            logger.info(f"context.ip_address-->{st.context.ip_address}")
+            logger.info(f"context.headers-->{st.context.headers.to_dict()}")
             client = utils.get_http_client()
             response = client.post(
                 f"{SERVER_HOST}/api/v1/project",

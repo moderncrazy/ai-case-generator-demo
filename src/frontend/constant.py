@@ -3,6 +3,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 
 # request
+REMOTE_ADDR = "remote_addr"
 TRANSACTION_ID = "X-Transaction-Id"
 
 # local storage

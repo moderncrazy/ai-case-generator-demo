@@ -1,8 +1,6 @@
-import time
 import uuid
 import traceback
 import streamlit as st
-import streamlit.components.v1 as components
 
 from enum import StrEnum
 from collections.abc import Callable
@@ -126,7 +124,8 @@ def config_style():
             }}
             
             /* 隐藏注入的 html 组件，用于自动滚动 */
-            .st-key-{const.CHAT_EXPANDER_KEY} div[height="0px"][data-testid="stElementContainer"] {{
+            div[data-testid="stElementContainer"]:has([data-testid="scroll_to_bottom"]) {{
+                height: 0px !important;
                 display: none !important;
             }}
 
@@ -137,27 +136,31 @@ def config_style():
 
 def scroll_to_bottom():
     """滚动聊天框和状态栏到底部"""
-    st.iframe(
-        f"""
-        <script>
-            const _force_rerun = "{str(uuid.uuid4())}";
-            var scrollInterval = setInterval(function() {{
+    with st.sidebar:
+        st.html(
+            f"""
+            <script data-testid="scroll_to_bottom" style="display: none; height: 0; width: 0; position: absolute;">
+                var _force_rerun = "{str(uuid.uuid4())}";
                 console.log(_force_rerun);
                 var chatContainers = window.parent.document.querySelectorAll('.st-key-{CHAT_CONTEXT_CONTAINER_KEY}[data-testid="stVerticalBlock"]');
                 chatContainers.forEach(function(container) {{
-                     container.scrollTop = container.scrollHeight;
+                    container.scrollTo({{
+                        top: container.scrollHeight,
+                        behavior: 'smooth'
+                    }});
                 }});
-                
+                    
                 var chatExpanderDetails = window.parent.document.querySelectorAll('[data-testid="stExpanderDetails"]');
                 chatExpanderDetails.forEach(function(container) {{
-                    container.scrollTop = container.scrollHeight;
+                    container.scrollTo({{
+                        top: container.scrollHeight,
+                        behavior: 'smooth'
+                    }});
                 }});
-            }}, 0);
-            setTimeout(function() {{ clearInterval(scrollInterval); }}, 0);
-        </script>
-        """,
-        height=1,
-    )
+            </script>
+            """,
+            unsafe_allow_javascript=True,
+        )
 
 
 def load_history(project_id: str):

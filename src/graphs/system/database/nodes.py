@@ -19,7 +19,7 @@ from src.enums.project_doc_type import ProjectDocType
 from src.enums.group_member_role import GroupMemberRole
 from src.enums.reducer_action_type import ReducerActionType
 from src.enums.conversation_message_type import ConversationMessageType
-from src.repositories.project_repository import project_repository, ProjectUpdate
+from src.services.business.project_service import project_service, ProjectUpdate
 
 tool_list = optimization_plan_tools.tool_list + review_issue_tools.tool_list + ctools.tool_list + common_tool_list
 
@@ -148,7 +148,7 @@ async def review_system_database_aggregator_node(state: State) -> State:
     if not state["review_issues"]:
         # 如果原始数据库内容为空 则保存当前版本为原始数据库
         if not state.get("original_database"):
-            await project_repository.update(
+            await project_service.update_project_and_clear_cache(
                 project_id,
                 ProjectUpdate(database_design=state["system_database_content"])
             )

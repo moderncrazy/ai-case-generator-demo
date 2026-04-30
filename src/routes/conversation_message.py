@@ -5,7 +5,7 @@ from src.models.business.project import Project
 from src.dependencies.dependencies import get_project_or_404
 from src.schemas.response import ApiListResponse, ListData
 from src.schemas.conversation_message import HistoryConversationMessage
-from src.services.conversation_message_service import conversation_message_service
+from src.services.interface.conversation_message_interface_service import ConversationMessageInterfaceService
 
 # 对话消息路由
 router = APIRouter(prefix="/api/v1/project", tags=["对话消息"])
@@ -29,7 +29,7 @@ async def list_messages(
     Returns:
         返回对话消息列表和总数
     """
-    messages, total = await conversation_message_service.list_messages(
+    messages, total = await ConversationMessageInterfaceService.list_messages(
         project_id=project.id,
         page=page,
         page_size=page_size,
@@ -61,5 +61,5 @@ async def discuss_project(
     Returns:
         返回对话响应结果
     """
-    return await conversation_message_service.discuss_project(
+    return await ConversationMessageInterfaceService.discuss_project(
         project=project, user_id=user_id, message=message, files=files, background_tasks=background_tasks)

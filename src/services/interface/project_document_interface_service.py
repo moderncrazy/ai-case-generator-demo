@@ -12,7 +12,7 @@ from src.schemas.project_document import (
 from src.agents.main_agent import main_agent
 
 
-class ProjectDocumentService:
+class ProjectDocumentInterfaceService:
     """项目文档服务
     
     提供项目各类文档的获取功能。
@@ -164,7 +164,3 @@ class ProjectDocumentService:
                                                                                               list) else []
 
         return IssuesResponse(risks=risks, unclear_points=unclear_points)
-
-
-# 导出单例
-project_document_service = ProjectDocumentService()

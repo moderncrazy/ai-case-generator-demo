@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "ai-case-generator-demo"
-    version: str = "0.1.0"
+    version: str = "0.2.0"
 
     # 日志配置
     log_path: Path = Field(default=BASE_DIR / "logs", description="Log Path")
@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     compress_context_lock_expire: int = Field(default=300, description="Compress Context Lock Expire")
     create_project_lock_expire: int = Field(default=30, description="Create Project Lock Expire")
     project_discuss_lock_expire: int = Field(default=5, description="Project Discuss Lock Expire")
+
+    # cache
+    project_basic_info_cache_expire: int = Field(default=3600, description="Project Basic Info Cache Expire")
 
 
 # 日志初始化配置

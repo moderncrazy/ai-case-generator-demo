@@ -2,11 +2,11 @@ from langchain.messages import AIMessage, HumanMessage, ToolMessage, AnyMessage
 
 from src.exceptions.exceptions import BusinessException
 from src.utils import sensitive_word_utils, utils as gutils
-from src.repositories.module_repository import module_repository, ModuleBulkUpdate
 from src.graphs.state import State
 from src.graphs.common.schemas import StateRequirementModule
 from src.enums.error_message import ErrorMessage
 from src.enums.requirement_module_status import RequirementModuleStatus
+from src.services.business.module_service import module_service
 
 
 def validate_requirement_module_exist(name: str, modules: list[StateRequirementModule]) -> bool:
@@ -106,10 +106,7 @@ async def validate_modules_completed_and_save(state: State):
     # 检查系统模块是否完整
     validate_state_fields_to_exception(state, fields=["optimized_modules"])
     # 更新系统模块
-    await module_repository.bulk_update(
-        state["project_id"],
-        [ModuleBulkUpdate(**item) for item in state["optimized_modules"]]
-    )
+    await module_service.bulk_update_by_state_modules(state["project_id"], state["optimized_modules"])
 
 
 def latest_human_message_append_system_hint(messages: list[AnyMessage]) -> list[AnyMessage]:

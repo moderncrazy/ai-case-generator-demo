@@ -2,10 +2,10 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Query, Depends
 
 from src.models.business.project import Project
-from src.services.module_service import module_service
 from src.dependencies.dependencies import get_project_or_404
 from src.schemas.response import ApiResponse, ApiListResponse, ListData
 from src.schemas.module import ModuleResponse, ModuleTreeNode, ModuleTreeDocumentResponse
+from src.services.interface.module_interface_service import ModuleInterfaceService
 
 # 模块路由
 router = APIRouter(prefix="/api/v1/project", tags=["模块"])
@@ -31,7 +31,7 @@ async def list_modules(
     Returns:
         返回模块列表和总数
     """
-    modules, total = await module_service.list_modules(
+    modules, total = await ModuleInterfaceService.list_modules(
         project_id=project.id,
         page=page,
         page_size=page_size,
@@ -53,7 +53,7 @@ async def get_modules_tree(project: Annotated[Project, Depends(get_project_or_40
     Returns:
         返回模块树形结构列表
     """
-    tree = await module_service.get_modules_tree(project.id)
+    tree = await ModuleInterfaceService.get_modules_tree(project.id)
     return ApiResponse(data=tree)
 
 
@@ -69,5 +69,5 @@ async def get_modules_compare(project: Annotated[Project, Depends(get_project_or
     Returns:
         返回模块对比文档（原始版和优化版）
     """
-    result = await module_service.get_modules_compare(project.id)
+    result = await ModuleInterfaceService.get_modules_compare(project.id)
     return ApiResponse(data=result)

@@ -1,43 +1,16 @@
 from typing import List, Tuple
+
+from src.agents.main_agent import main_agent
 from src.repositories.module_repository import module_repository
 from src.schemas.module import ModuleResponse, ModuleTreeNode, ModuleTreeDocumentResponse
-from src.agents.main_agent import main_agent
 
 
-class ModuleService:
+class ModuleInterfaceService:
     """模块服务
     
     提供模块相关的业务逻辑处理，
     包括查询模块列表、获取模块树形结构等功能。
     """
-
-    @staticmethod
-    async def list_modules(
-            project_id: str,
-            page: int = 1,
-            page_size: int = 20,
-            parent_id: str = None,
-    ) -> Tuple[List[ModuleResponse], int]:
-        """查询模块列表
-        
-        分页查询项目的模块列表。
-        
-        Args:
-            project_id: 项目 ID
-            page: 页码（从 1 开始）
-            page_size: 每页数量
-            parent_id: 按父模块筛选（可选）
-            
-        Returns:
-            (模块响应列表, 总数) 元组
-        """
-        modules, total = await module_repository.paginate(
-            project_id=project_id,
-            page=page,
-            page_size=page_size,
-            parent_id=parent_id,
-        )
-        return [ModuleResponse.model_validate(m.to_dict()) for m in modules], total
 
     @staticmethod
     def _group_modules_by_parent(modules: list) -> dict:
@@ -81,7 +54,7 @@ class ModuleService:
         return result
 
     @staticmethod
-    def build_module_tree_from_dict(modules: list) -> List[ModuleTreeNode]:
+    def _build_module_tree_from_dict(modules: list) -> List[ModuleTreeNode]:
         """从模块数据构建模块树
         
         公共方法，可被 api_service、test_case_service 等共用。
@@ -94,8 +67,36 @@ class ModuleService:
         """
         if not modules:
             return []
-        modules_by_parent = ModuleService._group_modules_by_parent(modules)
-        return ModuleService._build_module_tree(modules_by_parent, None)
+        modules_by_parent = ModuleInterfaceService._group_modules_by_parent(modules)
+        return ModuleInterfaceService._build_module_tree(modules_by_parent, None)
+
+    @staticmethod
+    async def list_modules(
+            project_id: str,
+            page: int = 1,
+            page_size: int = 20,
+            parent_id: str = None,
+    ) -> Tuple[List[ModuleResponse], int]:
+        """查询模块列表
+
+        分页查询项目的模块列表。
+
+        Args:
+            project_id: 项目 ID
+            page: 页码（从 1 开始）
+            page_size: 每页数量
+            parent_id: 按父模块筛选（可选）
+
+        Returns:
+            (模块响应列表, 总数) 元组
+        """
+        modules, total = await module_repository.paginate(
+            project_id=project_id,
+            page=page,
+            page_size=page_size,
+            parent_id=parent_id,
+        )
+        return [ModuleResponse.model_validate(m.to_dict()) for m in modules], total
 
     @staticmethod
     async def get_modules_tree(project_id: str) -> List[ModuleTreeNode]:
@@ -110,7 +111,7 @@ class ModuleService:
             模块树形结构列表
         """
         all_modules = await module_repository.list_by_project(project_id)
-        return ModuleService.build_module_tree_from_dict([m.to_dict() for m in all_modules])
+        return ModuleService._build_module_tree_from_dict([m.to_dict() for m in all_modules])
 
     @staticmethod
     async def get_modules_compare(project_id: str) -> ModuleTreeDocumentResponse:
@@ -125,15 +126,11 @@ class ModuleService:
             模块树文档响应（原始版和优化版）
         """
         state = await main_agent.get_state(project_id)
-        original_modules = ModuleService.build_module_tree_from_dict(
+        original_modules = ModuleInterfaceService._build_module_tree_from_dict(
             state.get("original_modules") if state else [])
-        optimized_modules = ModuleService.build_module_tree_from_dict(
+        optimized_modules = ModuleInterfaceService._build_module_tree_from_dict(
             state.get("optimized_modules") if state else [])
         return ModuleTreeDocumentResponse(
             original=original_modules,
             optimized=optimized_modules
         )
-
-
-# 全局单例实例
-module_service = ModuleService()

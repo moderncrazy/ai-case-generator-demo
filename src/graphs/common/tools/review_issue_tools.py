@@ -21,6 +21,7 @@ def get_review_issues(runtime: ToolRuntime) -> str:
 
     Returns:
         返回 str 类型的字符串，格式为：
+        问题Id：xxx
         问题：xxx
         建议方案：xxx
 

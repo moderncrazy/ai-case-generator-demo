@@ -24,7 +24,7 @@ from src.graphs.common.schemas import (
     SummarizeOptimizationDocIssueOutput,
 )
 from src.graphs.requirement.overall.schemas import OptimizeRequirementOverallOutput
-from src.repositories.project_repository import project_repository, ProjectUpdate
+from src.services.business.project_service import project_service, ProjectUpdate
 
 
 @tool
@@ -240,7 +240,7 @@ async def optimize_requirement_overall_issue_output(
     )
     # 如果原始需求内容为空 则保存当前版本为原始需求
     if not runtime.state.get("original_requirement"):
-        await project_repository.update(
+        await project_service.update_project_and_clear_cache(
             project_id,
             ProjectUpdate(requirement_overall_design=runtime.state["requirement_overall_content"])
         )

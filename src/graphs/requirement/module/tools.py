@@ -23,7 +23,7 @@ from src.graphs.common.schemas import (
 )
 from src.graphs.requirement.module import utils
 from src.graphs.requirement.module.schemas import OptimizeRequirementModuleOutput
-from src.repositories.project_repository import project_repository, ProjectUpdate
+from src.services.business.project_service import project_service, ProjectUpdate
 
 
 @tool
@@ -279,7 +279,7 @@ async def optimize_requirement_module_issue_output(
     module_content = runtime.state["requirement_module_content"]
     utils.update_module_content_by_name(module_name, module_content, runtime.state["requirement_modules"])
     # 保存需求模块
-    await project_repository.update(
+    await project_service.update_project_and_clear_cache(
         runtime.state["project_id"],
         ProjectUpdate(requirement_module_design=gutils.to_json(runtime.state["requirement_modules"]))
     )

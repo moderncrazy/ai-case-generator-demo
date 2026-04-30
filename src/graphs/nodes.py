@@ -17,8 +17,9 @@ from src.graphs.tools import tool_list, product_manager_output
 from src.graphs.common.llms import default_model
 from src.graphs.common.schemas import StateProjectFile
 from src.graphs.common.tools.tools import tool_list as ctool_list
-from src.graphs.common.utils import structured_output_utils, repository_utils, utils as cutils
-from src.services.milvus_service import milvus_service
+from src.graphs.common.utils import structured_output_utils, utils as cutils
+from src.services.business.api_service import api_service
+from src.services.business.milvus_service import milvus_service
 from src.enums.project_progress import ProjectProgress
 from src.enums.group_member_role import GroupMemberRole
 from src.enums.const_system_prompt import ConstSystemPrompt
@@ -72,7 +73,7 @@ async def load_project_node(state: State) -> State:
     requirement_module = orjson.loads(project.requirement_module_design or "[]")
     modules = await module_repository.list_by_project(project_id)
     modules = [item.to_dict() for item in modules]
-    apis = await  repository_utils.list_by_project_to_state_api(project_id)
+    apis = await api_service.list_by_project_to_state_api(project_id)
     test_cases = await test_case_repository.list_by_project(project_id)
     test_cases = [item.to_dict() for item in test_cases]
     project_files = await project_file_repository.list_by_project(project_id)

@@ -5,7 +5,7 @@ from langchain_core.runnables import RunnableConfig
 
 from src.context import trans_id_ctx
 from src.graphs.common.tools import optimization_plan_tools, review_issue_tools, tools as ctools
-from src.graphs.common.utils import workflow_node_utils, repository_utils, utils as cutils
+from src.graphs.common.utils import workflow_node_utils, utils as cutils
 from src.graphs.system.api.state import State, GroupMemberState
 from src.graphs.system.api.tools import (
     common_tool_list,
@@ -14,6 +14,7 @@ from src.graphs.system.api.tools import (
     review_optimization_system_api_plan_output,
     generate_optimization_system_api_plan_output,
 )
+from src.services.business.api_service import api_service
 from src.enums.project_doc_type import ProjectDocType
 from src.enums.group_member_role import GroupMemberRole
 from src.enums.reducer_action_type import ReducerActionType
@@ -168,7 +169,7 @@ async def review_system_api_aggregator_node(state: State) -> State:
     if not state["review_issues"]:
         # 如果原始接口内容为空 则保存当前版本为原始接口
         if not state.get("original_apis"):
-            await repository_utils.bulk_update_by_state_apis(project_id, state["system_apis"])
+            await api_service.bulk_update_by_state_apis(project_id, state["system_apis"])
             logger.info(
                 f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 创建原始接口入库")
         cutils.send_custom_message(

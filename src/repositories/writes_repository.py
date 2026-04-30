@@ -23,6 +23,19 @@ class WritesRepository:
             self.model.checkpoint_id == checkpoint_id
         )
 
+    async def delete_by_thread_id(self, thread_id: str) -> int:
+        """根据 thread_id 删除数据
+
+        Args:
+            thread_id: 线程 ID
+
+        Returns:
+            删除的记录数
+        """
+        return await self.model.delete().where(
+            self.model.thread_id == thread_id
+        )
+
 
 # 全局单例实例
 writes_repository = WritesRepository()

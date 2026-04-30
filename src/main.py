@@ -4,8 +4,8 @@ from contextlib import asynccontextmanager
 
 from src.config import settings,setup_logging
 from src.models.base import initialize_database
-from src.services.redis_service import redis_service
-from src.services.milvus_service import milvus_service
+from src.services.business.redis_service import redis_service
+from src.services.business.milvus_service import milvus_service
 from src.routes.api import router as api_router
 from src.routes.module import router as module_router
 from src.routes.project import router as project_router

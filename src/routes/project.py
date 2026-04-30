@@ -8,7 +8,7 @@ from src.enums.project_progress import ProjectProgress
 from src.dependencies.dependencies import get_project_or_404
 from src.schemas.response import ApiResponse, ApiListResponse, ListData
 from src.schemas.project import ProjectCreate, ProjectListItem, ProjectBasicInfoResponse
-from src.services.project_service import project_service
+from src.services.interface.project_interface_service import ProjectInterfaceService
 
 # 项目路由
 router = APIRouter(prefix="/api/v1/project", tags=["项目"])
@@ -28,7 +28,7 @@ async def create_project(data: ProjectCreate, request: Request):
         返回新建项目的 ID
     """
     client_ip = request.headers.get(const.REMOTE_ADDR, request.client.host)
-    result = await project_service.create_project(data, client_ip)
+    result = await ProjectInterfaceService.create_project(data, client_ip)
     return ApiResponse(data=result)
 
 
@@ -50,7 +50,7 @@ async def list_projects(
     Returns:
         返回项目列表和总数
     """
-    projects, total = await project_service.list_projects(page, page_size, progress)
+    projects, total = await ProjectInterfaceService.list_projects(page, page_size, progress)
     list_data = ListData(items=projects, total=total, page=page, page_size=page_size)
     return ApiListResponse(data=list_data)
 
@@ -67,7 +67,7 @@ async def get_project_basic_info(project: Annotated[Project, Depends(get_project
     Returns:
         返回项目基本信息
     """
-    result = await project_service.get_project_basic_info(project)
+    result = await ProjectInterfaceService.get_project_basic_info(project)
     return ApiResponse(data=result)
 
 
@@ -85,5 +85,5 @@ async def delete_project(user_id: Annotated[str, Query()],
     Raises:
         BusinessException: 系统创建的项目不允许删除或项目被占用
     """
-    await project_service.delete_project(project, user_id)
+    await ProjectInterfaceService.delete_project(project, user_id)
     return ApiResponse(data=None)

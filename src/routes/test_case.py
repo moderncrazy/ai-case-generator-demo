@@ -2,12 +2,12 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Query, Depends
 
 from src.models.business.project import Project
-from src.dependencies.dependencies import get_project_or_404
-from src.services.test_case_service import test_case_service
 from src.enums.test_case_type import TestCaseType
 from src.enums.test_case_level import TestCaseLevel
+from src.dependencies.dependencies import get_project_or_404
 from src.schemas.response import ApiResponse, ApiListResponse, ListData
 from src.schemas.test_case import TestCaseResponse, TestCaseTreeNode, TestCaseTreeDocumentResponse
+from src.services.interface.test_case_interface_service import TestCaseInterfaceService
 
 # 测试用例路由
 router = APIRouter(prefix="/api/v1/project", tags=["测试用例"])
@@ -37,7 +37,7 @@ async def list_test_cases(
     Returns:
         返回测试用例列表和总数
     """
-    test_cases, total = await test_case_service.list_test_cases(
+    test_cases, total = await TestCaseInterfaceService.list_test_cases(
         project_id=project.id,
         page=page,
         page_size=page_size,
@@ -61,7 +61,7 @@ async def get_test_cases_tree(project: Annotated[Project, Depends(get_project_or
     Returns:
         返回测试用例树形结构列表
     """
-    tree = await test_case_service.get_test_cases_tree(project.id)
+    tree = await TestCaseInterfaceService.get_test_cases_tree(project.id)
     return ApiResponse(data=tree)
 
 
@@ -77,5 +77,5 @@ async def get_test_cases_compare(project: Annotated[Project, Depends(get_project
     Returns:
         返回测试用例对比文档（原始版和优化版）
     """
-    result = await test_case_service.get_test_cases_compare(project.id)
+    result = await TestCaseInterfaceService.get_test_cases_compare(project.id)
     return ApiResponse(data=result)

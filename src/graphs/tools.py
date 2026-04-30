@@ -17,10 +17,11 @@ from src.enums.conversation_message_type import ConversationMessageType
 from src.graphs import utils
 from src.graphs.state import State
 from src.graphs.schemas import PMOutput
-from src.graphs.common.utils import structured_output_utils, repository_utils, utils as cutils
+from src.graphs.common.utils import structured_output_utils, utils as cutils
 from src.exceptions.exceptions import BusinessException
-from src.repositories.project_repository import project_repository, ProjectUpdate
-from src.repositories.test_case_repository import test_case_repository, TestCaseBulkUpdate
+from src.services.business.api_service import api_service
+from src.services.business.test_case_service import test_case_service
+from src.services.business.project_service import project_service, ProjectUpdate
 
 
 @tool
@@ -83,7 +84,7 @@ async def confirm_requirement_module(name: str, runtime: ToolRuntime[Any, State]
                 else:
                     module["status"] = RequirementModuleStatus.COMPLETED
                     # 更新数据库
-                    await project_repository.update(
+                    await project_service.update_project_and_clear_cache(
                         project_id,
                         project_update=ProjectUpdate(
                             requirement_module_design=gutils.to_json(runtime.state["requirement_modules"]))
@@ -133,7 +134,7 @@ async def reset_requirement_module_to_draft(name: str, runtime: ToolRuntime[Any,
             if module["status"] == RequirementModuleStatus.COMPLETED:
                 module["status"] = RequirementModuleStatus.DRAFT
                 # 更新数据库
-                await project_repository.update(
+                await project_service.update_project_and_clear_cache(
                     project_id,
                     project_update=ProjectUpdate(
                         requirement_module_design=gutils.to_json(runtime.state["requirement_modules"]))
@@ -172,6 +173,7 @@ async def get_risks(runtime: ToolRuntime[Any, State]) -> str:
 
     Returns:
         返回 str 类型的字符串，格式为：
+        问题Id：xxx
         问题：xxx
         建议方案：xxx
 
@@ -182,6 +184,40 @@ async def get_risks(runtime: ToolRuntime[Any, State]) -> str:
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
+
+
+@tool
+async def remove_risks_by_id(ids: list[str], runtime: ToolRuntime[Any, State]) -> Command:
+    """移除风险点
+
+    AI大模型使用此工具可移除当前项目已识别的风险点。
+    【重要】调用该方法需要获得用户明确授权，不得删除用户未授权的风险点
+
+    Args:
+        ids: 风险点Id列表
+        runtime: 系统运行时对象，AI传参时不用传递，会自动注入
+
+    Returns:
+        返回 剩余风险点列表，格式为：
+        问题Id：xxx
+        问题：xxx
+        建议方案：xxx
+
+        如果无风险点，则返回"（空）"
+    """
+    project_id = runtime.state["project_id"]
+    risks = runtime.state.get("risks", []).copy()
+    for item in risks:
+        if item["id"] in ids:
+            risks.remove(item)
+    result = cutils.format_issues_to_str(risks)
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
+    return Command(
+        update={
+            "risks": risks,
+            "messages": [ToolMessage(content=result, tool_call_id=runtime.tool_call_id)]
+        }
+    )
 
 
 @tool
@@ -198,6 +234,7 @@ async def get_unclear_points(runtime: ToolRuntime[Any, State]) -> str:
 
     Returns:
         返回 str 类型的字符串，格式为：
+        问题Id：xxx
         问题：xxx
         建议方案：xxx
 
@@ -208,6 +245,40 @@ async def get_unclear_points(runtime: ToolRuntime[Any, State]) -> str:
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
+
+
+@tool
+async def remove_unclear_points_by_id(ids: list[str], runtime: ToolRuntime[Any, State]) -> Command:
+    """移除不明确问题
+
+    AI大模型使用此工具可移除当前项目已识别的不明确问题。
+    【重要】调用该方法需要获得用户明确授权，不得删除用户未授权的不明确问题
+
+    Args:
+        ids: 不明确问题Id列表
+        runtime: 系统运行时对象，AI传参时不用传递，会自动注入
+
+    Returns:
+        返回 剩余不明确问题列表，格式为：
+        问题Id：xxx
+        问题：xxx
+        建议方案：xxx
+
+        如果无不明确问题，则返回"（空）"
+    """
+    project_id = runtime.state["project_id"]
+    unclear_points = runtime.state.get("unclear_points", []).copy()
+    for item in unclear_points:
+        if item["id"] in ids:
+            unclear_points.remove(item)
+    result = cutils.format_issues_to_str(unclear_points)
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
+    return Command(
+        update={
+            "unclear_points": unclear_points,
+            "messages": [ToolMessage(content=result, tool_call_id=runtime.tool_call_id)]
+        }
+    )
 
 
 @tool(args_schema=PMOutput)
@@ -401,7 +472,7 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                         #     fields=["optimized_apis"]
                         # )
                         # 批量更新接口
-                        await repository_utils.bulk_update_by_state_apis(project_id, runtime.state["optimized_apis"])
+                        await api_service.bulk_update_by_state_apis(project_id, runtime.state["optimized_apis"])
                 # 更新项目状态
                 project_update = ProjectUpdate(progress=ProjectProgress.TEST_CASE_DESIGN)
                 # 更新state
@@ -416,10 +487,8 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                         fields=["optimized_test_cases"]
                     )
                     # 批量更新模块
-                    await test_case_repository.bulk_update(
-                        project_id,
-                        [TestCaseBulkUpdate(**item) for item in runtime.state["optimized_test_cases"]]
-                    )
+                    await test_case_service.bulk_update_by_state_test_cases(
+                        project_id, runtime.state["optimized_test_cases"])
                 # 更新项目状态
                 project_update = ProjectUpdate(progress=ProjectProgress.COMPLETED)
                 # 更新state
@@ -427,7 +496,7 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                 state_update["messages"] = [AIMessage(content=message, name=GroupMemberRole.PM.value)]
         # 如果 project_update 存在则更新项目
         if project_update:
-            await project_repository.update(project_id, project_update=project_update)
+            await project_service.update_project_and_clear_cache(project_id, project_update=project_update)
             logger.info(
                 f"trans_id:{trans_id_ctx.get()} 下一步:{next_step.value} project更新:{project_update.model_dump_json()}")
         logger.info(

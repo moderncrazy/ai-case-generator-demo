@@ -4,7 +4,6 @@ from langchain.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.context import trans_id_ctx
-from src.utils import utils as gutils
 from src.graphs.system.module.state import State, GroupMemberState
 from src.graphs.system.module.tools import (
     common_tool_list,
@@ -19,7 +18,7 @@ from src.enums.project_doc_type import ProjectDocType
 from src.enums.group_member_role import GroupMemberRole
 from src.enums.reducer_action_type import ReducerActionType
 from src.enums.conversation_message_type import ConversationMessageType
-from src.repositories.module_repository import module_repository, ModuleBulkUpdate
+from src.services.business.module_service import module_service
 
 tool_list = optimization_plan_tools.tool_list + review_issue_tools.tool_list + ctools.tool_list + common_tool_list
 
@@ -147,10 +146,7 @@ async def review_system_module_aggregator_node(state: State) -> State:
     if not state["review_issues"]:
         # 如果原始模块内容为空 则保存当前版本为原始模块
         if not state.get("original_modules"):
-            await module_repository.bulk_update(
-                project_id,
-                [ModuleBulkUpdate(**item) for item in state["system_modules"]]
-            )
+            await module_service.bulk_update_by_state_modules(project_id, state["system_modules"])
             logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 创建原始模块入库")
         cutils.send_custom_message(
             "系统模块已更新，快来看看吧！", GroupMemberRole.ARCHITECT, ConversationMessageType.NOTIFY)

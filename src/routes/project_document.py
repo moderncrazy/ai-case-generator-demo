@@ -3,10 +3,7 @@ from fastapi import APIRouter, Depends
 from src.models.business.project import Project
 from src.dependencies.dependencies import get_project_or_404
 from src.schemas.response import ApiResponse
-from src.schemas.project_document import IssuesResponse
-from src.schemas.project import ProjectBasicInfoResponse
-from src.services.project_service import project_service
-from src.services.project_document_service import project_document_service
+from src.services.interface.project_document_interface_service import ProjectDocumentInterfaceService
 
 # 项目文档路由
 router = APIRouter(prefix="/api/v1/project/{project_id}", tags=["项目文档"])
@@ -22,7 +19,7 @@ async def get_requirement_outline(project: Project = Depends(get_project_or_404)
     Returns:
         需求大纲内容
     """
-    result = await project_document_service.get_requirement_outline(project)
+    result = await ProjectDocumentInterfaceService.get_requirement_outline(project)
     return ApiResponse(data=result)
 
 
@@ -36,7 +33,7 @@ async def get_requirement_modules(project: Project = Depends(get_project_or_404)
     Returns:
         需求模块列表
     """
-    result = await project_document_service.get_requirement_modules(project)
+    result = await ProjectDocumentInterfaceService.get_requirement_modules(project)
     return ApiResponse(data=result)
 
 
@@ -50,7 +47,7 @@ async def get_requirement_overall(project: Project = Depends(get_project_or_404)
     Returns:
         需求整体文档（原始版和优化版）
     """
-    result = await project_document_service.get_requirement_overall(project)
+    result = await ProjectDocumentInterfaceService.get_requirement_overall(project)
     return ApiResponse(data=result)
 
 
@@ -64,7 +61,7 @@ async def get_requirement_overall(project: Project = Depends(get_project_or_404)
     Returns:
         需求整体文档（原始版和优化版）
     """
-    result = await project_document_service.get_requirement_overall_compare(project)
+    result = await ProjectDocumentInterfaceService.get_requirement_overall_compare(project)
     return ApiResponse(data=result)
 
 
@@ -78,7 +75,7 @@ async def get_architecture(project: Project = Depends(get_project_or_404)):
     Returns:
         架构设计文档（原始版和优化版）
     """
-    result = await project_document_service.get_architecture(project)
+    result = await ProjectDocumentInterfaceService.get_architecture(project)
     return ApiResponse(data=result)
 
 
@@ -92,7 +89,7 @@ async def get_architecture(project: Project = Depends(get_project_or_404)):
     Returns:
         架构设计文档（原始版和优化版）
     """
-    result = await project_document_service.get_architecture_compare(project)
+    result = await ProjectDocumentInterfaceService.get_architecture_compare(project)
     return ApiResponse(data=result)
 
 
@@ -106,7 +103,7 @@ async def get_database(project: Project = Depends(get_project_or_404)):
     Returns:
         数据库设计文档（原始版和优化版）
     """
-    result = await project_document_service.get_database(project)
+    result = await ProjectDocumentInterfaceService.get_database(project)
     return ApiResponse(data=result)
 
 
@@ -120,7 +117,7 @@ async def get_database(project: Project = Depends(get_project_or_404)):
     Returns:
         数据库设计文档（原始版和优化版）
     """
-    result = await project_document_service.get_database_compare(project)
+    result = await ProjectDocumentInterfaceService.get_database_compare(project)
     return ApiResponse(data=result)
 
 
@@ -134,5 +131,5 @@ async def get_issues(project: Project = Depends(get_project_or_404)):
     Returns:
         风险点和疑问列表
     """
-    result = await project_document_service.get_issues(project)
+    result = await ProjectDocumentInterfaceService.get_issues(project)
     return ApiResponse(data=result)

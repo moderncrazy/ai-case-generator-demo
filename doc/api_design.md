@@ -220,43 +220,6 @@ DELETE /api/v1/project/{project_id}
 }
 ```
 
----
-
-### 复制项目
-
-```
-POST /api/v1/project/{project_id}/copy
-```
-
-**说明：** 复制指定项目及其所有关联数据（模块、测试用例、接口、对话上下文、项目文件、向量信息等）
-
-**请求体：**
-
-```json
-{
-  "name": "用户中心系统-副本"
-}
-```
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "id": "new_project_id",
-    "name": "用户中心系统-副本",
-    "description": "用户注册、登录、权限管理模块",
-    "progress": "init",
-    "creator_type": "user",
-    "created_at": "2026-04-03T21:00:00Z",
-    "updated_at": "2026-04-03T21:00:00Z"
-  }
-}
-```
-
----
-
 ## 项目文档接口 (Project Documents)
 
 项目文档接口用于获取项目的各类设计文档内容。

@@ -8,8 +8,6 @@ from langchain.tools import tool, ToolRuntime, BaseTool
 from src.context import trans_id_ctx
 from src.utils import utils as gutils
 from src.graphs.state import State
-from src.graphs.common.utils import utils
-from src.graphs.common.utils import repository_utils
 from src.graphs.common.schemas import (
     StateApi,
     StateModule,
@@ -18,8 +16,9 @@ from src.graphs.common.schemas import (
     StateNewProjectFile,
     StateRequirementModule,
 )
+from src.services.business.project_file_service import project_file_service
 from src.repositories.project_file_repository import project_file_repository
-from src.services.milvus_service import milvus_service, ProjectContextSearchResult, ProjectFileSearchResult
+from src.services.business.milvus_service import milvus_service, ProjectContextSearchResult, ProjectFileSearchResult
 
 AnyState = TypeVar("AnyState", bound=State)
 
@@ -129,7 +128,7 @@ async def get_project_files_summary(runtime: ToolRuntime[Any, AnyState]) -> str:
         数据库查询异常 → 该方法暂不可用
     """
     project_id = runtime.state["project_id"]
-    result = await repository_utils.format_project_files_summary_to_str(project_id)
+    result = await project_file_service.format_project_files_summary_to_str(project_id)
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result

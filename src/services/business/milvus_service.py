@@ -9,8 +9,8 @@ from optimum.onnxruntime import ORTModelForCustomTasks
 from pymilvus import AsyncMilvusClient, AnnSearchRequest, WeightedRanker, DataType
 
 from src.utils import utils
-from src.context import trans_id_ctx
 from src.config import settings
+from src.context import trans_id_ctx
 
 
 class ProjectFileSearchResult(BaseModel):

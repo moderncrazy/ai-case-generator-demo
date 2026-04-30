@@ -22,7 +22,7 @@ from src.graphs.common.schemas import (
     SummarizeOptimizationDocIssueOutput,
 )
 from src.graphs.system.architecture.schemas import OptimizeSystemArchitectureOutput
-from src.repositories.project_repository import project_repository, ProjectUpdate
+from src.services.business.project_service import project_service, ProjectUpdate
 
 
 @tool
@@ -232,7 +232,7 @@ async def optimize_system_architecture_issue_output(
     )
     # 如果原始架构内容为空 则保存当前版本为原始架构
     if not runtime.state.get("original_architecture"):
-        await project_repository.update(
+        await project_service.update_project_and_clear_cache(
             project_id,
             ProjectUpdate(architecture_design=runtime.state["system_architecture_content"])
         )

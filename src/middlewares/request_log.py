@@ -1,4 +1,5 @@
 import time
+import traceback
 
 from loguru import logger
 from fastapi import Request
@@ -47,5 +48,5 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             process_time = time.perf_counter() - start_time
             logger.error(
                 f"{request.method} {request.url.path} trance_id:{transaction_id} query:{dict(request.query_params)} "
-                f"error:{str(e)} | {process_time * 1000:.0f}ms"
+                f"error:{str(e)} | {process_time * 1000:.0f}ms error_stack:\n{traceback.format_exc()}"
             )

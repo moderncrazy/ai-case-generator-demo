@@ -1,14 +1,15 @@
 from typing import List, Tuple
+
 from src.agents.main_agent import main_agent
 from src.enums.test_case_type import TestCaseType
 from src.enums.test_case_level import TestCaseLevel
-from src.services.module_service import module_service
+from src.services.interface.module_interface_service import ModuleInterfaceService
 from src.schemas.test_case import TestCaseResponse, TestCaseTreeNode, TestCaseTreeDocumentResponse
 from src.repositories.module_repository import module_repository
 from src.repositories.test_case_repository import test_case_repository
 
 
-class TestCaseService:
+class TestCaseInterfaceService:
     """测试用例服务
     
     提供测试用例相关的业务逻辑处理，
@@ -61,7 +62,7 @@ class TestCaseService:
         """
         result = []
         for node in module_nodes:
-            children = TestCaseService._build_test_case_tree(node.children, tcs_by_module) if node.children else []
+            children = TestCaseInterfaceService._build_test_case_tree(node.children, tcs_by_module) if node.children else []
             result.append(TestCaseTreeNode(
                 module_id=node.id,
                 module_name=node.name,
@@ -107,12 +108,12 @@ class TestCaseService:
     @staticmethod
     async def get_test_cases_tree(project_id: str) -> List[TestCaseTreeNode]:
         """获取测试用例树形结构
-        
+
         按模块父子级组织项目的测试用例。
-        
+
         Args:
             project_id: 项目 ID
-            
+
         Returns:
             测试用例树形结构列表
         """
@@ -121,25 +122,25 @@ class TestCaseService:
         module_dicts = [m.to_dict() for m in all_modules]
 
         # 复用 module_service 的模块树构建方法
-        module_tree = module_service.build_module_tree_from_dict(module_dicts)
+        module_tree = ModuleInterfaceService._build_module_tree_from_dict(module_dicts)
 
         # 获取项目下所有测试用例并转换为 TestCaseResponse
         all_test_cases = await test_case_repository.list_by_project(project_id)
-        tc_responses = [TestCaseService._convert_tc_to_response(tc) for tc in all_test_cases]
+        tc_responses = [TestCaseInterfaceService._convert_tc_to_response(tc) for tc in all_test_cases]
 
         # 复用公共方法构建测试用例树
-        return TestCaseService._build_test_case_tree(
-            module_tree, TestCaseService._group_test_cases_by_module(tc_responses))
+        return TestCaseInterfaceService._build_test_case_tree(
+            module_tree, TestCaseInterfaceService._group_test_cases_by_module(tc_responses))
 
     @staticmethod
     async def get_test_cases_compare(project_id: str) -> TestCaseTreeDocumentResponse:
         """获取测试用例对比文档
-        
+
         从 graph state 获取原始版本和优化版本的测试用例树形结构。
-        
+
         Args:
             project_id: 项目 ID
-            
+
         Returns:
             测试用例树文档响应（原始版和优化版）
         """
@@ -147,24 +148,20 @@ class TestCaseService:
         modules = state.get("optimized_modules") or []
 
         # 复用 module_service 的模块树构建方法
-        module_tree = module_service.build_module_tree_from_dict(modules)
+        module_tree = ModuleInterfaceService._build_module_tree_from_dict(modules)
 
         # 分别构建原始版和优化版的测试用例树
         original_tcs = state.get("original_test_cases") if state else []
         optimized_tcs = state.get("optimized_test_cases") if state else []
 
-        original_test_cases = TestCaseService._build_test_case_tree(
-            module_tree, TestCaseService._group_test_cases_by_module(
-                [TestCaseService._convert_tc_to_response(tc) for tc in original_tcs]))
-        optimized_test_cases = TestCaseService._build_test_case_tree(
-            module_tree, TestCaseService._group_test_cases_by_module(
-                [TestCaseService._convert_tc_to_response(tc) for tc in optimized_tcs]))
+        original_test_cases = TestCaseInterfaceService._build_test_case_tree(
+            module_tree, TestCaseInterfaceService._group_test_cases_by_module(
+                [TestCaseInterfaceService._convert_tc_to_response(tc) for tc in original_tcs]))
+        optimized_test_cases = TestCaseInterfaceService._build_test_case_tree(
+            module_tree, TestCaseInterfaceService._group_test_cases_by_module(
+                [TestCaseInterfaceService._convert_tc_to_response(tc) for tc in optimized_tcs]))
 
         return TestCaseTreeDocumentResponse(
             original=original_test_cases,
             optimized=optimized_test_cases
         )
-
-
-# 导出单例
-test_case_service = TestCaseService()

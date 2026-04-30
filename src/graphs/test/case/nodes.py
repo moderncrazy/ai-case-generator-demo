@@ -4,8 +4,8 @@ from langchain.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.context import trans_id_ctx
-from src.graphs.common.tools import optimization_plan_tools, review_issue_tools, tools as ctools
 from src.graphs.common.utils import workflow_node_utils, utils as cutils
+from src.graphs.common.tools import optimization_plan_tools, review_issue_tools, tools as ctools
 from src.graphs.test.case.state import State, GroupMemberState
 from src.graphs.test.case.tools import (
     common_tool_list,
@@ -18,7 +18,7 @@ from src.enums.project_doc_type import ProjectDocType
 from src.enums.group_member_role import GroupMemberRole
 from src.enums.reducer_action_type import ReducerActionType
 from src.enums.conversation_message_type import ConversationMessageType
-from src.repositories.test_case_repository import test_case_repository, TestCaseBulkUpdate
+from src.services.business.test_case_service import test_case_service
 
 tool_list = optimization_plan_tools.tool_list + review_issue_tools.tool_list + ctools.tool_list + common_tool_list
 
@@ -137,8 +137,7 @@ async def review_test_case_aggregator_node(state: State) -> State:
     if not state["review_issues"]:
         # 如果原始测试用例内容为空 则保存当前版本为原始测试用例
         if not state.get("original_test_cases"):
-            await test_case_repository.bulk_update(project_id,
-                                                   [TestCaseBulkUpdate(**item) for item in state["test_cases"]])
+            await test_case_service.bulk_update_by_state_test_cases(project_id, state["test_cases"])
             logger.info(
                 f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 创建原始测试用例入库")
         cutils.send_custom_message(

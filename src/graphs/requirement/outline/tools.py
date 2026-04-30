@@ -14,7 +14,7 @@ from src.enums.reducer_action_type import ReducerActionType
 from src.enums.requirement_module_status import RequirementModuleStatus
 from src.enums.conversation_message_type import ConversationMessageType
 from src.enums.review_optimization_plan_result import ReviewOptimizationPlanResult
-from src.repositories.project_repository import project_repository, ProjectUpdate
+from src.services.business.project_service import project_service, ProjectUpdate
 from src.graphs.requirement.outline import utils
 from src.graphs.requirement.outline.schemas import RequirementModuleCreate, OptimizeRequirementOutlineOutput
 from src.graphs.common.schemas import (
@@ -152,7 +152,7 @@ async def optimize_requirement_outline_output(
          for item in output.requirement_modules],
         key=lambda m: m["order"])
     # 保存需求大纲
-    await project_repository.update(
+    await project_service.update_project_and_clear_cache(
         runtime.state["project_id"],
         ProjectUpdate(
             requirement_outline_design=requirement_outline,

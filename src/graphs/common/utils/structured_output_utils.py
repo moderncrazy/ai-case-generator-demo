@@ -4,7 +4,8 @@ import traceback
 import uuid
 
 from loguru import logger
-from typing import TypeVar
+from typing import TypeVar, Any
+from langgraph.types import Command
 from langgraph.runtime import Runtime
 from langchain.chat_models import BaseChatModel
 from langchain.tools import ToolRuntime, BaseTool
@@ -64,6 +65,16 @@ def mock_ai_message_in_structured_output(tool_call_id: str, tool_name: str, tool
     return AIMessage(content="", tool_calls=[ToolCall(id=tool_call_id, name=tool_name, args=tool_args)])
 
 
+def rollback(tool_call_id: str, tool_name: str, tool_args: dict, error_message: str, messages_key: str = "messages"):
+    tool_call_message = mock_ai_message_in_structured_output(tool_call_id, tool_name, tool_args)
+    return Command(
+        update={
+            "node_rollback": True,
+            messages_key: [tool_call_message, ToolMessage(content=error_message, tool_call_id=tool_call_id)]
+        },
+    )
+
+
 async def llm_tool_structured_output(llm: BaseChatModel, state: AnyState, runtime: Runtime, config: RunnableConfig,
                                      messages: list, tool_list: list[BaseTool], structured_output_func: BaseTool,
                                      messages_key: str = "messages", metadata: dict | None = None) -> AnyState:
@@ -86,7 +97,7 @@ async def llm_tool_structured_output(llm: BaseChatModel, state: AnyState, runtim
         structured_output_func: 结构化输出方法
         messages_key: 消息存储的 state key，默认为 "messages"
         metadata: 额外元数据，也会传递给 llm 在输出的 AIMessage 里可获取
-        
+
     Returns:
         更新后的状态或消息列表
         
@@ -112,7 +123,6 @@ async def llm_tool_structured_output(llm: BaseChatModel, state: AnyState, runtim
         if not message_output:
             logger.error(f"{log_prefix} llm输出重试超限")
             raise BusinessException.from_error_message(ErrorMessage.LLM_ERROR)
-
         logger.info(f"{log_prefix} 重试:{_} llm输出:{message_output.model_dump_json()}")
         # 若响应非方法调用 则重试
         if not message_output.tool_calls:

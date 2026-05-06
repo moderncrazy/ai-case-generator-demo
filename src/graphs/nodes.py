@@ -15,8 +15,8 @@ from src.graphs.state import State
 from src.graphs.schemas import FileSummaryOutput
 from src.graphs.tools import tool_list, product_manager_output
 from src.graphs.common.llms import default_model
-from src.graphs.common.schemas import StateProjectFile
-from src.graphs.common.tools.tools import tool_list as ctool_list
+from src.graphs.common.schemas.state_schemas import StateProjectFile
+from src.graphs.common.tools.common_tools import tool_list as ctool_list
 from src.graphs.common.utils import structured_output_utils, utils as cutils
 from src.services.business.api_service import api_service
 from src.services.business.milvus_service import milvus_service
@@ -220,4 +220,10 @@ async def end_node(state: State) -> State:
     # 发送结束消息
     cutils.send_custom_message(END, GroupMemberRole.PM, ConversationMessageType.END)
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 流程结束")
-    return {"new_file_list": [], "private_messages": []}
+    return {
+        "new_file_list": [],
+        "private_messages": [],
+        "private_risks": [],
+        "private_unclear_points": [],
+        "node_rollback": False
+    }

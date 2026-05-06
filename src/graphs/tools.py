@@ -16,8 +16,8 @@ from src.enums.requirement_module_status import RequirementModuleStatus
 from src.enums.conversation_message_type import ConversationMessageType
 from src.graphs import utils
 from src.graphs.state import State
-from src.graphs.schemas import PMOutput
-from src.graphs.common.utils import structured_output_utils, utils as cutils
+from src.graphs.schemas import PMOutput, Metadata
+from src.graphs.common.utils import structured_output_utils, format_utils, utils as cutils
 from src.exceptions.exceptions import BusinessException
 from src.services.business.api_service import api_service
 from src.services.business.test_case_service import test_case_service
@@ -180,7 +180,7 @@ async def get_risks(runtime: ToolRuntime[Any, State]) -> str:
         如果无风险点，则返回"（空）"
     """
     project_id = runtime.state["project_id"]
-    result = cutils.format_issues_to_str(runtime.state.get("risks"))
+    result = format_utils.format_issues_to_str(runtime.state.get("risks"))
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
@@ -191,7 +191,10 @@ async def remove_risks_by_id(ids: list[str], runtime: ToolRuntime[Any, State]) -
     """移除风险点
 
     AI大模型使用此工具可移除当前项目已识别的风险点。
-    【重要】调用该方法需要获得用户明确授权，不得删除用户未授权的风险点
+    【重要】
+    - 此方法为**非常规流程**方法，除非必须否则禁止使用该方法
+    - 常规流程应让下游agent更新文档后自动清除风险
+    - 调用该方法需要获得用户明确授权，不得删除用户未授权的风险点
 
     Args:
         ids: 风险点Id列表
@@ -210,7 +213,7 @@ async def remove_risks_by_id(ids: list[str], runtime: ToolRuntime[Any, State]) -
     for item in risks:
         if item["id"] in ids:
             risks.remove(item)
-    result = cutils.format_issues_to_str(risks)
+    result = format_utils.format_issues_to_str(risks)
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return Command(
         update={
@@ -241,7 +244,7 @@ async def get_unclear_points(runtime: ToolRuntime[Any, State]) -> str:
         如果无不明确问题，则返回"（空）"
     """
     project_id = runtime.state["project_id"]
-    result = cutils.format_issues_to_str(runtime.state.get("unclear_points"))
+    result = format_utils.format_issues_to_str(runtime.state.get("unclear_points"))
     logger.info(
         f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return result
@@ -252,7 +255,10 @@ async def remove_unclear_points_by_id(ids: list[str], runtime: ToolRuntime[Any, 
     """移除不明确问题
 
     AI大模型使用此工具可移除当前项目已识别的不明确问题。
-    【重要】调用该方法需要获得用户明确授权，不得删除用户未授权的不明确问题
+    【重要】
+    - 此方法为**非常规流程**方法，除非必须否则禁止使用该方法
+    - 常规流程应让下游agent更新文档后自动清除不明确问题
+    - 调用该方法需要获得用户明确授权，不得删除用户未授权的不明确问题
 
     Args:
         ids: 不明确问题Id列表
@@ -271,7 +277,7 @@ async def remove_unclear_points_by_id(ids: list[str], runtime: ToolRuntime[Any, 
     for item in unclear_points:
         if item["id"] in ids:
             unclear_points.remove(item)
-    result = cutils.format_issues_to_str(unclear_points)
+    result = format_utils.format_issues_to_str(unclear_points)
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{gutils.to_one_line(result)}")
     return Command(
         update={
@@ -282,7 +288,7 @@ async def remove_unclear_points_by_id(ids: list[str], runtime: ToolRuntime[Any, 
 
 
 @tool(args_schema=PMOutput)
-async def product_manager_output(next_step: PMNextStep, message: str, metadata: dict,
+async def product_manager_output(next_step: PMNextStep, message: str, metadata: Metadata,
                                  runtime: ToolRuntime[Any, State]) -> Command:
     """输出产品经理决策结果
     
@@ -307,12 +313,10 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
             - test_case_design - 进入测试用例设计
             - monitoring_change - 监控变更
         message: str - 给用户的回话，或给下一步任务的指示
-        metadata: dict - 额外元数据，如被选中进入下一步的模块名称等
+        metadata: Metadata - 额外元数据，结构如下：
+            - module: str - 若需要优化需求模块时传需求模块名称（其他阶段不传）
+            - generate_optimization_plan: bool - 调用下游 agent 优化文档时是否需要先生成优化方案（必填）
         runtime: 系统运行时对象，AI传参时不用传递，会自动注入
-    
-    Returns:
-        成功时：返回 Command 对象，包含更新的状态（pm_next_step、messages、private_messages、project_progress等）
-        失败时：返回 Command 对象，rollback 回到 项目经理处 重新处理
     
     Exception:
         状态校验失败（如缺少必要字段） → 返回错误消息，打回修复
@@ -329,8 +333,8 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
         state_update: State = {
             "node_rollback": False,
             "pm_next_step": next_step,
-            # 将工具调用全部删除，让 llm 保持清醒
-            "messages": Overwrite(value=cutils.remove_tool_messages(runtime.state["messages"])),
+            "metadata": metadata.model_dump(),
+            "messages": [],
             "private_risks": runtime.state.get("risks"),
             "private_unclear_points": runtime.state.get("unclear_points"),
             "private_messages": [
@@ -359,11 +363,12 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                         fields=["requirement_outline", "requirement_modules"]
                     )
                 # 校验 module 存在
-                if (not metadata.get("module") or not utils.validate_requirement_module_exist(
-                        metadata["module"], runtime.state["requirement_modules"])):
+                if (not metadata.module or not utils.validate_requirement_module_exist(
+                        metadata.module, runtime.state["requirement_modules"])):
                     raise BusinessException(ErrorMessage.FLOW_VALIDATE_FAILED.code, "metadata.module不存在")
                 # 验证 如果 模块更换 之前模块是否已确认 是否已清空
-                elif (runtime.state.get("metadata") and runtime.state["metadata"]["module"] != metadata["module"]
+                elif (runtime.state.get("metadata") and runtime.state["metadata"].get("module")
+                      and runtime.state["metadata"]["module"] != metadata.module
                       and not utils.validate_requirement_module_completed(
                             runtime.state["metadata"]["module"], runtime.state["requirement_modules"])):
                     raise BusinessException(ErrorMessage.FLOW_VALIDATE_FAILED.code,
@@ -374,7 +379,6 @@ async def product_manager_output(next_step: PMNextStep, message: str, metadata: 
                     requirement_outline_design=runtime.state["requirement_outline"]
                 )
                 # 更新 state
-                state_update["metadata"] = metadata
                 state_update["project_progress"] = ProjectProgress.REQUIREMENT_MODULE_DESIGN
             # 进入需求文档设计阶段
             case PMNextStep.REQUIREMENT_OVERALL_DESIGN:

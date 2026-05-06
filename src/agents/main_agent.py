@@ -3,10 +3,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.graphs import graph
 from src.graphs.state import State
-from src.graphs.common.schemas import StateNewProjectFile
-
-from src.repositories.writes_repository import writes_repository
-from src.repositories.checkpoints_repository import checkpoints_repository
+from src.graphs.common.schemas.state_schemas import StateNewProjectFile
 
 
 class MainAgent:

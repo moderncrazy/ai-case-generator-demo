@@ -1,4 +1,5 @@
 from enum import StrEnum
+from functools import cached_property
 
 
 class GroupMemberRole(StrEnum):
@@ -31,7 +32,8 @@ class GroupMemberRole(StrEnum):
     GROUP_MEMBER = "group_member"
     """全体组员"""
 
-    def get_name_zh(self) -> str:
+    @cached_property
+    def name_zh(self) -> str:
         match self:
             case GroupMemberRole.PM:
                 return "产品经理"

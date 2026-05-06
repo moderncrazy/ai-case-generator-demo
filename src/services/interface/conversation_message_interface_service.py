@@ -16,8 +16,8 @@ from src.enums.conversation_message_status import ConversationMessageStatus
 from src.utils import utils, file_utils, sensitive_word_utils
 from src.models.business.project import Project
 from src.agents.main_agent import main_agent
-from src.graphs.common.schemas import StateNewProjectFile
 from src.exceptions.exceptions import BusinessException
+from src.graphs.common.schemas.state_schemas import StateNewProjectFile
 from src.schemas.conversation_message import (
     ConversationMessage,
     ConversationContext,
@@ -123,6 +123,7 @@ class ConversationMessageInterfaceService:
                                 # 如果是正式回话 则记录并返回
                                 if msg_content and not msg.tool_calls and msg_content not in latest_message_content_list:
                                     latest_message_content_list.append(msg_content)
+                                    msg_content = sensitive_word_utils.filter_ai_output_content(msg_content)
                                     msg_metadata = {
                                         "custom_messages": custom_messages.copy(),
                                         "status": ConversationMessageStatus.SUCCESS.value

@@ -1,7 +1,7 @@
 from typing import Optional
 from pydantic import BaseModel, Field
 
-from src.graphs.common.schemas import OptimizeDocBaseOutput
+from src.graphs.common.schemas.output_schemas import OptimizeDocBaseOutput
 
 
 class SystemModule(BaseModel):
@@ -11,6 +11,6 @@ class SystemModule(BaseModel):
     description: str = Field(description="模块描述", min_length=1)
 
 
-class OptimizeSystemModuleOutput(OptimizeDocBaseOutput):
+class OptimizeDocOutput(OptimizeDocBaseOutput):
     """架构优化系统模块输出"""
     system_modules: list[SystemModule] = Field(description="输出优化后系统模块列表", min_length=1)

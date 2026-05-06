@@ -1,9 +1,9 @@
-from enum import Enum
 from pathlib import Path
+from enum import StrEnum
 from functools import cached_property
 
 
-class InstructionTemplate(Enum):
+class InstructionTemplate(StrEnum):
     """指令模板枚举，PM用于给内部agent下指令"""
 
     REQUIREMENT_OUTLINE_CREATE = "requirement_outline_create"
@@ -29,3 +29,41 @@ class InstructionTemplate(Enum):
         template_dir = Path(__file__).parent.parent.parent / "template" / "instruction"
         file_path = template_dir / f"{self.value}.md"
         return file_path.read_text(encoding="utf-8")
+
+    @cached_property
+    def name_zh(self) -> str:
+        """获取中文名称"""
+        match self:
+            case InstructionTemplate.REQUIREMENT_OUTLINE_CREATE:
+                return "创建需求大纲模板"
+            case InstructionTemplate.REQUIREMENT_OUTLINE_UPDATE:
+                return "更新需求大纲模板"
+            case InstructionTemplate.REQUIREMENT_MODULE_CREATE:
+                return "创建需求模块模板"
+            case InstructionTemplate.REQUIREMENT_MODULE_UPDATE:
+                return "更新需求模块模板"
+            case InstructionTemplate.REQUIREMENT_OVERALL_CREATE:
+                return "创建需求文档模板"
+            case InstructionTemplate.REQUIREMENT_OVERALL_UPDATE:
+                return "更新需求文档模板"
+            case InstructionTemplate.SYSTEM_ARCHITECTURE_CREATE:
+                return "创建系统架构模板"
+            case InstructionTemplate.SYSTEM_ARCHITECTURE_UPDATE:
+                return "更新系统架构模板"
+            case InstructionTemplate.SYSTEM_MODULES_CREATE:
+                return "创建系统模块模板"
+            case InstructionTemplate.SYSTEM_MODULES_UPDATE:
+                return "更新系统模块模板"
+            case InstructionTemplate.SYSTEM_DATABASE_CREATE:
+                return "创建系统数据库模板"
+            case InstructionTemplate.SYSTEM_DATABASE_UPDATE:
+                return "更新系统数据库模板"
+            case InstructionTemplate.SYSTEM_API_CREATE:
+                return "创建系统接口模板"
+            case InstructionTemplate.SYSTEM_API_UPDATE:
+                return "更新系统接口模板"
+            case InstructionTemplate.TEST_CASE_CREATE:
+                return "创建测试用例模板"
+            case InstructionTemplate.TEST_CASE_UPDATE:
+                return "更新测试用例模板"
+

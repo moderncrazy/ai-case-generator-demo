@@ -1,5 +1,5 @@
-from src.graphs.common.schemas import StateModule
 from src.services.business.redis_service import redis_service
+from src.graphs.common.schemas.state_schemas import StateModule
 from src.repositories.module_repository import module_repository, ModuleBulkUpdate
 
 

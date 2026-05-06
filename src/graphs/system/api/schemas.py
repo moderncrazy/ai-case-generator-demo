@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 from src.enums.http_method import HttpMethod
 from src.enums.http_param_type import HttpParamType
-from src.graphs.common.schemas import OptimizeDocBaseOutput
+from src.graphs.common.schemas.output_schemas import OptimizeDocBaseOutput
 
 
 class SystemApiRequestParam(BaseModel):
@@ -28,6 +28,6 @@ class SystemApi(BaseModel):
     response_schema: str = Field(description="接口请求响应格式", min_length=1)
 
 
-class OptimizeSystemApiOutput(OptimizeDocBaseOutput):
+class OptimizeDocOutput(OptimizeDocBaseOutput):
     """后端优化系统接口输出"""
     system_apis: list[SystemApi] = Field(description="输出优化后系统接口列表", min_length=1)

@@ -8,7 +8,7 @@ from src.config import settings
 from src.context import trans_id_ctx
 from src.agents.main_agent import main_agent
 from src.graphs.common.llms import default_model
-from src.graphs.common.utils import utils as cutils
+from src.graphs.common.utils import format_utils
 from src.enums.const_system_prompt import ConstSystemPrompt
 from src.services.business.redis_service import redis_service
 from src.services.business.milvus_service import milvus_service
@@ -56,7 +56,7 @@ class ConversationMessageService:
                 if summary_messages:
                     # 获取历史摘要 默认最近20条
                     history_summary = await conversation_summary_service.get_conversation_summary_to_str(project_id)
-                    message_text = cutils.format_context_messages_to_str(summary_messages)
+                    message_text = format_utils.format_context_messages_to_str(summary_messages)
                     # 生成摘要
                     messages = [
                         SystemMessage(content=ConstSystemPrompt.CONTEXT_SUMMARY.template.format(

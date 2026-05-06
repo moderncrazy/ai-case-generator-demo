@@ -23,10 +23,10 @@ class ProjectProgress(Enum):
     SYSTEM_MODULES_DESIGN = ("system_modules_design", "系统模块设计")
     """系统模块设计"""
 
-    SYSTEM_DATABASE_DESIGN = ("system_database_design", "系统数据库设计")
+    SYSTEM_DATABASE_DESIGN = ("system_database_design", "数据库设计")
     """系统数据库设计"""
 
-    SYSTEM_API_DESIGN = ("system_api_design", "系统接口设计")
+    SYSTEM_API_DESIGN = ("system_api_design", "接口设计")
     """系统接口设计"""
 
     TEST_CASE_DESIGN = ("test_case_design", "测试用例设计")

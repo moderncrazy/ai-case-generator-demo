@@ -82,7 +82,7 @@ def app():
         with github:
             st.markdown("""
             ### 📢 项目状态
-            本项目目前处于 **Early Demo** 阶段。正聚焦于 **Multi-Agent 协同精度**与**系统响应性能**的优化
+            本项目目前处于 **MVP** 阶段。已完成核心功能，正聚焦于 **Multi-Agent 协同精度**与**系统响应性能**的优化
             
             **✨ 技术亮点**
             - 🔧 LangGraph 状态机编排 - 多 Agent 并发协作与状态自动归约

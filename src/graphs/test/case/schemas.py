@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 from src.enums.test_case_type import TestCaseType
 from src.enums.test_case_level import TestCaseLevel
-from src.graphs.common.schemas import OptimizeDocBaseOutput
+from src.graphs.common.schemas.output_schemas import OptimizeDocBaseOutput
 
 
 class TestCase(BaseModel):
@@ -20,7 +20,6 @@ class TestCase(BaseModel):
     type: TestCaseType = Field(description="测试用例类型（FUNCTIONAL/INTERFACE/PERFORMANCE）")
 
 
-class OptimizeTestCaseOutput(OptimizeDocBaseOutput):
+class OptimizeDocOutput(OptimizeDocBaseOutput):
     """测试优化测试用例输出"""
     test_cases: list[TestCase] = Field(description="输出优化后测试用例列表", min_length=1)
-

@@ -146,12 +146,8 @@ class ApiService:
                         st.dataframe(body_dt, height="content")
                     # 响应示例
                     if api.response_schema:
-                        st.markdown("### 响应示例")
-                        st.markdown(f"""
-                        ```json
-                        {api.response_schema}
-                        ```
-                        """)
+                        st.markdown("**响应示例**")
+                        st.markdown(f"```json\n\n{api.response_schema}\n\n```")
                 # 递归处理子模块
                 if node.children:
                     ApiService.show_apis_in_tree(node.children, level + 1)

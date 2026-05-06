@@ -10,7 +10,7 @@ from src.graphs import tools
 from src.graphs import nodes
 from src.graphs import routes
 from src.graphs.state import State
-from src.graphs.common.tools import tools as ctools
+from src.graphs.common.tools import common_tools as ctools
 from src.graphs.requirement.outline import graph as requirement_outline_graph
 from src.graphs.requirement.module import graph as requirement_module_graph
 from src.graphs.requirement.overall import graph as requirement_overall_graph
@@ -77,7 +77,12 @@ async def create_agent() -> CompiledStateGraph:
     agent_builder.add_conditional_edges(
         "product_manager_node",
         routes.product_manager_tool_router,
-        ["product_manager_node", "product_manager_tool_node", "end_node", *[node for node in subgraph_node.keys()]]
+        [
+            "product_manager_node",
+            "product_manager_tool_node",
+            *[node for node in subgraph_node.keys()],
+            "end_node",
+        ]
     )
     agent_builder.add_edge("product_manager_tool_node", "product_manager_node")
 
@@ -88,8 +93,10 @@ async def create_agent() -> CompiledStateGraph:
     sqlite_conn = await aiosqlite.connect(settings.langgraph_sqlite_checkpoint_path)
     serde = JsonPlusSerializer(
         allowed_msgpack_modules=[
+            ('src.enums.http_method', 'HttpMethod'),
             ("src.enums.pm_next_step", "PMNextStep"),
             ('src.enums.test_case_type', 'TestCaseType'),
+            ('src.enums.http_param_type', 'HttpParamType'),
             ('src.enums.test_case_level', 'TestCaseLevel'),
             ("src.enums.project_progress", "ProjectProgress"),
             ("src.enums.project_progress", "ProjectProgress"),

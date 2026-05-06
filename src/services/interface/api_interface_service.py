@@ -2,6 +2,7 @@ import orjson
 from typing import List, Tuple
 
 from src.agents.main_agent import main_agent
+from src.graphs.common.schemas.state_schemas import StateApi
 from src.repositories.api_repository import api_repository
 from src.repositories.module_repository import module_repository
 from src.services.interface.module_interface_service import ModuleInterfaceService
@@ -34,7 +35,7 @@ class ApiInterfaceService:
         return []
 
     @staticmethod
-    def _convert_api_to_response(api) -> ApiResponse:
+    def _convert_api_to_response(api: StateApi) -> ApiResponse:
         """将 API 模型或字典转换为 ApiResponse
 
         Args:
@@ -44,9 +45,9 @@ class ApiInterfaceService:
             ApiResponse 对象
         """
         response = ApiResponse.model_validate(api)
-        response.request_headers = ApiInterfaceService._parse_request_params(api.request_headers)
-        response.request_params = ApiInterfaceService._parse_request_params(api.request_params)
-        response.request_body = ApiInterfaceService._parse_request_params(api.request_body)
+        response.request_headers = ApiInterfaceService._parse_request_params(api.get("request_headers"))
+        response.request_params = ApiInterfaceService._parse_request_params(api.get("request_params"))
+        response.request_body = ApiInterfaceService._parse_request_params(api.get("request_body"))
         return response
 
     @staticmethod

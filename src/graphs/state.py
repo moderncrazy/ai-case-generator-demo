@@ -1,15 +1,16 @@
-from typing import Any, Annotated
+from typing import Annotated
 from typing_extensions import Doc
 from langchain.messages import AnyMessage
 from langgraph.graph import MessagesState
 
 from src.enums.pm_next_step import PMNextStep
 from src.enums.project_progress import ProjectProgress
-from src.graphs.common.schemas import (
+from src.graphs.common.schemas.state_schemas import (
     StateApi,
     StateIssue,
     StateModule,
     StateTestCase,
+    StateMetadata,
     StateProjectFile,
     StateNewProjectFile,
     StateRequirementModule
@@ -86,7 +87,7 @@ class State(MessagesState):
     unclear_points: Annotated[list[StateIssue], Doc("不明确点"), wr]
     """需要让用户明确的问题和建议（重写reducer等子图覆盖）"""
 
-    metadata: Annotated[dict[str, Any], Doc("元数据"), wr]
+    metadata: Annotated[StateMetadata, Doc("元数据"), wr]
     """元数据（可用于子图传参）"""
 
     private_risks: Annotated[list[StateIssue], wr]

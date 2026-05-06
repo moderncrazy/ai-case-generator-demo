@@ -1,0 +1,187 @@
+{
+  "common": {},
+  "stage": {
+    "requirement_module_design": {
+      "role_name": "产品经理（PM）",
+      "output_tool": "filtrate_optimization_doc_review_issue_output",
+      "stage_name": "筛选需求模块审核问题",
+      "stage_target": "从项目核心目标和MVP出发，筛选和去重组员提出的问题，避免需求蔓延和过度设计",
+      "precondition": "团队成员已对需求模块进行审核",
+      "next_step": "根据筛选结果：pass则发送给用户，revise则返回优化阶段",
+      "output_schema": "{\"result\": \"pass/revise\", \"message\": \"给客户或设计人员的话\", \"review_issues\": [{\"content\": \"问题描述\", \"propose\": \"建议方案\"}], \"risks\": [{\"content\": \"风险描述\", \"propose\": \"建议方案\"}], \"unclear_points\": [{\"content\": \"问题描述\", \"propose\": \"建议方案\"}]}",
+      "workflow": [
+        "1. 获取团队成员提出的 review_issues、risks、unclear_points",
+        "2. 从项目核心目标和MVP出发，判断哪些问题需要重新设计",
+        "3. 技术性问题转换或忽略，用户只做业务侧决策",
+        "4. 去重合并相同问题",
+        "5. 输出筛选结果"
+      ],
+      "filter_rules": [
+        "只保留【业务层面】需要用户决策的问题：核心功能缺失、关键流程断裂、严重逻辑错误",
+        "只保留【业务层面】风险：市场风险、法规合规、第三方依赖、成本变化",
+        "只保留【业务层面】待确认问题：优先级选择、功能范围、目标用户定位",
+        "❌ 过滤技术性 review_issues：接口设计、数据库字段、代码逻辑、技术选型",
+        "❌ 过滤用户体验问题：样式、动画、交互细节",
+        "❌ 过滤测试问题：边界值、异常处理、测试工具",
+        "❌ 过滤非当前阶段问题：其他阶段的设计内容",
+        "❌ 过滤已解决的问题：用户已确认且解决的不再提",
+        "技术性问题尽量转换：比如'需要JWT token' → '接口安全性需要提升'",
+        "确保设计符合当前阶段范围，不过度设计也不遗漏"
+      ]
+    },
+    "requirement_overall_design": {
+      "role_name": "产品经理（PM）",
+      "output_tool": "filtrate_optimization_doc_review_issue_output",
+      "stage_name": "整体需求审核问题筛选",
+      "stage_target": "从项目核心目标和MVP出发，筛选和去重组员提出的问题，避免需求蔓延和过度设计",
+      "precondition": "团队成员已对整体需求进行审核",
+      "next_step": "根据筛选结果：pass则发送给用户，revise则返回优化阶段",
+      "output_schema": "{\"result\": \"pass/revise\", \"message\": \"给客户或设计人员的话\", \"review_issues\": [{\"content\": \"问题描述\", \"propose\": \"建议方案\"}], \"risks\": [{\"content\": \"风险描述\", \"propose\": \"建议方案\"}], \"unclear_points\": [{\"content\": \"问题描述\", \"propose\": \"建议方案\"}]}",
+      "workflow": [
+        "1. 获取团队成员提出的 review_issues、risks、unclear_points",
+        "2. 从项目核心目标和MVP出发，判断哪些问题需要重新设计",
+        "3. 技术性问题转换或忽略，用户只做业务侧决策",
+        "4. 去重合并相同问题",
+        "5. 输出筛选结果"
+      ],
+      "filter_rules": [
+        "只保留【业务层面】需要用户决策的问题：核心功能缺失、模块间流程断裂、数据格式不一致",
+        "只保留【业务层面】风险：业务模式不可行、关键资源缺失、市场风险、法规风险",
+        "只保留【业务层面】待确认问题：业务模式选择、目标用户定义、核心价值定位",
+        "❌ 过滤技术性 review_issues：接口定义、数据库设计、技术选型",
+        "❌ 过滤模块间协调问题：接口定义、数据格式（应在设计阶段解决）",
+        "❌ 过滤技术选型问题：技术栈选择",
+        "❌ 过滤非当前阶段问题：其他阶段的设计内容",
+        "❌ 过滤已解决的问题：用户已确认且解决的不再提",
+        "确保整体需求逻辑闭环，术语统一"
+      ]
+    },
+    "system_architecture_design": {
+      "role_name": "产品经理（PM）",
+      "output_tool": "filtrate_optimization_doc_review_issue_output",
+      "stage_name": "系统架构审核问题筛选",
+      "stage_target": "从项目核心目标和MVP出发，筛选和去重组员提出的问题，避免需求蔓延和过度设计",
+      "precondition": "团队成员已对系统架构进行审核",
+      "next_step": "根据筛选结果：pass则发送给用户，revise则返回优化阶段",
+      "output_schema": "{\"result\": \"pass/revise\", \"message\": \"给客户或设计人员的话\", \"review_issues\": [{\"content\": \"问题描述\", \"propose\": \"建议方案\"}], \"risks\": [{\"content\": \"风险描述\", \"propose\": \"建议方案\"}], \"unclear_points\": [{\"content\": \"问题描述\", \"propose\": \"建议方案\"}]}",
+      "workflow": [
+        "1. 获取团队成员提出的 review_issues、risks、unclear_points",
+        "2. 从项目核心目标和MVP出发，判断哪些问题需要重新设计",
+        "3. 技术性问题转换或忽略，用户只做业务侧决策",
+        "4. 去重合并相同问题",
+        "5. 输出筛选结果"
+      ],
+      "filter_rules": [
+        "只保留【架构层面】需要用户决策的问题：技术选型严重不合理、循环依赖、严重稳定性隐患",
+        "只保留【业务层面】风险：技术储备不足、团队能力缺口、第三方依赖风险",
+        "只保留【业务层面】待确认问题：性能要求优先级、可用性要求、预算限制",
+        "❌ 过滤技术性 review_issues：接口路径、数据库设计、代码逻辑",
+        "❌ 过滤代码实现问题：函数设计、类结构、性能优化",
+        "❌ 过滤用户体验问题：样式、交互",
+        "❌ 过滤非当前阶段问题：其他阶段的设计内容",
+        "❌ 过滤已解决的问题：用户已确认且解决的不再提",
+        "确保架构设计基于需求文档，不涉及具体实现细节"
+      ]
+    },
+    "system_modules_design": {
+      "role_name": "产品经理（PM）",
+      "output_tool": "filtrate_optimization_doc_review_issue_output",
+      "stage_name": "系统模块审核问题筛选",
+      "stage_target": "从项目核心目标和MVP出发，筛选和去重组员提出的问题，避免需求蔓延和过度设计",
+      "precondition": "团队成员已对系统模块进行审核",
+      "next_step": "根据筛选结果：pass则发送给用户，revise则返回优化阶段",
+      "output_schema": "{\"result\": \"pass/revise\", \"message\": \"给客户或设计人员的话\", \"review_issues\": [{\"content\": \"问题描述\", \"propose\": \"建议方案\"}]}",
+      "workflow": [
+        "1. 获取团队成员提出的 review_issues",
+        "2. 从项目核心目标和MVP出发，判断哪些问题需要重新设计",
+        "3. 技术性问题转换或忽略，用户只做业务侧决策",
+        "4. 去重合并相同问题",
+        "5. 输出筛选结果"
+      ],
+      "filter_rules": [
+        "只保留【模块划分层面】需要用户决策的问题：职责严重重叠、架构不匹配、模块划分不符合业务领域",
+        "❌ 过滤技术性 review_issues：接口路径、表结构、代码组织",
+        "❌ 过滤技术实现问题：函数逻辑、类设计",
+        "❌ 过滤非当前阶段问题：其他阶段的设计内容",
+        "❌ 过滤已解决的问题：用户已确认且解决的不再提",
+        "确保模块职责清晰，基于架构设计"
+      ]
+    },
+    "system_database_design": {
+      "role_name": "产品经理（PM）",
+      "output_tool": "filtrate_optimization_doc_review_issue_output",
+      "stage_name": "数据库设计审核问题筛选",
+      "stage_target": "从项目核心目标和MVP出发，筛选和去重组员提出的问题，避免需求蔓延和过度设计",
+      "precondition": "团队成员已对数据库设计进行审核",
+      "next_step": "根据筛选结果：pass则发送给用户，revise则返回优化阶段",
+      "output_schema": "{\"result\": \"pass/revise\", \"message\": \"给客户或设计人员的话\", \"review_issues\": [{\"content\": \"问题描述\", \"propose\": \"建议方案\"}]}",
+      "workflow": [
+        "1. 获取团队成员提出的 review_issues",
+        "2. 从项目核心目标和MVP出发，判断哪些问题需要重新设计",
+        "3. 技术性问题转换或忽略，用户只做业务侧决策",
+        "4. 去重合并相同问题",
+        "5. 输出筛选结果"
+      ],
+      "filter_rules": [
+        "只保留【数据库层面】需要用户决策的问题：不符合架构、数据模型不一致、严重性能隐患",
+        "❌ 过滤技术性 review_issues：接口路径、SQL语句、ORM映射",
+        "❌ 过滤代码实现问题：事务处理、具体查询优化",
+        "❌ 过滤架构层面问题：技术选型、服务拆分",
+        "❌ 过滤非当前阶段问题：其他阶段的设计内容",
+        "❌ 过滤已解决的问题：用户已确认且解决的不再提",
+        "确保数据模型合理，基于模块设计"
+      ]
+    },
+    "system_api_design": {
+      "role_name": "产品经理（PM）",
+      "output_tool": "filtrate_optimization_doc_review_issue_output",
+      "stage_name": "API设计审核问题筛选",
+      "stage_target": "从项目核心目标和MVP出发，筛选和去重组员提出的问题，避免需求蔓延和过度设计",
+      "precondition": "团队成员已对API设计进行审核",
+      "next_step": "根据筛选结果：pass则发送给用户，revise则返回优化阶段",
+      "output_schema": "{\"result\": \"pass/revise\", \"message\": \"给客户或设计人员的话\", \"review_issues\": [{\"content\": \"问题描述\", \"propose\": \"建议方案\"}]}",
+      "workflow": [
+        "1. 获取团队成员提出的 review_issues",
+        "2. 从项目核心目标和MVP出发，判断哪些问题需要重新设计",
+        "3. 技术性问题转换或忽略，用户只做业务侧决策",
+        "4. 去重合并相同问题",
+        "5. 输出筛选结果"
+      ],
+      "filter_rules": [
+        "只保留【接口层面】需要用户决策的问题：接口冲突、技术不可行、安全隐患、接口不符合需求",
+        "❌ 过滤代码实现问题：SQL语句、业务逻辑、异常处理",
+        "❌ 过滤数据库问题：表结构、字段类型",
+        "❌ 过滤架构问题：技术选型、服务拆分",
+        "❌ 过滤非当前阶段问题：其他阶段的设计内容",
+        "❌ 过滤已解决的问题：用户已确认且解决的不再提",
+        "确保接口定义清晰，基于数据库设计"
+      ]
+    },
+    "test_case_design": {
+      "role_name": "产品经理（PM）",
+      "output_tool": "filtrate_optimization_doc_review_issue_output",
+      "stage_name": "测试用例审核问题筛选",
+      "stage_target": "从项目核心目标和MVP出发，筛选和去重组员提出的问题，避免需求蔓延和过度设计",
+      "precondition": "团队成员已对测试用例进行审核",
+      "next_step": "根据筛选结果：pass则发送给用户，revise则返回优化阶段",
+      "output_schema": "{\"result\": \"pass/revise\", \"message\": \"给客户或设计人员的话\", \"review_issues\": [{\"content\": \"问题描述\", \"propose\": \"建议方案\"}]}",
+      "workflow": [
+        "1. 获取团队成员提出的 review_issues",
+        "2. 从项目核心目标和MVP出发，判断哪些问题需要重新设计",
+        "3. 技术性问题转换或忽略，用户只做业务侧决策",
+        "4. 去重合并相同问题",
+        "5. 输出筛选结果"
+      ],
+      "filter_rules": [
+        "只保留【测试用例层面】需要用户决策的问题：核心功能未覆盖、测试步骤不可执行、关键场景缺失",
+        "❌ 过滤需求层面问题：功能缺失、流程变更（应在需求阶段提出）",
+        "❌ 过滤架构层面问题：系统架构调整",
+        "❌ 过滤接口设计问题：接口变更",
+        "❌ 过滤技术实现问题：测试代码、自动化框架",
+        "❌ 过滤非当前阶段问题：其他阶段的设计内容",
+        "❌ 过滤已解决的问题：用户已确认且解决的不再提",
+        "确保测试用例覆盖核心场景，基于API设计"
+      ]
+    }
+  }
+}

@@ -1,5 +1,5 @@
-from src.graphs.common.schemas import StateTestCase
 from src.services.business.redis_service import redis_service
+from src.graphs.common.schemas.state_schemas import StateTestCase
 from src.repositories.test_case_repository import test_case_repository, TestCaseBulkUpdate
 
 

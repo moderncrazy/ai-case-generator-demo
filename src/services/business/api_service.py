@@ -1,7 +1,7 @@
 import orjson
 
 from src.utils import utils
-from src.graphs.common.schemas import StateApi
+from src.graphs.common.schemas.state_schemas import StateApi
 from src.services.business.redis_service import redis_service
 from src.repositories.api_repository import api_repository, ApiBulkUpdate
 

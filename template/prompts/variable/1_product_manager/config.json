@@ -22,7 +22,7 @@
           "value": "end",
           "scene": "收集信息/询问/回复客户",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -34,7 +34,7 @@
           "value": "requirement_outline_design",
           "scene": "信息收集完整，进入需求大纲设计",
           "message": "调用 get_instruction_template 方法获取模板，补全后输出",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_outline_create",
@@ -88,11 +88,11 @@
       "examples": [
         {
           "type": "用户提出需求，主动追问",
-          "content": "客户：想做小程序商城\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"好的，小程序商城。\\n\\n目标用户是普通消费者，通过微信购买商品。\\n\\n主要销售商品类型是？\", \"metadata\": {}})"
+          "content": "客户：想做小程序商城\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"好的，小程序商城。\\n\\n目标用户是普通消费者，通过微信购买商品。\\n\\n主要销售商品类型是？\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "信息收集完整，进入需求大纲设计",
-          "content": "信息收集完整\n→ PM: get_instruction_template(template=\"requirement_outline_create\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_outline_design\", \"message\": \"【已补全的需求大纲模板】\", \"metadata\": {}})"
+          "content": "信息收集完整\n→ PM: get_instruction_template(template=\"requirement_outline_create\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_outline_design\", \"message\": \"【已补全的需求大纲模板】\", \"metadata\": {\"generate_optimization_plan\": true}})"
         }
       ]
     },
@@ -111,7 +111,7 @@
           "value": "end",
           "scene": "收集信息/询问/回复客户",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -123,7 +123,7 @@
           "value": "requirement_outline_design",
           "scene": "完善需求大纲",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_outline_create",
@@ -139,7 +139,7 @@
           "value": "requirement_module_design",
           "scene": "进入需求模块设计",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "必须包含 {\"module\": \"{module_name}\"}",
+          "metadata": "{\"module\": \"{module_name}\", \"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_module_create",
@@ -168,15 +168,19 @@
       "examples": [
         {
           "type": "展示大纲并主动推进",
-          "content": "需求大纲已确认\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"需求大纲已确认。如果没有异议，我们将进入需求模块设计阶段。\", \"metadata\": {}})"
+          "content": "需求大纲已确认\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"需求大纲已确认。如果没有异议，我们将进入需求模块设计阶段。\", \"metadata\": {\"generate_optimization_plan\": false}})"
+        },
+        {
+          "type": "用户小修改：改文案/字段名/加备注",
+          "content": "用户说\"补充一句说明\"\n→ PM: get_instruction_template(template=\"requirement_outline_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_outline_design\", \"message\": \"【已补全的需求大纲模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "用户有修改意见（意图明确，直接执行）",
-          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"requirement_outline_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_outline_design\", \"message\": \"【已补全的需求大纲，包含用户提出的修改】\", \"metadata\": {}})"
+          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"requirement_outline_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_outline_design\", \"message\": \"【已补全的需求大纲模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": true}})"
         },
         {
           "type": "信息充足，进入模块设计",
-          "content": "需求大纲已确认 + 模块信息充足\n→ PM: get_instruction_template(template=\"requirement_module_create\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_module_design\", \"message\": \"【已补全的需求模块模板】\", \"metadata\": {\"module\": \"模块名称\"}})"
+          "content": "需求大纲已确认 + 模块信息充足\n→ PM: get_instruction_template(template=\"requirement_module_create\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_module_design\", \"message\": \"【已补全的需求模块模板】\", \"metadata\": {\"module\": \"模块名称\", \"generate_optimization_plan\": true}})"
         }
       ]
     },
@@ -211,7 +215,7 @@
           "value": "end",
           "scene": "收集信息/询问/回复客户",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -223,7 +227,7 @@
           "value": "requirement_outline_design",
           "scene": "大纲修改",
           "message": "调用 get_instruction_template 方法获取模板",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_outline_update",
@@ -235,7 +239,7 @@
           "value": "requirement_module_design",
           "scene": "模块首次设计/模块需要调整",
           "message": "调用 get_instruction_template 方法获取模板",
-          "metadata": "必须包含 module 字段",
+          "metadata": "{\"module\": \"{module_name}\", \"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_module_create",
@@ -251,7 +255,7 @@
           "value": "requirement_overall_design",
           "scene": "全部模块完成，生成需求文档",
           "message": "调用 get_instruction_template 方法获取模板",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_overall_create",
@@ -289,23 +293,27 @@
       "examples": [
         {
           "type": "展示模块并主动推进",
-          "content": "用户无异议\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"【商品模块】已生成：商品展示、购物车、下单支付。\\n\\n如果没有异议，我们将进入【订单模块】的设计。\", \"metadata\": {}})"
+          "content": "用户无异议\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"【商品模块】已生成：商品展示、购物车、下单支付。\\n\\n如果没有异议，我们将进入【订单模块】的设计。\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "用户确认 risks 解决方案（意图明确，直接执行）",
-          "content": "用户说\"按建议的来\"、\"可以\"、\"同意\"等确认性语言\n→ PM: get_instruction_template(template=\"requirement_module_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_module_design\", \"message\": \"【已补全的模块内容，将确认的 risks/unclear_points 解决方案写入】\", \"metadata\": {\"module\": \"模块名称\"}})"
+          "content": "用户说\"按建议的来\"、\"可以\"、\"同意\"等确认性语言\n→ PM: get_instruction_template(template=\"requirement_module_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_module_design\", \"message\": \"【已补全的模块内容，将确认的 risks/unclear_points 解决方案写入】\", \"metadata\": {\"module\": \"模块名称\", \"generate_optimization_plan\": true}})"
+        },
+        {
+          "type": "用户小修改：改文案/字段名/加备注",
+          "content": "用户说\"用户名改成username\"\n→ PM: get_instruction_template(template=\"requirement_module_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_module_design\", \"message\": \"【已补全的模块内容模板，包含用户提出的修改】\", \"metadata\": {\"module\": \"模块名称\", \"generate_optimization_plan\": false}})"
         },
         {
           "type": "用户有修改意见",
-          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"requirement_module_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_module_design\", \"message\": \"【已补全的模块内容，包含用户提出的修改】\", \"metadata\": {\"module\": \"模块名称\"}})"
+          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"requirement_module_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_module_design\", \"message\": \"【已补全的模块内容模板，包含用户提出的修改】\", \"metadata\": {\"module\": \"模块名称\", \"generate_optimization_plan\": true}})"
         },
         {
           "type": "确认无误，有下一模块",
-          "content": "当前模块已确认 + 存在下一模块\n→ PM: get_instruction_template(template=\"requirement_module_create\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_module_design\", \"message\": \"【已补全的下一模块模板】\", \"metadata\": {\"module\": \"模块名称\"}})"
+          "content": "当前模块已确认 + 存在下一模块\n→ PM: get_instruction_template(template=\"requirement_module_create\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_module_design\", \"message\": \"【已补全的下一模块模板】\", \"metadata\": {\"module\": \"模块名称\", \"generate_optimization_plan\": true}})"
         },
         {
           "type": "全部模块完成",
-          "content": "所有模块已确认（risks、unclear_points 已清空）\n→ PM: get_instruction_template(template=\"requirement_overall_create\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_overall_design\", \"message\": \"【已补全的需求文档模板】\", \"metadata\": {}})"
+          "content": "所有模块已确认（risks、unclear_points 已清空）\n→ PM: get_instruction_template(template=\"requirement_overall_create\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_overall_design\", \"message\": \"【已补全的需求文档模板】\", \"metadata\": {\"generate_optimization_plan\": true}})"
         }
       ]
     },
@@ -324,7 +332,7 @@
           "value": "end",
           "scene": "收集信息/询问/回复客户",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -336,7 +344,7 @@
           "value": "requirement_outline_design",
           "scene": "大纲修改",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_outline_update",
@@ -348,7 +356,7 @@
           "value": "requirement_module_design",
           "scene": "模块调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "必须包含 {\"module\": \"{module_name}\"}",
+          "metadata": "{\"module\": \"{module_name}\", \"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_module_update",
@@ -360,7 +368,7 @@
           "value": "requirement_overall_design",
           "scene": "完善需求文档",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_overall_create",
@@ -376,7 +384,7 @@
           "value": "system_architecture_design",
           "scene": "进入架构设计",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_architecture_create",
@@ -410,15 +418,19 @@
       "examples": [
         {
           "type": "展示 risks 询问用户确认",
-          "content": "存在未确认的 risks/unclear_points\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"需求文档中有1个风险需要确认：\\n\\n风险：第三方支付接口稳定性\\n\\n我建议的方案：增加支付失败重试机制，最多重试3次。是否可行？\", \"metadata\": {}})"
+          "content": "存在未确认的 risks/unclear_points\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"需求文档中有1个风险需要确认：\\n\\n风险：第三方支付接口稳定性\\n\\n我建议的方案：增加支付失败重试机制，最多重试3次。是否可行？\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "用户确认 risks 解决方案（意图明确，直接执行）",
-          "content": "用户说\"按建议的来\"、\"可以\"、\"同意\"等确认性语言\n→ PM: get_instruction_template(template=\"requirement_overall_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_overall_design\", \"message\": \"【已补全的需求文档，将确认的 risks/unclear_points 解决方案写入】\", \"metadata\": {}})"
+          "content": "用户说\"按建议的来\"、\"可以\"、\"同意\"等确认性语言\n→ PM: get_instruction_template(template=\"requirement_overall_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_overall_design\", \"message\": \"【已补全的需求文档模板，将确认的 risks/unclear_points 解决方案写入】\", \"metadata\": {\"generate_optimization_plan\": true}})"
+        },
+        {
+          "type": "用户小修改：改文案/字段名/加备注",
+          "content": "用户说\"修正一下错别字\"\n→ PM: get_instruction_template(template=\"requirement_overall_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_overall_design\", \"message\": \"【已补全的需求文档模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "所有条件满足，进入架构设计",
-          "content": "risks、unclear_points 已清空 + 需求文档完整\n→ PM: get_instruction_template(template=\"system_architecture_create\")\n→ PM: product_manager_output(output={\"next_step\": \"system_architecture_design\", \"message\": \"【已补全的架构设计模板】\", \"metadata\": {}})"
+          "content": "risks、unclear_points 已清空 + 需求文档完整\n→ PM: get_instruction_template(template=\"system_architecture_create\")\n→ PM: product_manager_output(output={\"next_step\": \"system_architecture_design\", \"message\": \"【已补全的架构设计模板】\", \"metadata\": {\"generate_optimization_plan\": true}})"
         }
       ]
     },
@@ -437,7 +449,7 @@
           "value": "end",
           "scene": "收集信息/询问/回复客户",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -449,7 +461,7 @@
           "value": "requirement_outline_design",
           "scene": "大纲修改",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_outline_update",
@@ -461,7 +473,7 @@
           "value": "requirement_module_design",
           "scene": "模块调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "必须包含 {\"module\": \"{module_name}\"}",
+          "metadata": "{\"module\": \"{module_name}\", \"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_module_update",
@@ -473,7 +485,7 @@
           "value": "requirement_overall_design",
           "scene": "完善需求文档",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_overall_update",
@@ -485,7 +497,7 @@
           "value": "system_architecture_design",
           "scene": "架构调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_architecture_create",
@@ -501,7 +513,7 @@
           "value": "system_modules_design",
           "scene": "进入模块设计",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_modules_create",
@@ -536,15 +548,19 @@
       "examples": [
         {
           "type": "展示 risks 询问用户确认",
-          "content": "存在未确认的 risks/unclear_points\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"架构设计中有1个风险需要确认：\\n\\n风险：微服务部署成本较高\\n\\n我建议的方案：初期采用容器化部署降低成本。是否可行？\", \"metadata\": {}})"
+          "content": "存在未确认的 risks/unclear_points\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"架构设计中有1个风险需要确认：\\n\\n风险：微服务部署成本较高\\n\\n我建议的方案：初期采用容器化部署降低成本。是否可行？\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "用户确认 risks 解决方案（意图明确，直接执行）",
-          "content": "用户说\"按建议的来\"、\"可以\"、\"同意\"等确认性语言\n→ PM: get_instruction_template(template=\"system_architecture_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_architecture_design\", \"message\": \"【已补全的架构设计，将确认的 risks/unclear_points 解决方案写入】\", \"metadata\": {}})"
+          "content": "用户说\"按建议的来\"、\"可以\"、\"同意\"等确认性语言\n→ PM: get_instruction_template(template=\"system_architecture_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_architecture_design\", \"message\": \"【已补全的架构设计模板，将确认的 risks/unclear_points 解决方案写入】\", \"metadata\": {\"generate_optimization_plan\": true}})"
+        },
+        {
+          "type": "用户小修改：改文案/加备注",
+          "content": "用户说\"加个注释说明\"\n→ PM: get_instruction_template(template=\"system_architecture_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_architecture_design\", \"message\": \"【已补全的架构设计模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "所有条件满足，进入模块设计",
-          "content": "risks、unclear_points 已清空 + 架构设计完整\n→ PM: get_instruction_template(template=\"system_modules_create\")\n→ PM: product_manager_output(output={\"next_step\": \"system_modules_design\", \"message\": \"【已补全的系统模块设计模板】\", \"metadata\": {}})"
+          "content": "risks、unclear_points 已清空 + 架构设计完整\n→ PM: get_instruction_template(template=\"system_modules_create\")\n→ PM: product_manager_output(output={\"next_step\": \"system_modules_design\", \"message\": \"【已补全的系统模块设计模板】\", \"metadata\": {\"generate_optimization_plan\": true}})"
         }
       ]
     },
@@ -563,7 +579,7 @@
           "value": "end",
           "scene": "收集信息/询问/回复客户",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -575,7 +591,7 @@
           "value": "requirement_outline_design",
           "scene": "大纲修改",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_outline_update",
@@ -587,7 +603,7 @@
           "value": "requirement_module_design",
           "scene": "模块调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "必须包含 {\"module\": \"{module_name}\"}",
+          "metadata": "{\"module\": \"{module_name}\", \"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_module_update",
@@ -599,7 +615,7 @@
           "value": "requirement_overall_design",
           "scene": "完善需求文档",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_overall_update",
@@ -611,7 +627,7 @@
           "value": "system_architecture_design",
           "scene": "架构调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_architecture_update",
@@ -623,7 +639,7 @@
           "value": "system_modules_design",
           "scene": "系统模块调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_modules_create",
@@ -639,7 +655,7 @@
           "value": "system_database_design",
           "scene": "进入数据库设计",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_database_create",
@@ -666,15 +682,19 @@
       "examples": [
         {
           "type": "展示模块设计并主动推进",
-          "content": "系统模块设计已完成\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"系统模块设计已完成，包含以下模块：\\n1. 用户模块\\n2. 商品模块\\n3. 订单模块\\n4. 支付模块\\n\\n如果没有异议，我们将进入数据库设计阶段。\", \"metadata\": {}})"
+          "content": "系统模块设计已完成\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"系统模块设计已完成，包含以下模块：\\n1. 用户模块\\n2. 商品模块\\n3. 订单模块\\n4. 支付模块\\n\\n如果没有异议，我们将进入数据库设计阶段。\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "用户有调整意见（意图明确，直接执行）",
-          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"system_modules_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_modules_design\", \"message\": \"【已补全的系统模块设计，包含用户提出的修改】\", \"metadata\": {}})"
+          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"system_modules_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_modules_design\", \"message\": \"【已补全的系统模块设计模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": true}})"
+        },
+        {
+          "type": "用户小修改：改文案/字段名/加备注",
+          "content": "用户说\"模块顺序调整一下\"\n→ PM: get_instruction_template(template=\"system_modules_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_modules_design\", \"message\": \"【已补全的系统模块设计模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "所有条件满足，进入数据库设计",
-          "content": "系统模块设计已确认\n→ PM: get_instruction_template(template=\"system_database_create\")\n→ PM: product_manager_output(output={\"next_step\": \"system_database_design\", \"message\": \"【已补全的数据库设计模板】\", \"metadata\": {}})"
+          "content": "系统模块设计已确认\n→ PM: get_instruction_template(template=\"system_database_create\")\n→ PM: product_manager_output(output={\"next_step\": \"system_database_design\", \"message\": \"【已补全的数据库设计模板】\", \"metadata\": {\"generate_optimization_plan\": true}})"
         }
       ]
     },
@@ -693,7 +713,7 @@
           "value": "end",
           "scene": "收集信息/询问/回复客户",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -705,7 +725,7 @@
           "value": "requirement_outline_design",
           "scene": "大纲修改",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_outline_update",
@@ -717,7 +737,7 @@
           "value": "requirement_module_design",
           "scene": "模块调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "必须包含 {\"module\": \"{module_name}\"}",
+          "metadata": "{\"module\": \"{module_name}\", \"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_module_update",
@@ -729,7 +749,7 @@
           "value": "requirement_overall_design",
           "scene": "需求文档调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_overall_update",
@@ -741,7 +761,7 @@
           "value": "system_architecture_design",
           "scene": "架构调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_architecture_update",
@@ -753,7 +773,7 @@
           "value": "system_modules_design",
           "scene": "系统模块调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_modules_update",
@@ -765,7 +785,7 @@
           "value": "system_database_design",
           "scene": "数据库设计调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_database_create",
@@ -781,7 +801,7 @@
           "value": "system_api_design",
           "scene": "进入 API 设计",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_api_create",
@@ -805,15 +825,19 @@
       "examples": [
         {
           "type": "展示数据库设计并主动推进",
-          "content": "数据库设计已完成\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"数据库设计已完成，包含以下核心表：\\n1. 用户表（id, username, password, email）\\n2. 商品表（id, name, price, stock）\\n3. 订单表（id, user_id, total_amount, status）\\n\\n如果没有异议，我们将进入 API 设计阶段。\", \"metadata\": {}})"
+          "content": "数据库设计已完成\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"数据库设计已完成，包含以下核心表：\\n1. 用户表（id, username, password, email）\\n2. 商品表（id, name, price, stock）\\n3. 订单表（id, user_id, total_amount, status）\\n\\n如果没有异议，我们将进入 API 设计阶段。\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "用户有调整意见（意图明确，直接执行）",
-          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"system_database_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_database_design\", \"message\": \"【已补全的数据库设计，包含用户提出的修改】\", \"metadata\": {}})"
+          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"system_database_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_database_design\", \"message\": \"【已补全的数据库设计模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": true}})"
+        },
+        {
+          "type": "用户小修改：改字段名/加备注",
+          "content": "用户说\"字段名改一下\"\n→ PM: get_instruction_template(template=\"system_database_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_database_design\", \"message\": \"【已补全的数据库设计模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "所有条件满足，进入 API 设计",
-          "content": "数据库设计已确认\n→ PM: get_instruction_template(template=\"system_api_create\")\n→ PM: product_manager_output(output={\"next_step\": \"system_api_design\", \"message\": \"【已补全的 API 设计模板】\", \"metadata\": {}})"
+          "content": "数据库设计已确认\n→ PM: get_instruction_template(template=\"system_api_create\")\n→ PM: product_manager_output(output={\"next_step\": \"system_api_design\", \"message\": \"【已补全的 API 设计模板】\", \"metadata\": {\"generate_optimization_plan\": true}})"
         }
       ]
     },
@@ -832,7 +856,7 @@
           "value": "end",
           "scene": "收集信息/询问/回复客户",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -844,7 +868,7 @@
           "value": "requirement_outline_design",
           "scene": "大纲修改",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_outline_update",
@@ -856,7 +880,7 @@
           "value": "requirement_module_design",
           "scene": "模块调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "必须包含 {\"module\": \"{module_name}\"}",
+          "metadata": "{\"module\": \"{module_name}\", \"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_module_update",
@@ -868,7 +892,7 @@
           "value": "requirement_overall_design",
           "scene": "需求文档调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_overall_update",
@@ -880,7 +904,7 @@
           "value": "system_architecture_design",
           "scene": "架构调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_architecture_update",
@@ -892,7 +916,7 @@
           "value": "system_modules_design",
           "scene": "系统模块调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_modules_update",
@@ -904,7 +928,7 @@
           "value": "system_database_design",
           "scene": "数据库设计调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_database_update",
@@ -916,7 +940,7 @@
           "value": "system_api_design",
           "scene": "API 设计调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_api_create",
@@ -932,7 +956,7 @@
           "value": "test_case_design",
           "scene": "进入测试用例设计",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "test_case_create",
@@ -956,15 +980,19 @@
       "examples": [
         {
           "type": "展示 API 设计并主动推进",
-          "content": "API 设计已完成\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"API 设计已完成，包含以下核心接口：\\n1. POST /api/user/register - 用户注册\\n2. POST /api/user/login - 用户登录\\n3. GET /api/product/list - 商品列表\\n4. POST /api/order/create - 创建订单\\n\\n如果没有异议，我们将进入测试用例设计阶段。\", \"metadata\": {}})"
+          "content": "API 设计已完成\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"API 设计已完成，包含以下核心接口：\\n1. POST /api/user/register - 用户注册\\n2. POST /api/user/login - 用户登录\\n3. GET /api/product/list - 商品列表\\n4. POST /api/order/create - 创建订单\\n\\n如果没有异议，我们将进入测试用例设计阶段。\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "用户有调整意见（意图明确，直接执行）",
-          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"system_api_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_api_design\", \"message\": \"【已补全的 API 设计，包含用户提出的修改】\", \"metadata\": {}})"
+          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"system_api_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_api_design\", \"message\": \"【已补全的 API 设计模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": true}})"
+        },
+        {
+          "type": "用户小修改：改路径/加备注",
+          "content": "用户说\"接口路径改一下\"\n→ PM: get_instruction_template(template=\"system_api_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_api_design\", \"message\": \"【已补全的 API 设计模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "所有条件满足，进入测试用例设计",
-          "content": "API 设计已确认\n→ PM: get_instruction_template(template=\"test_case_create\")\n→ PM: product_manager_output(output={\"next_step\": \"test_case_design\", \"message\": \"【已补全的测试用例模板】\", \"metadata\": {}})"
+          "content": "API 设计已确认\n→ PM: get_instruction_template(template=\"test_case_create\")\n→ PM: product_manager_output(output={\"next_step\": \"test_case_design\", \"message\": \"【已补全的测试用例模板】\", \"metadata\": {\"generate_optimization_plan\": true}})"
         }
       ]
     },
@@ -983,7 +1011,7 @@
           "value": "end",
           "scene": "收集信息/询问/回复客户",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -995,7 +1023,7 @@
           "value": "requirement_outline_design",
           "scene": "大纲修改",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_outline_update",
@@ -1007,7 +1035,7 @@
           "value": "requirement_module_design",
           "scene": "模块调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "必须包含 {\"module\": \"{module_name}\"}",
+          "metadata": "{\"module\": \"{module_name}\", \"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_module_update",
@@ -1019,7 +1047,7 @@
           "value": "requirement_overall_design",
           "scene": "需求文档调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_overall_update",
@@ -1031,7 +1059,7 @@
           "value": "system_architecture_design",
           "scene": "架构调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_architecture_update",
@@ -1043,7 +1071,7 @@
           "value": "system_modules_design",
           "scene": "系统模块调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_modules_update",
@@ -1055,7 +1083,7 @@
           "value": "system_database_design",
           "scene": "数据库设计调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_database_update",
@@ -1067,7 +1095,7 @@
           "value": "system_api_design",
           "scene": "API设计调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_api_update",
@@ -1079,7 +1107,7 @@
           "value": "test_case_design",
           "scene": "测试用例调整",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "test_case_create",
@@ -1095,7 +1123,7 @@
           "value": "monitoring_change",
           "scene": "项目完成",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -1119,15 +1147,19 @@
       "examples": [
         {
           "type": "展示测试用例设计并主动推进",
-          "content": "测试用例设计已完成\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"测试用例设计已完成，包含以下测试场景：\\n1. 用户注册登录测试（正常/异常/边界）\\n2. 商品查询测试（分页/筛选/排序）\\n3. 下单支付测试（正常流程/支付失败/库存不足）\\n\\n如果没有异议，项目全部设计工作已完成。\", \"metadata\": {}})"
+          "content": "测试用例设计已完成\n→ PM: product_manager_output(output={\"next_step\": \"end\", \"message\": \"测试用例设计已完成，包含以下测试场景：\\n1. 用户注册登录测试（正常/异常/边界）\\n2. 商品查询测试（分页/筛选/排序）\\n3. 下单支付测试（正常流程/支付失败/库存不足）\\n\\n如果没有异议，项目全部设计工作已完成。\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "用户有调整意见（意图明确，直接执行）",
-          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"test_case_update\")\n→ PM: product_manager_output(output={\"next_step\": \"test_case_design\", \"message\": \"【已补全的测试用例，包含用户提出的修改】\", \"metadata\": {}})"
+          "content": "用户提出具体修改需求\n→ PM: get_instruction_template(template=\"test_case_update\")\n→ PM: product_manager_output(output={\"next_step\": \"test_case_design\", \"message\": \"【已补全的测试用例模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": true}})"
+        },
+        {
+          "type": "用户小修改：补充1-2个用例",
+          "content": "用户说\"补充一个边界值用例\"\n→ PM: get_instruction_template(template=\"test_case_update\")\n→ PM: product_manager_output(output={\"next_step\": \"test_case_design\", \"message\": \"【已补全的测试用例模板，包含用户提出的修改】\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
           "type": "所有条件满足，项目完成",
-          "content": "测试用例设计已确认\n→ PM: product_manager_output(output={\"next_step\": \"monitoring_change\", \"message\": \"测试用例设计已确认。\\n\\n感谢您的配合，项目全部设计工作已完成！\", \"metadata\": {}})"
+          "content": "测试用例设计已确认\n→ PM: product_manager_output(output={\"next_step\": \"monitoring_change\", \"message\": \"测试用例设计已确认。\\n\\n感谢您的配合，项目全部设计工作已完成！\", \"metadata\": {\"generate_optimization_plan\": false}})"
         }
       ]
     },
@@ -1146,7 +1178,7 @@
           "value": "end",
           "scene": "继续与客户对话",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -1158,7 +1190,7 @@
           "value": "monitoring_change",
           "scene": "变更完成/继续监控",
           "message": "直接写给客户的话",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": false}",
           "instruction_templates": [
             {
               "template": "不需要调用模板",
@@ -1170,7 +1202,7 @@
           "value": "requirement_outline_design",
           "scene": "需求大纲变更",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_outline_update",
@@ -1182,7 +1214,7 @@
           "value": "requirement_module_design",
           "scene": "需求模块变更",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "必须包含 {\"module\": \"{module_name}\"}",
+          "metadata": "{\"module\": \"{module_name}\", \"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_module_update",
@@ -1194,7 +1226,7 @@
           "value": "requirement_overall_design",
           "scene": "需求文档变更",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "requirement_overall_update",
@@ -1206,7 +1238,7 @@
           "value": "system_architecture_design",
           "scene": "架构变更",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_architecture_update",
@@ -1218,7 +1250,7 @@
           "value": "system_modules_design",
           "scene": "系统模块变更",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_modules_update",
@@ -1230,7 +1262,7 @@
           "value": "system_database_design",
           "scene": "数据库设计变更",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_database_update",
@@ -1242,7 +1274,7 @@
           "value": "system_api_design",
           "scene": "API 设计变更",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "system_api_update",
@@ -1254,7 +1286,7 @@
           "value": "test_case_design",
           "scene": "测试用例变更",
           "message": "调用 get_instruction_template 方法获取模板，补全模板后输出给内部agent执行",
-          "metadata": "默认为空",
+          "metadata": "{\"generate_optimization_plan\": true}",
           "instruction_templates": [
             {
               "template": "test_case_update",
@@ -1271,15 +1303,15 @@
       "examples": [
         {
           "type": "项目完成，进入监控",
-          "content": "项目完成\n→ PM: product_manager_output(output={\"next_step\": \"monitoring_change\", \"message\": \"项目已进入持续监控阶段。感谢您的信任，如有变更需求，请随时告知，我会协调团队及时响应。\", \"metadata\": {}})"
+          "content": "项目完成\n→ PM: product_manager_output(output={\"next_step\": \"monitoring_change\", \"message\": \"项目已进入持续监控阶段。感谢您的信任，如有变更需求，请随时告知，我会协调团队及时响应。\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
-          "type": "客户提出接口变更（意图明确，直接执行）",
-          "content": "用户提出具体变更需求\n→ PM: get_instruction_template(template=\"system_api_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_api_design\", \"message\": \"【已补全的 API 设计，包含用户提出的变更】\", \"metadata\": {}})"
+          "type": "用户小变更：改文案/字段名/加备注",
+          "content": "用户说\"接口路径改一下\"\n→ PM: get_instruction_template(template=\"system_api_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_api_design\", \"message\": \"【已补全的 API 设计】\", \"metadata\": {\"generate_optimization_plan\": false}})"
         },
         {
-          "type": "客户提出模块变更（意图明确，直接执行）",
-          "content": "用户提出需求模块变更\n→ PM: get_instruction_template(template=\"requirement_module_update\")\n→ PM: product_manager_output(output={\"next_step\": \"requirement_module_design\", \"message\": \"【已补全的模块内容，包含用户提出的变更】\", \"metadata\": {\"module\": \"模块名称\"}})"
+          "type": "用户有变更需求",
+          "content": "用户提出具体变更需求\n→ PM: get_instruction_template(template=\"system_api_update\")\n→ PM: product_manager_output(output={\"next_step\": \"system_api_design\", \"message\": \"【已补全的 API 设计】\", \"metadata\": {\"generate_optimization_plan\": true}})"
         }
       ]
     }

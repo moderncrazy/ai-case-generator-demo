@@ -43,7 +43,7 @@ class ModuleInterfaceService:
         """
         result = []
         for m in modules_by_parent.get(parent_id, []):
-            children = ModuleService._build_module_tree(modules_by_parent, m.get("id"))
+            children = ModuleInterfaceService._build_module_tree(modules_by_parent, m.get("id"))
             result.append(ModuleTreeNode(
                 id=m.get("id"),
                 parent_id=m.get("parent_id"),
@@ -111,7 +111,7 @@ class ModuleInterfaceService:
             模块树形结构列表
         """
         all_modules = await module_repository.list_by_project(project_id)
-        return ModuleService._build_module_tree_from_dict([m.to_dict() for m in all_modules])
+        return ModuleInterfaceService._build_module_tree_from_dict([m.to_dict() for m in all_modules])
 
     @staticmethod
     async def get_modules_compare(project_id: str) -> ModuleTreeDocumentResponse:

@@ -8,7 +8,7 @@
     },
     {
       "name": "get_current_requirement_module",
-      "description": "获取优化后需求模块内容"
+      "description": "获取优化中的需求模块内容"
     },
     {
       "name": "get_optimization_plan_content",
@@ -34,7 +34,7 @@
   "requirement_overall_design": [
     {
       "name": "get_requirement_overall_content",
-      "description": "获取优化后需求文档内容"
+      "description": "获取优化中的需求文档内容"
     },
     {
       "name": "get_optimization_plan_content",
@@ -60,7 +60,7 @@
   "system_architecture_design": [
     {
       "name": "get_system_architecture_content",
-      "description": "获取优化后系统架构内容"
+      "description": "获取优化中的系统架构内容"
     },
     {
       "name": "get_optimization_plan_content",
@@ -86,7 +86,7 @@
   "system_modules_design": [
     {
       "name": "get_system_modules",
-      "description": "获取优化后系统模块列表"
+      "description": "获取优化中的系统模块列表"
     },
     {
       "name": "get_optimization_plan_content",
@@ -104,7 +104,7 @@
   "system_database_design": [
     {
       "name": "get_system_database_content",
-      "description": "获取优化后数据库内容"
+      "description": "获取优化中的数据库内容"
     },
     {
       "name": "get_optimization_plan_content",
@@ -122,7 +122,7 @@
   "system_api_design": [
     {
       "name": "get_system_apis",
-      "description": "获取优化后系统接口列表"
+      "description": "获取优化中的系统接口列表"
     },
     {
       "name": "get_optimization_plan_content",
@@ -140,7 +140,7 @@
   "test_case_design": [
     {
       "name": "get_test_cases",
-      "description": "获取优化后测试用例列表"
+      "description": "获取优化中的测试用例列表"
     },
     {
       "name": "get_optimization_plan_content",

@@ -1,136 +1,21 @@
-from langgraph.graph import StateGraph, START, END
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import ToolNode, tools_condition
 
-from src.graphs.system.architecture import routes, nodes, tools
+from src.graphs.common.base.tools import with_common_tools
+from src.graphs.common.base.nodes import OptimizationDocNodes
+from src.graphs.common.base.routes import OptimizationDocRoutes
+from src.graphs.common.base.graph import create_optimization_doc_agent
+from src.graphs.system.architecture import tools
+from src.graphs.system.architecture.output_tools import OutputTools
 from src.graphs.system.architecture.state import State, GroupMemberState
-from src.graphs.common.tools import optimization_plan_tools, review_issue_tools, to_summarize_tools, tools as ctools
 
-tool_node_tools = (optimization_plan_tools.tool_list + review_issue_tools.tool_list
-                   + to_summarize_tools.tool_list + ctools.tool_list + tools.tool_list)
-
-
-def create_group_member_review_agent() -> CompiledStateGraph:
-    """创建评审子图（供多角色并发评审使用）
-    
-    该子图用于单角色评审系统架构，包含：
-    - 评审节点：根据角色使用不同提示词评审架构
-    - 工具节点：提供查询上下文等工具支持
-    
-    Returns:
-        CompiledStateGraph: 编译后的评审子图
-    """
-    agent_builder = StateGraph(GroupMemberState)
-
-    agent_builder.add_node("review_system_architecture_node", nodes.review_system_architecture_node)
-    agent_builder.add_node("review_system_architecture_tool_node",
-                           ToolNode(tool_node_tools, messages_key="private_messages"))
-
-    agent_builder.add_edge(START, "review_system_architecture_node")
-    agent_builder.add_conditional_edges(
-        "review_system_architecture_node",
-        routes.review_system_architecture_tool_router,
-        ["review_system_architecture_tool_node", END]
-    )
-    agent_builder.add_edge("review_system_architecture_tool_node", "review_system_architecture_node")
-
-    agent = agent_builder.compile()
-    return agent
+common_tools = with_common_tools + tools.tool_list
 
 
 def create_agent() -> CompiledStateGraph:
-    """创建完整的系统架构优化 Agent
-    
-    工作流程：优化 → 评审（多角色并发）→ 聚合 → 问题整理
-    - 优化节点：根据上下文优化系统架构内容
-    - Review 子图：团队成员分别评审
-    - 聚合节点：汇总评审结果，判断是否需要返工
-    - 问题整理节点：整理风险点和待确认问题
-    
-    Returns:
-        CompiledStateGraph: 编译后的完整 agent
-    """
-    agent_builder = StateGraph(State)
-
-    # 生成方案节点
-    agent_builder.add_node("generate_optimization_system_architecture_plan_node",
-                           nodes.generate_optimization_system_architecture_plan_node)
-    agent_builder.add_node("generate_optimization_system_architecture_plan_tool_node",
-                           ToolNode(tool_node_tools, messages_key="private_messages"))
-
-    # 审核方案节点
-    agent_builder.add_node("review_optimization_system_architecture_plan_node",
-                           nodes.review_optimization_system_architecture_plan_node)
-    agent_builder.add_node("review_optimization_system_architecture_plan_tool_node",
-                           ToolNode(tool_node_tools, messages_key="private_messages"))
-
-    # 优化节点
-    agent_builder.add_node("optimize_system_architecture_node", nodes.optimize_system_architecture_node)
-    agent_builder.add_node("optimize_system_architecture_tool_node",
-                           ToolNode(tool_node_tools, messages_key="private_messages"))
-
-    # review 子图
-    agent_builder.add_node("review_system_architecture_node", create_group_member_review_agent())
-
-    # 聚合节点
-    agent_builder.add_node("review_system_architecture_aggregator_node", lambda state: state)
-
-    agent_builder.add_node("optimize_system_architecture_issue_node", nodes.optimize_system_architecture_issue_node)
-    agent_builder.add_node("optimize_system_architecture_issue_tool_node",
-                           ToolNode(tool_node_tools, messages_key="private_messages"))
-
-    agent_builder.add_edge(START, "generate_optimization_system_architecture_plan_node")
-
-    agent_builder.add_conditional_edges(
-        "generate_optimization_system_architecture_plan_node",
-        routes.generate_optimization_system_architecture_plan_tool_router,
-        [
-            "generate_optimization_system_architecture_plan_tool_node",
-            "review_optimization_system_architecture_plan_node"
-        ]
-    )
-    agent_builder.add_edge("generate_optimization_system_architecture_plan_tool_node",
-                           "generate_optimization_system_architecture_plan_node")
-
-    agent_builder.add_conditional_edges(
-        "review_optimization_system_architecture_plan_node",
-        routes.review_optimization_system_architecture_plan_tool_router,
-        [
-            "review_optimization_system_architecture_plan_node",
-            "review_optimization_system_architecture_plan_tool_node",
-            "optimize_system_architecture_node",
-            "generate_optimization_system_architecture_plan_node",
-            END
-        ]
-    )
-    agent_builder.add_edge("review_optimization_system_architecture_plan_tool_node",
-                           "review_optimization_system_architecture_plan_node")
-
-    agent_builder.add_conditional_edges(
-        "optimize_system_architecture_node",
-        routes.optimize_system_architecture_tool_router,
-        [
-            "optimize_system_architecture_node",
-            "optimize_system_architecture_tool_node",
-            "review_system_architecture_node"
-        ]
-    )
-    agent_builder.add_edge("optimize_system_architecture_tool_node", "optimize_system_architecture_node")
-
-    agent_builder.add_edge("review_system_architecture_node", "review_system_architecture_aggregator_node")
-
-    agent_builder.add_conditional_edges(
-        "review_system_architecture_aggregator_node",
-        routes.review_system_architecture_aggregator_router,
-        ["optimize_system_architecture_node", "optimize_system_architecture_issue_node"]
-    )
-
-    agent_builder.add_conditional_edges(
-        "optimize_system_architecture_issue_node",
-        routes.optimize_system_architecture_issue_router,
-        ["optimize_system_architecture_issue_tool_node", END]
-    )
-    agent_builder.add_edge("optimize_system_architecture_issue_tool_node", "optimize_system_architecture_issue_node")
-
-    agent = agent_builder.compile()
+    messages_key = "private_messages"
+    output_tools = OutputTools(messages_key=messages_key)
+    nodes = OptimizationDocNodes(output_tools, common_tools, messages_key=messages_key)
+    routes = OptimizationDocRoutes(messages_key=messages_key)
+    agent = create_optimization_doc_agent(
+        State, GroupMemberState, nodes, routes, output_tools, common_tools, messages_key)
     return agent

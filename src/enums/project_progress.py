@@ -39,7 +39,8 @@ class ProjectProgress(StrEnum):
     def idx(self) -> int:
         return list(ProjectProgress).index(self)
 
-    def get_name_zh(self) -> str:
+    @cached_property
+    def name_zh(self) -> str:
         match self:
             case ProjectProgress.INIT:
                 return "初始化"

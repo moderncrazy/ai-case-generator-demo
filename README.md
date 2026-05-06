@@ -10,7 +10,7 @@
 
 > [!TIP]
 >
-> **项目状态**：本项目目前处于 **Early Demo** 阶段。正聚焦于 **Multi-Agent 协同精度**与**系统响应性能**的优化
+> **项目状态**：本项目目前处于 **MVP** 阶段。已完成核心功能，正聚焦于 **Multi-Agent 协同精度**与**系统响应性能**的优化
 >
 > **关于作者**：一名拥有 Java & Node.js 资深背景的开发者，目前正深度投入于 Python AI 生态与 Agent 编排架构的落地实践
 >   - 🔭 **职业状态**：处于开放的技术探索与职业转型期，欢迎关于 **Python 架构**、**测试开发工程化** 或 **模型评测**
@@ -74,6 +74,50 @@ flowchart TB
 | 6️⃣ 数据库设计 | 设计数据表结构        | ER 图/SQL  |
 | 7️⃣ 接口设计  | 设计 API 接口      | 接口文档      |
 | 8️⃣ 用例生成  | 生成测试用例（分级）     | 测试用例      |
+
+---
+
+## 🔄 执行流程
+
+每个设计阶段都遵循灵活的多阶段评审流程：
+
+```mermaid
+flowchart TD
+    START([开始]) --> OPTION{是否需要<br/>生成优化方案?}
+    
+    OPTION -->|是| GEN_PLAN[生成优化方案]
+    OPTION -->|否| OPT_DOC[优化文档]
+    
+    GEN_PLAN --> REVIEW_PLAN[PM审核优化方案]
+    
+    REVIEW_PLAN --> REVIEW_PLAN_RESULT{审核结果}
+    REVIEW_PLAN_RESULT -->|通过| OPT_DOC
+    REVIEW_PLAN_RESULT -->|打回| GEN_PLAN
+    REVIEW_PLAN_RESULT -->|向用户询问待确认项| END([结束])
+    
+    OPT_DOC --> PM_REVIEW[PM审核文档]
+    
+    PM_REVIEW --> PM_REVIEW_RESULT{审核结果}
+    PM_REVIEW_RESULT -->|通过| END
+    PM_REVIEW_RESULT -->|打回| OPT_DOC
+    PM_REVIEW_RESULT -->|发起团队审核| GROUP_REVIEW[团队并发审核]
+    
+    GROUP_REVIEW --> FILTER[PM筛选问题]
+    FILTER --> FILTER_RESULT{筛选结果}
+    FILTER_RESULT -->|通过| END
+    FILTER_RESULT -->|有问题| OPT_DOC
+    
+    style START fill:#e8f5e9,stroke:#2e7d32
+    style END fill:#ffebee,stroke:#c62828
+```
+
+**流程说明**：
+- **生成优化方案**：PM 根据需要决定是否先生成优化方案
+- **PM 审核优化方案**：可选择通过、打回（重新生成）、直接向用户提问
+- **优化文档**：基于审核通过的方案（或直接）优化文档内容
+- **PM 审核文档**：可选择通过、打回（继续优化）、发起团队审核
+- **团队并发审核**：架构师、后端、测试等多角色并行评审
+- **PM 筛选问题**：汇总团队审核意见，决定是否继续优化或结束
 
 ---
 

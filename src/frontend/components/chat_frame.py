@@ -67,9 +67,16 @@ def config_style():
             
             /* 聊天上下文框 */
             .st-key-{CHAT_CONTEXT_CONTAINER_KEY} {{
-                max-height: 70vh !important;
-                overflow-y: auto;
+               /* max-height: 70vh !important; */
+                max-height: 70vh;
+                overflow-y: auto !important;
                 overflow-x: hidden;
+            }}
+            
+            .st-key-{CHAT_CONTEXT_CONTAINER_KEY} div[data-testid="stVerticalBlock"] {{
+                contain: content;
+                transform: translateZ(0);
+                will-change: scroll-position;
             }}
             
             /* 选中用户消息的容器 */
@@ -127,6 +134,11 @@ def config_style():
             div[data-testid="stElementContainer"]:has([data-testid="scroll_to_bottom"]) {{
                 height: 0px !important;
                 display: none !important;
+                position: absolute;
+                width: 0;
+                height: 0;
+                border: none;
+                z-index: -1;
             }}
 
         </style>
@@ -136,9 +148,8 @@ def config_style():
 
 def scroll_to_bottom():
     """滚动聊天框和状态栏到底部"""
-    with st.sidebar:
-        st.html(
-            f"""
+    st.html(
+        f"""
             <script data-testid="scroll_to_bottom" style="display: none; height: 0; width: 0; position: absolute;">
                 var _force_rerun = "{str(uuid.uuid4())}";
                 console.log(_force_rerun);
@@ -149,7 +160,7 @@ def scroll_to_bottom():
                         behavior: 'smooth'
                     }});
                 }});
-                    
+
                 var chatExpanderDetails = window.parent.document.querySelectorAll('[data-testid="stExpanderDetails"]');
                 chatExpanderDetails.forEach(function(container) {{
                     container.scrollTo({{
@@ -159,8 +170,8 @@ def scroll_to_bottom():
                 }});
             </script>
             """,
-            unsafe_allow_javascript=True,
-        )
+        unsafe_allow_javascript=True,
+    )
 
 
 def load_history(project_id: str):
@@ -309,7 +320,7 @@ def chat_frame(project_id: str, on_change: Callable[[OnChangeEvent, dict], None]
                             # 如果AI角色有变化 则显示说话人 否则直接输出
                             if not stream_role or stream_role != response.message.assistant_role:
                                 stream_role = response.message.assistant_role
-                                yield f"\n\n**{stream_role.get_name_zh()}:** {response.message.content}"
+                                yield f"\n\n**{stream_role.name_zh}:** {response.message.content}"
                             else:
                                 yield response.message.content
                         # 通知消息 弹出通知

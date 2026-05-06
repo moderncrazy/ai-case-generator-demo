@@ -23,6 +23,7 @@ from src.frontend.enums.project_progress import ProjectProgress
 from src.frontend.schemas.project import ProjectBasicInfoResponse
 
 from src.frontend.components.chat_frame import chat_frame, OnChangeEvent
+from src.frontend.components.markdown_with_mermaid import render_markdown
 
 STATE_RISKS = "risks"
 STATE_DISABLE_ALL = "disable_all"
@@ -47,17 +48,19 @@ def show_project_file_type(file_container, project: ProjectBasicInfoResponse):
             if project.has_requirement_outline:
                 resp = ProjectDocumentService.get_requirement_outline(project.id)
                 if resp and resp.content:
-                    file_container.markdown(resp.content)
+                    with file_container:
+                        render_markdown(resp.content)
         case ProjectDocType.REQUIREMENT_MODULE:
             if project.has_requirement_modules:
                 resp = ProjectDocumentService.get_requirement_modules(project.id)
                 if resp and resp.modules:
-                    for module in resp.modules:
-                        file_container.title(f"{module.order}. {module.name}", text_alignment="left")
-                        file_container.badge(module.status, color="blue")
-                        file_container.caption(module.description, text_alignment="left")
-                        file_container.divider()
-                        file_container.markdown(module.content or "> 暂无详细内容")
+                    with file_container:
+                        for module in resp.modules:
+                            st.title(f"{module.order}. {module.name}", text_alignment="left")
+                            st.badge(module.status, color="blue")
+                            st.caption(module.description, text_alignment="left")
+                            st.divider()
+                            render_markdown(module.content or "> 暂无详细内容")
         case ProjectDocType.REQUIREMENT_OVERALL:
             if project.has_requirement_overall:
                 resp = ProjectDocumentService.get_requirement_overall_compare(project.id)
@@ -65,9 +68,9 @@ def show_project_file_type(file_container, project: ProjectBasicInfoResponse):
                     with file_container:
                         original, optimized = adjustable_columns(2, labels=["原始文档", "优化后文档"])
                         with original:
-                            st.markdown(resp.original or "")
+                            render_markdown(resp.original or "")
                         with optimized:
-                            st.markdown(resp.optimized or "")
+                            render_markdown(resp.optimized or "")
         case ProjectDocType.SYSTEM_ARCHITECTURE:
             if project.has_architecture:
                 resp = ProjectDocumentService.get_architecture_compare(project.id)
@@ -75,9 +78,9 @@ def show_project_file_type(file_container, project: ProjectBasicInfoResponse):
                     with file_container:
                         original, optimized = adjustable_columns(2, labels=["原始文档", "优化后文档"])
                         with original:
-                            st.markdown(resp.original or "")
+                            render_markdown(resp.original or "")
                         with optimized:
-                            st.markdown(resp.optimized or "")
+                            render_markdown(resp.optimized or "")
         case ProjectDocType.SYSTEM_MODULE:
             if project.has_modules:
                 resp = ModuleService.get_modules_compare(project.id)
@@ -85,9 +88,9 @@ def show_project_file_type(file_container, project: ProjectBasicInfoResponse):
                     with file_container:
                         original, optimized = adjustable_columns(2, labels=["原始文档", "优化后文档"])
                         with original:
-                            st.markdown(ModuleService.get_markdown_by_modules_tree(resp.original))
+                            render_markdown(ModuleService.get_markdown_by_modules_tree(resp.original))
                         with optimized:
-                            st.markdown(ModuleService.get_markdown_by_modules_tree(resp.optimized))
+                            render_markdown(ModuleService.get_markdown_by_modules_tree(resp.optimized))
         case ProjectDocType.SYSTEM_DATABASE:
             if project.has_database:
                 resp = ProjectDocumentService.get_database_compare(project.id)
@@ -95,9 +98,9 @@ def show_project_file_type(file_container, project: ProjectBasicInfoResponse):
                     with file_container:
                         original, optimized = adjustable_columns(2, labels=["原始文档", "优化后文档"])
                         with original:
-                            st.markdown(resp.original or "")
+                            render_markdown(resp.original or "")
                         with optimized:
-                            st.markdown(resp.optimized or "")
+                            render_markdown(resp.optimized or "")
         case ProjectDocType.SYSTEM_API:
             if project.has_apis:
                 resp = ApiService.get_apis_compare(project.id)
@@ -122,9 +125,9 @@ def show_project_file_type(file_container, project: ProjectBasicInfoResponse):
             with file_container:
                 risks, unclear_points = adjustable_columns(2, labels=["风险点", "待明确问题"])
                 with risks:
-                    st.markdown(ProjectDocumentService.get_markdown_by_issues(st.session_state.get(STATE_RISKS)))
+                    render_markdown(ProjectDocumentService.get_markdown_by_issues(st.session_state.get(STATE_RISKS)))
                 with unclear_points:
-                    st.markdown(
+                    render_markdown(
                         ProjectDocumentService.get_markdown_by_issues(st.session_state.get(STATE_UNCLEAR_POINTS)))
         case _:
             (file_container
@@ -219,15 +222,15 @@ def app():
                   use_container_width=True, on_click=lambda: project_doc_on_click(ProjectDocType.REQUIREMENT_MODULE),
                   disabled=st.session_state.get(STATE_DISABLE_ALL, False) or not project.has_requirement_modules)
 
-        st.button(project_doc_button_label("需求PRD", ProjectDocType.REQUIREMENT_OVERALL), type="tertiary",
+        st.button(project_doc_button_label("需求文档", ProjectDocType.REQUIREMENT_OVERALL), type="tertiary",
                   use_container_width=True, on_click=lambda: project_doc_on_click(ProjectDocType.REQUIREMENT_OVERALL),
                   disabled=st.session_state.get(STATE_DISABLE_ALL, False) or not project.has_requirement_overall)
 
-        st.button(project_doc_button_label("架构文档", ProjectDocType.SYSTEM_ARCHITECTURE), type="tertiary",
+        st.button(project_doc_button_label("系统架构文档", ProjectDocType.SYSTEM_ARCHITECTURE), type="tertiary",
                   use_container_width=True, on_click=lambda: project_doc_on_click(ProjectDocType.SYSTEM_ARCHITECTURE),
                   disabled=st.session_state.get(STATE_DISABLE_ALL, False) or not project.has_architecture)
 
-        st.button(project_doc_button_label("系统模块", ProjectDocType.SYSTEM_MODULE), type="tertiary",
+        st.button(project_doc_button_label("系统模块文档", ProjectDocType.SYSTEM_MODULE), type="tertiary",
                   use_container_width=True, on_click=lambda: project_doc_on_click(ProjectDocType.SYSTEM_MODULE),
                   disabled=st.session_state.get(STATE_DISABLE_ALL, False) or not project.has_modules)
 

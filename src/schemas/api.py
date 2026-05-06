@@ -16,7 +16,6 @@ class ApiRequestParam(BaseModel):
 class ApiResponse(BaseModel):
     """接口响应"""
     id: str = Field(description="接口ID")
-    project_id: str = Field(description="项目ID")
     module_id: str = Field(description="所属模块ID")
     name: str = Field(description="接口名称")
     method: HttpMethod = Field(description="请求方法")

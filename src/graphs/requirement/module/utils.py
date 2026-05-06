@@ -1,5 +1,5 @@
-from src.graphs.common.schemas import StateRequirementModule
 from src.enums.requirement_module_status import RequirementModuleStatus
+from src.graphs.common.schemas.state_schemas import StateRequirementModule
 
 
 def update_module_content_by_name(name: str, content: str, modules: list[StateRequirementModule]):

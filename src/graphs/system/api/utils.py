@@ -1,5 +1,5 @@
-from src.graphs.common.schemas import StateModule
 from src.graphs.system.api.schemas import SystemApi
+from src.graphs.common.schemas.state_schemas import StateModule
 
 
 def validate_module_ids_str(apis: list[SystemApi], modules: list[StateModule]) -> str:

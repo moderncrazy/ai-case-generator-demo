@@ -132,7 +132,7 @@ async def llm_tool_structured_output(llm: BaseChatModel, state: AnyState, runtim
             messages.extend([
                 mock_msg,
                 ToolMessage(
-                    content=f"** ⚠️Warning 参数错误，无效输出，你已违反【核心规则】，使用以下内容重新组织参数调用：**\n{message_output.text}",
+                    content=f"** ❌ERROR 参数错误，无效输出，你已违反【核心规则】，使用以下内容重新组织参数调用：**\n{message_output.text}",
                     tool_call_id=mock_tool_call_id
                 )
             ])

@@ -201,7 +201,7 @@ class OptimizationDocNodes:
             # 将上一个节点角色的最后一条 AIMessage 转为 HumanMessage
             *latest_role_message_to_human_message(
                 last_node_role, state[self.messages_key],
-                f"1. 必须使用 {output_tool.name} 方法输出，不要输出纯文本\n2. 若不进行 group_member_review 给出理由")
+                f"1. 必须使用 {output_tool.name} 方法输出，不要输出纯文本\n2. 若不进行 group_member_review 给出理由\n3. 根据【问题提出规则】禁止提出非本阶段的设计要求")
         ]
         # 添加角色
         metadata = {"role": role}
@@ -235,7 +235,7 @@ class OptimizationDocNodes:
             SystemMessage(content=prompt_utils.get_group_member_review_optimization_doc_prompt(project_progress, role)),
             # 截取至上一个节点角色的最后一条 AIMessage 并转为 HumanMessage 防止看到历史消息产生误解
             *truncate_messages_by_latest_role_message_and_to_human_message(
-                last_node_role, state[self.messages_key], f"必须使用 {output_tool.name} 方法输出，不要输出纯文本")
+                last_node_role, state[self.messages_key], f"1. 必须使用 {output_tool.name} 方法输出，不要输出纯文本\n2. 根据【问题提出规则】禁止提出非本阶段的设计要求")
             # *latest_role_message_to_human_message(last_node_role, state[messages_key])
         ]
         # 添加角色

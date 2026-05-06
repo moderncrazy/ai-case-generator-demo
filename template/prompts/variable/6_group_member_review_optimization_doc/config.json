@@ -438,7 +438,9 @@
           "pass_condition": "仅存在实现细节优化建议",
           "redline_items": [
             "RESTful规范：HTTP方法和路径是否符合规范",
-            "版本控制：是否考虑API版本管理"
+            "版本控制：是否考虑API版本管理",
+            "每次审核必须调用get_system_apis方法核实API数量，数量不对必须 revise 修正",
+            "若API出现重复现象，必须 revise 修正"
           ]
         },
         "backend": {
@@ -522,7 +524,9 @@
           "pass_condition": "仅存在用例细节优化建议",
           "redline_items": [
             "架构覆盖：测试用例是否覆盖核心模块",
-            "接口覆盖：关键接口是否有测试用例"
+            "接口覆盖：关键接口是否有测试用例",
+            "每次审核必须调用get_test_cases方法核实测试用例数量，数量不对必须 revise 修正",
+            "若测试用例出现重复现象，必须 revise 修正"
           ]
         },
         "backend": {

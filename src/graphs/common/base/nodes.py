@@ -41,6 +41,29 @@ class OptimizationDocNodes:
             return state["metadata"]["module"]
         return state["project_progress"].name_zh
 
+    # noinspection PyMethodMayBeStatic
+    async def initialize_node(
+            self,
+            state: AnyOptimizationDocState,
+            runtime: Runtime,
+            config: RunnableConfig
+    ) -> AnyOptimizationDocState:
+        """初始化节点
+
+        默认无逻辑 子类可实现具体功能进行初始化操作
+
+        Args:
+            state: LangGraph 状态
+            runtime: LangGraph 运行时
+            config: LangGraph 运行时配置
+
+        Returns:
+            更新后的状态
+        """
+        project_id = state["project_id"]
+        logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 完成")
+        return {}
+
     async def generate_optimization_plan_node(
             self,
             state: AnyOptimizationDocState,
@@ -162,7 +185,7 @@ class OptimizationDocNodes:
         # 发送自定义消息
         utils.send_custom_message(f"优化{stage_name}中...", role)
         messages = [
-            SystemMessage(content=prompt_utils.get_optimization_doc_prompt(project_progress)),
+            SystemMessage(content=prompt_utils.get_optimize_doc_prompt(project_progress)),
             # 截取至上一个节点角色的最后一条 AIMessage 并转为 HumanMessage 防止看到历史消息产生误解
             *truncate_messages_by_latest_role_message_and_to_human_message(
                 last_node_role, state[self.messages_key], f"必须使用 {output_tool.name} 方法输出，不要输出纯文本")
@@ -235,7 +258,8 @@ class OptimizationDocNodes:
             SystemMessage(content=prompt_utils.get_group_member_review_optimization_doc_prompt(project_progress, role)),
             # 截取至上一个节点角色的最后一条 AIMessage 并转为 HumanMessage 防止看到历史消息产生误解
             *truncate_messages_by_latest_role_message_and_to_human_message(
-                last_node_role, state[self.messages_key], f"1. 必须使用 {output_tool.name} 方法输出，不要输出纯文本\n2. 根据【问题提出规则】禁止提出非本阶段的设计要求")
+                last_node_role, state[self.messages_key],
+                f"1. 必须使用 {output_tool.name} 方法输出，不要输出纯文本\n2. 根据【问题提出规则】禁止提出非本阶段的设计要求")
             # *latest_role_message_to_human_message(last_node_role, state[messages_key])
         ]
         # 添加角色

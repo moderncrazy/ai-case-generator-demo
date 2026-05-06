@@ -23,21 +23,24 @@ GENERATE_OPTIMIZATION_PLAN_PROMPT_TEMPLATE = env.get_template("2_generate_optimi
 REVIEW_OPTIMIZATION_PLAN_PROMPT_CONFIG = json.load((PROMPT_DIR / "3_review_optimization_plan/config.json").open())
 REVIEW_OPTIMIZATION_PLAN_PROMPT_TEMPLATE = env.get_template("3_review_optimization_plan/template.md.j2")
 
-OPTIMIZATION_DOC_PROMPT_CONFIG = json.load((PROMPT_DIR / "4_optimize_doc/config.json").open())
-OPTIMIZATION_DOC_PROMPT_TEMPLATE = env.get_template("4_optimize_doc/template.md.j2")
+OPTIMIZE_DOC_PROMPT_CONFIG = json.load((PROMPT_DIR / "4_optimize_doc/config.json").open())
+OPTIMIZE_DOC_PROMPT_TEMPLATE = env.get_template("4_optimize_doc/template.md.j2")
 
-PM_REVIEW_OPTIMIZATION_DOC_PROMPT_CONFIG = json.load((PROMPT_DIR / "5_pm_review_optimization_doc/config.json").open())
-PM_REVIEW_OPTIMIZATION_DOC_PROMPT_TEMPLATE = env.get_template("5_pm_review_optimization_doc/template.md.j2")
+OPTIMIZE_DOC_BY_TASK_PROMPT_CONFIG = json.load((PROMPT_DIR / "5_optimize_doc_by_task/config.json").open())
+OPTIMIZE_DOC_BY_TASK_PROMPT_TEMPLATE = env.get_template("5_optimize_doc_by_task/template.md.j2")
+
+PM_REVIEW_OPTIMIZATION_DOC_PROMPT_CONFIG = json.load((PROMPT_DIR / "6_pm_review_optimization_doc/config.json").open())
+PM_REVIEW_OPTIMIZATION_DOC_PROMPT_TEMPLATE = env.get_template("6_pm_review_optimization_doc/template.md.j2")
 
 GROUP_MEMBER_REVIEW_OPTIMIZATION_DOC_PROMPT_CONFIG = json.load(
-    (PROMPT_DIR / "6_group_member_review_optimization_doc/config.json").open())
+    (PROMPT_DIR / "7_group_member_review_optimization_doc/config.json").open())
 GROUP_MEMBER_REVIEW_OPTIMIZATION_DOC_PROMPT_TEMPLATE = env.get_template(
-    "6_group_member_review_optimization_doc/template.md.j2")
+    "7_group_member_review_optimization_doc/template.md.j2")
 
 FILTRATE_OPTIMIZATION_DOC_REVIEW_ISSUE_PROMPT_CONFIG = json.load(
-    (PROMPT_DIR / "7_filtrate_optimization_doc_review_issue/config.json").open())
+    (PROMPT_DIR / "8_filtrate_optimization_doc_review_issue/config.json").open())
 FILTRATE_OPTIMIZATION_DOC_REVIEW_ISSUE_PROMPT_TEMPLATE = env.get_template(
-    "7_filtrate_optimization_doc_review_issue/template.md.j2")
+    "8_filtrate_optimization_doc_review_issue/template.md.j2")
 
 
 def get_product_manager_prompt(progress: ProjectProgress, history_summary: str = const.EMPTY_ZH) -> str:
@@ -73,10 +76,21 @@ def get_review_optimization_plan_prompt(progress: ProjectProgress) -> str:
     return result
 
 
-def get_optimization_doc_prompt(progress: ProjectProgress) -> str:
-    result = OPTIMIZATION_DOC_PROMPT_TEMPLATE.render(
-        **OPTIMIZATION_DOC_PROMPT_CONFIG["common"],
-        **OPTIMIZATION_DOC_PROMPT_CONFIG["stage"][progress.value],
+def get_optimize_doc_prompt(progress: ProjectProgress) -> str:
+    result = OPTIMIZE_DOC_PROMPT_TEMPLATE.render(
+        **OPTIMIZE_DOC_PROMPT_CONFIG["common"],
+        **OPTIMIZE_DOC_PROMPT_CONFIG["stage"][progress.value],
+        common_tool_calls=COMMON_TOOL_CALL_CONFIG[progress.value],
+        stage_tool_calls=STAGE_TOOL_CALL_CONFIG[progress.value],
+        datetime=str(datetime.now()),
+    )
+    return result
+
+
+def get_optimize_doc_by_task_prompt(progress: ProjectProgress) -> str:
+    result = OPTIMIZE_DOC_BY_TASK_PROMPT_TEMPLATE.render(
+        **OPTIMIZE_DOC_BY_TASK_PROMPT_CONFIG["common"],
+        **OPTIMIZE_DOC_BY_TASK_PROMPT_CONFIG["stage"][progress.value],
         common_tool_calls=COMMON_TOOL_CALL_CONFIG[progress.value],
         stage_tool_calls=STAGE_TOOL_CALL_CONFIG[progress.value],
         datetime=str(datetime.now()),

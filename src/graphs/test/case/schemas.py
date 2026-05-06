@@ -1,10 +1,26 @@
 import uuid
-from typing import Optional
 from pydantic import BaseModel, Field
+from typing import Optional, TypedDict
 
 from src.enums.test_case_type import TestCaseType
 from src.enums.test_case_level import TestCaseLevel
-from src.graphs.common.schemas.output_schemas import OptimizeDocBaseOutput
+
+
+class StateTestCaseTask(TypedDict):
+    """测试用例任务状态结构
+
+    测试用例任务划分定义。
+    """
+    module_id: str
+    """模块Id"""
+    module_name: str
+    """模块名称"""
+    title: str
+    """任务标题"""
+    scope: str
+    """任务范围描述"""
+    test_case_titles: list[str]
+    """测试用例标题列表"""
 
 
 class TestCase(BaseModel):
@@ -20,6 +36,20 @@ class TestCase(BaseModel):
     type: TestCaseType = Field(description="测试用例类型（FUNCTIONAL/INTERFACE/PERFORMANCE）")
 
 
-class OptimizeDocOutput(OptimizeDocBaseOutput):
-    """测试优化测试用例输出"""
+class TestCaseTask(BaseModel):
+    """测试用例任务定义"""
+    module_id: str = Field(description="模块Id", min_length=1)
+    module_name: str = Field(description="模块名称", min_length=1)
+    title: str = Field(description="任务标题（简洁明确）", min_length=1)
+    scope: str = Field(description="任务范围描述", min_length=1)
+    test_case_titles: list[str] = Field(description="测试用例标题列表", min_length=1)
+
+
+class OptimizeDocOutput(BaseModel):
+    """分配测试用例任务输出"""
+    tasks: list[TestCaseTask] = Field(description="输出需要优化的具体任务列表", min_length=1)
+
+
+class OptimizeDocByTaskOutput(BaseModel):
+    """测试根据任务优化测试用例输出"""
     test_cases: list[TestCase] = Field(description="输出优化后测试用例列表", min_length=1)

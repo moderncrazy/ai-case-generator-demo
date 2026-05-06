@@ -1,4 +1,4 @@
-from src.graphs.test.case.schemas import TestCase
+from src.graphs.test.case.schemas import TestCase, TestCaseTask
 from src.graphs.common.schemas.state_schemas import StateModule
 
 
@@ -27,3 +27,30 @@ def validate_module_ids_str(test_cases: list[TestCase], modules: list[StateModul
     if module_id_not_found:
         error_message += f"模块Id无效的测试用例：{",".join(module_id_not_found)}\n"
     return f"测试用例校验失败：{error_message}重新生成" if error_message else ""
+
+
+def validate_task_module_ids(tasks: list[TestCaseTask], modules: list[StateModule]) -> str:
+    """校验测试用例任务中引用的模块ID是否有效
+    
+    检查每个任务的 module_id 是否在模块列表中存在，
+    返回无效任务的标题列表。
+    
+    Args:
+        tasks: 测试用例任务列表
+        modules: 模块列表
+        
+    Returns:
+        错误信息，若为空则校验通过
+    """
+    # 收集所有 module_id
+    module_ids = [module["id"] for module in modules]
+    # 找出无效的任务
+    module_id_not_found = []
+    for task in tasks:
+        if task.module_id not in module_ids:
+            module_id_not_found.append(task.title)
+
+    error_message = ""
+    if module_id_not_found:
+        error_message += f"模块Id无效的任务：{",".join(module_id_not_found)}\n"
+    return f"任务列表校验失败：{error_message}重新生成" if error_message else ""

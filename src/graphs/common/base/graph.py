@@ -53,6 +53,8 @@ def create_optimization_doc_agent(
     tools_list = common_tools + [v for _, v in inspect.getmembers(type(output_tools)) if isinstance(v, BaseTool)]
 
     # 生成优化方案节点
+    agent_builder.add_node("initialize_node", nodes.initialize_node)
+
     agent_builder.add_node("generate_optimization_plan_node", nodes.generate_optimization_plan_node)
     agent_builder.add_node("generate_optimization_plan_tool_node", ToolNode(tools_list, messages_key=messages_key))
 
@@ -83,9 +85,12 @@ def create_optimization_doc_agent(
     agent_builder.add_node("filtrate_optimization_doc_review_issue_tool_node",
                            ToolNode(tools_list, messages_key=messages_key))
 
+    # 初始化节点
+    agent_builder.add_edge(START, "initialize_node")
+
     # 优化流程路由，根据 metadata.generate_optimization_plan 判断是否生成优化方案
     agent_builder.add_conditional_edges(
-        START,
+        "initialize_node",
         routes.optimization_flow_router,
         ["generate_optimization_plan_node", "optimize_doc_node"]
     )

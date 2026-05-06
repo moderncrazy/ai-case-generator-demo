@@ -173,7 +173,16 @@ class MilvusService:
         settings.milvus_database_path.parent.mkdir(parents=True, exist_ok=True)
 
         # 初始化 Milvus 客户端
-        self._client = AsyncMilvusClient(uri=str(settings.milvus_database_path))
+        self._client = AsyncMilvusClient(
+            uri=str(settings.milvus_database_path),
+            grpc_args=[
+                ("grpc.keepalive_time_ms", 60000),  # 每 60 秒发送一次心跳
+                ("grpc.keepalive_timeout_ms", 10000),  # 心跳响应超时为 10 秒
+                ("grpc.keepalive_permit_without_calls", True),  # 允许在没有活动请求时保活
+                ("grpc.http2.max_pings_without_data", 0),  # 允许无限次保活 Ping
+                ("grpc.http2.min_sent_ping_interval_without_data_ms", 60000),  # 发送 Ping 的最小间隔
+            ]
+        )
         logger.info(f"Milvus 客户端初始化完成，数据库路径:{settings.milvus_database_path}")
 
         # 初始化 BGE-M3 INT8 量化模型

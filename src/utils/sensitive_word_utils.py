@@ -25,7 +25,7 @@ def get_graph_tools_keyword_processor():
         try:
             module = importlib.import_module(module_name)
             for name in dir(module):
-                if name == "OptimizationDocOutputTools":
+                if name.endswith("OutputTools"):
                     attr = getattr(module, name)
                     for output_name, _ in inspect.getmembers(attr):
                         if output_name.endswith("output"):

@@ -1,0 +1,23 @@
+{
+  "common": {},
+  "stage": {
+    "test_case_design": {
+      "role_name": "资深测试工程师",
+      "target": "结合需求文档、数据库和接口文档，根据指定的测试用例任务，生成/优化具体的测试用例",
+      "stage_name": "测试用例设计/优化",
+      "stage_target": "根据任务要求，生成该任务范围内的具体测试用例",
+      "precondition": "测试用例任务已划分",
+      "next_step": "测试用例生成/优化完成，进行汇总审核",
+      "task_tool": "get_current_test_case_task",
+      "output_tool": "optimize_doc_by_task_output",
+      "workflow": [
+        "1. 从任务信息中提取任务范围和【测试用例标题列表】",
+        "2. 结合【优化方案内容】分析需求文档、接口文档中与任务相关的内容",
+        "3. 根据任务范围设计测试用例，每个用例标题对应一个测试用例",
+        "4. 确保用例数量与【测试用例标题列表】长度完全一致，禁止额外生成",
+        "5. 调用输出工具提交测试用例"
+      ],
+      "include_file": "test_case.md.j2"
+    }
+  }
+}

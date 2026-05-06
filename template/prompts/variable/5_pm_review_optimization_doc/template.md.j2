@@ -59,17 +59,16 @@
 | **group_member_review** | AI团队成员介入进一步审核 | 可选 | 必须包含 | 告知AI团队成员需重点关注的内容 |
 
 **选择 group_member_review 的场景：满足以下任一条件【⚠️必须执行AI团队成员审核】**
-- **需求文档、数据库、API、测试用例设计必须执行全员审核**
-- **首次/新设计**（根据上下文判断）
-- **大幅修改**（修改内容超过原内容的 30%，使用【优化中】的文档与【当前】文档对比）
-- **涉及跨模块/跨系统的复杂交互**
-- **PM 对技术可行性存疑但无法判断时**
-- **设计中存在需要多方验证的假设**
+{%- for standard in group_member_review_standards %}
+- **{{ standard }}**
+{%- endfor %}
 
 **可选择的 review_roles 角色：**
 {%- for role in review_roles %}
 - {{ role }}
 {%- endfor %}
+
+**注：若不进行 group_member_review PM必须承担设计因不健全所造成的后果**
 
 ---
 

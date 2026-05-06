@@ -4,6 +4,8 @@
 
 > **基于 LLM 的智能需求分析和测试用例生成平台**，通过 LangGraph Multi-Agent 架构实现从需求文档到测试用例的全流程自动化
 
+体验地址：https://demo.hi-young.xyz/ai-case-generator-demo/home
+
 ---
 
 ### 📢 项目动态与交流

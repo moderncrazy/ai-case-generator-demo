@@ -6,7 +6,7 @@ from src.graphs.common.schemas.output_schemas import OptimizeDocBaseOutput
 class RequirementModuleCreate(BaseModel):
     name: str = Field(description="模块名称", min_length=1)
     order: int = Field(description="序号")
-    description: str = Field(description="模块描述（功能定位、核心页面等）", min_length=1)
+    description: str = Field(description="模块描述（功能定位、核心能力等）", min_length=1)
 
 
 class OptimizeDocOutput(OptimizeDocBaseOutput):

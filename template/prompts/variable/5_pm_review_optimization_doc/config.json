@@ -81,7 +81,7 @@
       "workflow": [
         "1. 站在客户角度审视：这套 PRD 能解决我的商业问题吗？",
         "2. 站在开发角度审视：是否有太多‘Nice to have’但极度耗时的功能？",
-        "3. 需求文档设计【必须进行全员】 group_member_review"
+        "3. 需求文档设计【必须进行全员】 group_member_review，不得用任何理由阻止"
       ],
       "review_issue_rules": [
         "提给设计人员：设计师必须全部解决后才能继续评审",
@@ -226,7 +226,7 @@
       "workflow": [
         "1. 获取当前阶段输出的数据库设计文档内容",
         "2. 结合原始需求和上下文信息，审核文档是否满足要求",
-        "3. 数据库设计【必须进行全员】 group_member_review"
+        "3. 数据库设计【必须进行全员】 group_member_review，不得用任何理由阻止"
       ],
       "review_issue_rules": [
         "提给设计人员（DBA/后端）：设计师必须全部解决后才能继续评审",
@@ -255,7 +255,8 @@
       "stage_standards": [
         "API 列表完整覆盖 PRD 中的所有交互场景",
         "接口输入输出符合业务逻辑（如金额单位、状态码定义）",
-        "每次审核必须调用get_system_apis方法核实API数量，数量不对必须 revise 修正"
+        "每次审核必须调用get_system_apis方法核实API数量，数量不对必须 revise 修正",
+        "若API出现重复现象，必须 revise 修正"
       ],
       "group_member_review_standards": [
         "必须全员审核"
@@ -263,7 +264,7 @@
       "workflow": [
         "1. 获取当前阶段输出的API设计文档内容",
         "2. 结合原始需求和上下文信息，审核文档是否满足要求",
-        "3. 接口设计【必须进行全员】 group_member_review"
+        "3. 接口设计【必须进行全员】 group_member_review，不得用任何理由阻止"
       ],
       "review_issue_rules": [
         "提给设计人员（后端）：设计师必须全部解决后才能继续评审",
@@ -291,7 +292,8 @@
       "stage_standards": [
         "所有 P0 级业务流程必须有对应的测试用例",
         "异常业务分支（如断网、支付取消）必须有覆盖",
-        "每次审核必须调用get_test_cases方法核实测试用例数量，数量不对必须 revise 修正"
+        "每次审核必须调用get_test_cases方法核实测试用例数量，数量不对必须 revise 修正",
+        "若测试用例出现重复现象，必须 revise 修正"
       ],
       "group_member_review_standards": [
         "必须全员审核"
@@ -299,7 +301,7 @@
       "workflow": [
         "1. 获取当前阶段输出的测试用例文档内容",
         "2. 结合原始需求和上下文信息，审核文档是否满足要求",
-        "3. 测试用例设计【必须进行全员】 group_member_review"
+        "3. 测试用例设计【必须进行全员】group_member_review，不得用任何理由阻止"
       ],
       "review_issue_rules": [
         "提给设计人员：设计师必须全部解决后才能继续评审",

@@ -71,7 +71,7 @@
       "workflow": [
         "1. 站在客户角度审视：这套 PRD 能解决我的商业问题吗？",
         "2. 站在开发角度审视：是否有太多‘Nice to have’但极度耗时的功能？",
-        "3. 判断 pass 前优先考虑 group_member_review 团队评审"
+        "3. 需求文档设计【必须进行全员】 group_member_review"
       ],
       "review_issue_rules": [
         "提给设计人员：设计师必须全部解决后才能继续评审",
@@ -199,7 +199,7 @@
       "workflow": [
         "1. 获取当前阶段输出的数据库设计文档内容",
         "2. 结合原始需求和上下文信息，审核文档是否满足要求",
-        "3. 判断 pass 前优先考虑 group_member_review 团队评审"
+        "3. 数据库设计【必须进行全员】 group_member_review"
       ],
       "review_issue_rules": [
         "提给设计人员（DBA/后端）：设计师必须全部解决后才能继续评审",
@@ -233,7 +233,7 @@
       "workflow": [
         "1. 获取当前阶段输出的API设计文档内容",
         "2. 结合原始需求和上下文信息，审核文档是否满足要求",
-        "3. 判断 pass 前优先考虑 group_member_review 团队评审"
+        "3. 接口设计【必须进行全员】 group_member_review"
       ],
       "review_issue_rules": [
         "提给设计人员（后端）：设计师必须全部解决后才能继续评审",
@@ -266,7 +266,7 @@
       "workflow": [
         "1. 获取当前阶段输出的测试用例文档内容",
         "2. 结合原始需求和上下文信息，审核文档是否满足要求",
-        "3. 判断 pass 前优先考虑 group_member_review 团队评审"
+        "3. 测试用例设计【必须进行全员】 group_member_review"
       ],
       "review_issue_rules": [
         "提给设计人员：设计师必须全部解决后才能继续评审",

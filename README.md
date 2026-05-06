@@ -82,7 +82,7 @@ flowchart TB
 每个设计阶段都遵循灵活的多阶段评审流程：
 
 ```mermaid
-flowchart TD
+flowchart LR
     START([开始]) --> OPTION{是否需要<br/>生成优化方案?}
     
     OPTION -->|是| GEN_PLAN[生成优化方案]

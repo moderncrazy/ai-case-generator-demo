@@ -139,6 +139,8 @@ async def llm_tool_structured_output(llm: BaseChatModel, state: AnyState, runtim
             logger.warning(f"{log_prefix} 重试:{_} llm未使用方法:{message_output.model_dump_json()}")
         # 若响应为结构化输出方法则直接调用 通过路由跳转
         elif message_output.tool_calls[0]["name"] == func_name:
+            # 有时llm会调用多次 output 方法 重置为1次调用
+            message_output.tool_calls = [message_output.tool_calls[0]]
             tool_call_id = message_output.tool_calls[0]["id"]
             tool_call_args = message_output.tool_calls[0]["args"]
             tool_runtime = create_tool_runtime(tool_call_id, tool_list, state, runtime, config)

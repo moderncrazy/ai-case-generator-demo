@@ -1,6 +1,6 @@
 # AI Case Generator Demo
 
-[![GitHub Stars](https://img.shields.io/github/stars/moderncrazy/ai-case-generator-demo?style=social)](https://github.com/moderncrazy/ai-case-generator-demo) [![License](https://img.shields.io/github/license/moderncrazy/ai-case-generator-demo)](https://github.com/moderncrazy/ai-case-generator-demo/blob/main/LICENSE) ![Status](https://img.shields.io/badge/Status-Active_Development-orange?style=flat-square) ![Python](https://img.shields.io/badge/Python-3.12+-blue?style=flat-square)
+[![GitHub Repo stars](https://img.shields.io/github/stars/moderncrazy/ai-case-generator-demo)](https://github.com/moderncrazy/ai-case-generator-demo) [![License](https://img.shields.io/github/license/moderncrazy/ai-case-generator-demo)](https://github.com/moderncrazy/ai-case-generator-demo/blob/main/LICENSE) ![Status](https://img.shields.io/badge/Status-Active_Development-orange?style=flat-square) ![Python](https://img.shields.io/badge/Python-3.12+-blue?style=flat-square)
 
 > **基于 LLM 的智能需求分析和测试用例生成平台**，通过 LangGraph Multi-Agent 架构实现从需求文档到测试用例的全流程自动化
 

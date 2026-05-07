@@ -6,6 +6,8 @@ import streamlit_antd_components as sac
 from pathlib import Path
 from streamlit_adjustable_columns import adjustable_columns
 
+from src.frontend.enums.requirement_module_status import RequirementModuleStatus
+
 # 将项目根目录（src 的上一级）加入 sys.path
 root_path = str(Path(__file__).resolve().parent.parent.parent.parent)
 if root_path not in sys.path:
@@ -57,7 +59,13 @@ def show_project_file_type(file_container, project: ProjectBasicInfoResponse):
                     with file_container:
                         for module in resp.modules:
                             st.title(f"{module.order}. {module.name}", text_alignment="left")
-                            st.badge(module.status, color="blue")
+                            match module.status:
+                                case RequirementModuleStatus.PENDING:
+                                    st.badge(module.status.name_zh, color="blue")
+                                case RequirementModuleStatus.DRAFT:
+                                    st.badge(module.status.name_zh, color="orange")
+                                case RequirementModuleStatus.COMPLETED:
+                                    st.badge(module.status.name_zh, color="green")
                             st.caption(module.description, text_alignment="left")
                             st.divider()
                             render_markdown(module.content or "> 暂无详细内容")

@@ -1,5 +1,4 @@
 import sys
-
 import streamlit as st
 import streamlit_antd_components as sac
 
@@ -53,7 +52,7 @@ def app():
     with github:
         st.markdown("""
         #### ⭐ 欢迎支持项目
-        [![GitHub Stars](https://img.shields.io/github/stars/moderncrazy/ai-case-generator-demo?style=social)](https://github.com/moderncrazy/ai-case-generator-demo)
+        [![GitHub Repo stars](https://img.shields.io/github/stars/moderncrazy/ai-case-generator-demo)](https://github.com/moderncrazy/ai-case-generator-demo)
         [![GitHub Issues](https://img.shields.io/github/issues-raw/moderncrazy/ai-case-generator-demo)](https://github.com/moderncrazy/ai-case-generator-demo/issues)
         """)
 
@@ -98,6 +97,8 @@ def app():
                
             \u200c
             """)
+
+        st.caption(":material/arrow_cool_down: 来看看大家的作品吧 :material/arrow_cool_down:", text_alignment="center")
 
     # 创建项目区
     st.subheader("✨ 创建新项目")
@@ -164,7 +165,7 @@ def app():
             with cols[3]:
                 created_at = project.created_at
                 if created_at:
-                    st.caption(created_at.strftime("%Y-%m-%d %H:%M"))
+                    st.caption(utils.to_shanghai_dt(created_at).strftime("%Y-%m-%d %H:%M"))
                 else:
                     st.caption("-")
 

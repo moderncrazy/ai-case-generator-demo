@@ -5,6 +5,8 @@ import streamlit as st
 from pathlib import Path
 from loguru import logger
 from httpx import Response
+from zoneinfo import ZoneInfo
+from datetime import datetime
 from loguru._logger import Logger
 from streamlit_local_storage import LocalStorage
 
@@ -38,6 +40,10 @@ def get_user_id() -> str:
 
 def get_local_storage() -> LocalStorage:
     return LocalStorage()
+
+
+def to_shanghai_dt(dt: datetime) -> datetime:
+    return dt.astimezone(ZoneInfo("Asia/Shanghai"))
 
 
 def _http_client_log(response: Response):

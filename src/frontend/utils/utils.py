@@ -50,7 +50,10 @@ def _http_client_log(response: Response):
     logger = get_logger()
     url = response.url
     method = response.request.method
-    req_data = response.request.content.decode("utf-8") or None
+    try:
+        req_data = response.request.content.decode("utf-8") or None
+    except Exception:
+        req_data = None
     trans_id = response.request.headers.get(const.TRANSACTION_ID)
     # 若是流式请求 则不打印响应
     if response.headers.get("Transfer-Encoding"):

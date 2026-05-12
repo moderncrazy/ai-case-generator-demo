@@ -6,14 +6,13 @@ from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
 from langchain.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage, RemoveMessage
 
-from src.config import settings
 from src import constant as const
 from src.context import trans_id_ctx
 from src.utils import file_utils, mcp_utils, prompt_utils, utils as gutils
 from src.graphs import utils
 from src.graphs.state import State
 from src.graphs.schemas import FileSummaryOutput
-from src.graphs.tools import tool_list, product_manager_output
+from src.graphs.tools import tool_list, file_summary_output, product_manager_output
 from src.graphs.common.llms import default_model
 from src.graphs.common.schemas.state_schemas import StateProjectFile
 from src.graphs.common.tools.common_tools import tool_list as ctool_list
@@ -103,7 +102,7 @@ async def load_project_node(state: State) -> State:
     }
 
 
-async def understand_image_node(state: State) -> State:
+async def understand_image_node(state: State, runtime: Runtime, config: RunnableConfig) -> State:
     """理解图片文档节点
 
     使用 MiniMax MCP 的 understand_image 工具解析用户新上传的文件。
@@ -111,6 +110,8 @@ async def understand_image_node(state: State) -> State:
 
     Args:
         state: LangGraph 状态
+        runtime: LangGraph 运行时
+        config: LangGraph 运行时配置
 
     Returns:
         更新后的状态
@@ -134,16 +135,18 @@ async def understand_image_node(state: State) -> State:
             f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 理解文件:{file["name"]}")
         # 生成文件摘要
         cutils.send_custom_message(f"整理《{file["name"]}》中...", GroupMemberRole.PM)
-        structured_output_llm = default_model.with_structured_output(FileSummaryOutput)
-        # 设置重试次数
-        structured_output_llm.with_retry(stop_after_attempt=settings.model_output_retry)
-        file_summary_output: FileSummaryOutput = await structured_output_llm.ainvoke([
+        messages = [
             SystemMessage(content=ConstSystemPrompt.FILE_SUMMARY.text),
-            HumanMessage(content=f"文件名称：{file["name"]}\n文件内容：\n{file["content"]}"),
-        ])
-        file["summary"] = file_summary_output.summary
-        logger.info(
-            f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 总结文件:{file["name"]}")
+            HumanMessage(content=f"文件名称：{file["name"]}\n文件内容：\n{file["content"]}")
+        ]
+        # 设置输出角色
+        metadata = {"role": GroupMemberRole.PM}
+        bind_tool_list = [file_summary_output]
+        llm_with_tool = default_model.bind_tools(bind_tool_list, tool_choice="any", strict=True)
+        result = await structured_output_utils.llm_tool_structured_output(
+            llm_with_tool, state, runtime, config, messages, bind_tool_list, file_summary_output, metadata=metadata)
+        file["summary"] = result.summary
+        logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 总结文件:{file["name"]}")
         # 新建文件
         file["id"] = await project_file_repository.create(ProjectFileCreate(
             project_id=project_id,
@@ -157,6 +160,7 @@ async def understand_image_node(state: State) -> State:
         ))
         # 写入向量数据库
         await milvus_service.add_project_file(
+            file["id"],
             project_id,
             file["name"],
             file["path"],

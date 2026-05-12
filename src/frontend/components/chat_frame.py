@@ -240,10 +240,11 @@ def enable_chat_expander():
 
 
 def chat_input_on_submit():
-    # 提交后禁用聊天窗口
-    st.session_state[STATE_CHAT_INPUT_DISABLED] = True
-    # 禁用折叠窗口 和 按钮
-    disable_chat_expander()
+    if st.session_state[CHAT_INPUT_KEY].get("text") and st.session_state[CHAT_INPUT_KEY]["text"].strip():
+        # 提交后禁用聊天窗口
+        st.session_state[STATE_CHAT_INPUT_DISABLED] = True
+        # 禁用折叠窗口 和 按钮
+        disable_chat_expander()
 
 
 def chat_frame(project_id: str, on_change: Callable[[OnChangeEvent, dict], None] | None = None) -> None:
@@ -280,80 +281,83 @@ def chat_frame(project_id: str, on_change: Callable[[OnChangeEvent, dict], None]
         )
 
         if prompt:
-            # 记录消息
-            st.session_state[STATE_CHAT_MESSAGES].append(ConversationMessage(
-                id=str(uuid.uuid4()),
-                role=ConversationRole.USER,
-                type=ConversationMessageType.MESSAGE,
-                content=prompt.text
-            ))
-            chat_context_container.chat_message("我", avatar="user").markdown(prompt.text)
-            scroll_to_bottom()
-            chat_message = chat_context_container.chat_message("AI", avatar="assistant")
-            message_status = chat_message.status(MESSAGE_STATUS_LOADING_LABEL, expanded=True, state="running",
-                                                 width=MESSAGE_STATUS_WIDTH)
+            if prompt.files and not prompt.text.strip():
+                st.toast(f"###### 请输入问题或需求", icon="⚠️", duration="long")
+            else:
+                # 记录消息
+                st.session_state[STATE_CHAT_MESSAGES].append(ConversationMessage(
+                    id=str(uuid.uuid4()),
+                    role=ConversationRole.USER,
+                    type=ConversationMessageType.MESSAGE,
+                    content=prompt.text
+                ))
+                chat_context_container.chat_message("我", avatar="user").markdown(prompt.text)
+                scroll_to_bottom()
+                chat_message = chat_context_container.chat_message("AI", avatar="assistant")
+                message_status = chat_message.status(MESSAGE_STATUS_LOADING_LABEL, expanded=True, state="running",
+                                                     width=MESSAGE_STATUS_WIDTH)
 
-            # 发起对话
-            def project_discuss():
-                try:
-                    # 当前流说话的角色
-                    stream_role = None
-                    user_id = utils.get_user_id()
-                    for response in ProjectService.project_discuss(
-                            project_id, user_id, prompt.text, prompt.files):
-                        # 如果存在上下文则更新
-                        if response.context:
-                            st.session_state["context"] = response.context
-                        # 若是 end 消息 关闭等待栏 否则正常显示
-                        if response.message.type == ConversationMessageType.END:
-                            message_status.update(
-                                label=MESSAGE_STATUS_SUCCEED_LABEL, expanded=False, state="complete")
-                        # 阶段消息 展示在loading 栏中
-                        elif response.message.type == ConversationMessageType.STAGE:
-                            message_status.update(label=response.message.content, expanded=True, state="running")
-                        # 实体消息正式展示
-                        elif response.message.type == ConversationMessageType.MESSAGE:
-                            st.session_state[STATE_CHAT_MESSAGES].append(response.message)
-                            chat_message.markdown(response.message.content)
-                        # 流式消息拼接展示
-                        elif response.message.type == ConversationMessageType.STREAM:
-                            # 如果AI角色有变化 则显示说话人 否则直接输出
-                            if not stream_role or stream_role != response.message.assistant_role:
-                                stream_role = response.message.assistant_role
-                                yield f"\n\n**{stream_role.name_zh}:** {response.message.content}"
-                            else:
-                                yield response.message.content
-                        # 通知消息 弹出通知
-                        elif response.message.type == ConversationMessageType.NOTIFY:
-                            st.toast(f"###### {response.message.content}", icon="🎉", duration="long")
-                        elif response.message.type == ConversationMessageType.DOC_UPDATE:
-                            # 如果存在回调方法 则执行
-                            if on_change:
-                                on_change(OnChangeEvent.PROJECT_DOC_UPDATE, {"content": response.message.content})
-                        scroll_to_bottom()
-                except BusinessException as e:
-                    # 加入异常提示消息
-                    st.session_state[STATE_CHAT_MESSAGES].append(ConversationMessage(
-                        id=str(uuid.uuid4()),
-                        role=ConversationRole.SYSTEM,
-                        type=ConversationMessageType.MESSAGE,
-                        content=e.message
-                    ))
-                    message_status.update(label=e.message, expanded=False, state="error")
-                except Exception as e:
-                    logger.error(f"项目Id:{project_id} 项目对话异常:{str(e)} 异常栈:\n{traceback.format_exc()}")
-                    message_status.update(label=MESSAGE_STATUS_ERROR_LABEL, expanded=False, state="error")
+                # 发起对话
+                def project_discuss():
+                    try:
+                        # 当前流说话的角色
+                        stream_role = None
+                        user_id = utils.get_user_id()
+                        for response in ProjectService.project_discuss(
+                                project_id, user_id, prompt.text, prompt.files):
+                            # 如果存在上下文则更新
+                            if response.context:
+                                st.session_state["context"] = response.context
+                            # 若是 end 消息 关闭等待栏 否则正常显示
+                            if response.message.type == ConversationMessageType.END:
+                                message_status.update(
+                                    label=MESSAGE_STATUS_SUCCEED_LABEL, expanded=False, state="complete")
+                            # 阶段消息 展示在loading 栏中
+                            elif response.message.type == ConversationMessageType.STAGE:
+                                message_status.update(label=response.message.content, expanded=True, state="running")
+                            # 实体消息正式展示
+                            elif response.message.type == ConversationMessageType.MESSAGE:
+                                st.session_state[STATE_CHAT_MESSAGES].append(response.message)
+                                chat_message.markdown(response.message.content)
+                            # 流式消息拼接展示
+                            elif response.message.type == ConversationMessageType.STREAM:
+                                # 如果AI角色有变化 则显示说话人 否则直接输出
+                                if not stream_role or stream_role != response.message.assistant_role:
+                                    stream_role = response.message.assistant_role
+                                    yield f"\n\n**{stream_role.name_zh}:** {response.message.content}"
+                                else:
+                                    yield response.message.content
+                            # 通知消息 弹出通知
+                            elif response.message.type == ConversationMessageType.NOTIFY:
+                                st.toast(f"###### {response.message.content}", icon="🎉", duration="long")
+                            elif response.message.type == ConversationMessageType.DOC_UPDATE:
+                                # 如果存在回调方法 则执行
+                                if on_change:
+                                    on_change(OnChangeEvent.PROJECT_DOC_UPDATE, {"content": response.message.content})
+                            scroll_to_bottom()
+                    except BusinessException as e:
+                        # 加入异常提示消息
+                        st.session_state[STATE_CHAT_MESSAGES].append(ConversationMessage(
+                            id=str(uuid.uuid4()),
+                            role=ConversationRole.SYSTEM,
+                            type=ConversationMessageType.MESSAGE,
+                            content=e.message
+                        ))
+                        message_status.update(label=e.message, expanded=False, state="error")
+                    except Exception as e:
+                        logger.error(f"项目Id:{project_id} 项目对话异常:{str(e)} 异常栈:\n{traceback.format_exc()}")
+                        message_status.update(label=MESSAGE_STATUS_ERROR_LABEL, expanded=False, state="error")
 
-            # 为流消息准备的markdown
-            stream_content = message_status.write_stream(project_discuss)
-            if stream_content:
-                # 获取最后一条消息 将流式消息内容插入 custom_messages
-                latest_msg = st.session_state[STATE_CHAT_MESSAGES][-1]
-                if latest_msg.metadata.get(CONST_CUSTOM_MESSAGES_KEY):
-                    latest_msg.metadata[CONST_CUSTOM_MESSAGES_KEY].append("---")
-                    latest_msg.metadata[CONST_CUSTOM_MESSAGES_KEY].append(stream_content)
-                else:
-                    latest_msg.metadata[CONST_CUSTOM_MESSAGES_KEY] = [stream_content]
-            # 消息接收完毕 解除禁用
-            st.session_state[STATE_CHAT_INPUT_DISABLED] = False
-            st.rerun()
+                # 为流消息准备的markdown
+                stream_content = message_status.write_stream(project_discuss)
+                if stream_content:
+                    # 获取最后一条消息 将流式消息内容插入 custom_messages
+                    latest_msg = st.session_state[STATE_CHAT_MESSAGES][-1]
+                    if latest_msg.metadata.get(CONST_CUSTOM_MESSAGES_KEY):
+                        latest_msg.metadata[CONST_CUSTOM_MESSAGES_KEY].append("---")
+                        latest_msg.metadata[CONST_CUSTOM_MESSAGES_KEY].append(stream_content)
+                    else:
+                        latest_msg.metadata[CONST_CUSTOM_MESSAGES_KEY] = [stream_content]
+                # 消息接收完毕 解除禁用
+                st.session_state[STATE_CHAT_INPUT_DISABLED] = False
+                st.rerun()

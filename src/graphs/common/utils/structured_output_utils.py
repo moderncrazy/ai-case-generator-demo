@@ -77,7 +77,7 @@ def rollback(tool_call_id: str, tool_name: str, tool_args: dict, error_message: 
 
 async def llm_tool_structured_output(llm: BaseChatModel, state: AnyState, runtime: Runtime, config: RunnableConfig,
                                      messages: list, tool_list: list[BaseTool], structured_output_func: BaseTool,
-                                     messages_key: str = "messages", metadata: dict | None = None) -> AnyState:
+                                     messages_key: str = "messages", metadata: dict | None = None) -> Any:
     """LLM 调用 tool 进行结构化输出
     
     核心的结构化输出方法，实现以下逻辑：

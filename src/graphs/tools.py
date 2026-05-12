@@ -6,6 +6,9 @@ from langchain.tools import tool, ToolRuntime, BaseTool
 from langchain.messages import ToolMessage, AIMessage, HumanMessage
 
 from src.context import trans_id_ctx
+from src.graphs.common.schemas.state_schemas import StateProjectFile
+from src.repositories.project_file_repository import project_file_repository, ProjectFileCreate
+from src.services.business.milvus_service import milvus_service
 from src.utils import utils as gutils
 from src.enums.pm_next_step import PMNextStep
 from src.enums.error_message import ErrorMessage
@@ -16,7 +19,7 @@ from src.enums.requirement_module_status import RequirementModuleStatus
 from src.enums.conversation_message_type import ConversationMessageType
 from src.graphs import utils
 from src.graphs.state import State
-from src.graphs.schemas import PMOutput, Metadata
+from src.graphs.schemas import PMOutput, Metadata, FileSummaryOutput
 from src.graphs.common.utils import structured_output_utils, format_utils, utils as cutils
 from src.exceptions.exceptions import BusinessException
 from src.services.business.api_service import api_service
@@ -285,6 +288,30 @@ async def remove_unclear_points_by_id(ids: list[str], runtime: ToolRuntime[Any, 
             "messages": [ToolMessage(content=result, tool_call_id=runtime.tool_call_id)]
         }
     )
+
+
+@tool(args_schema=FileSummaryOutput)
+async def file_summary_output(
+        summary: str,
+        runtime: ToolRuntime,
+) -> FileSummaryOutput:
+    """文件摘要输出方法
+
+    AI大模型使用此工具输出文件摘要。
+
+    Args:
+        summary: str - 文件摘要
+        runtime: 系统运行时对象，AI传参时不用传递，会自动注入
+
+    Returns:
+        Command: 状态更新命令
+    """
+    project_id = runtime.state["project_id"]
+    output = FileSummaryOutput(
+        summary=summary,
+    )
+    logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 输出:{output.model_dump_json()}")
+    return output
 
 
 @tool(args_schema=PMOutput)

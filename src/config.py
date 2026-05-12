@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     project_file_base_path: Path = Field(default=BASE_DIR / "data/project", description="Project File Base Path")
 
     # ClamAV
-    clam_av_host: str = Field(default="http://localhost", description="Clam AV Host")
+    clam_av_host: str = Field(default="localhost", description="Clam AV Host")
     clam_av_port: int = Field(default=3310, description="Clam AV Port")
 
     # LLM

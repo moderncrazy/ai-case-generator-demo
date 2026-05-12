@@ -2,7 +2,6 @@ import orjson
 from loguru import logger
 from langgraph.graph import END
 from langgraph.runtime import Runtime
-from langgraph.config import get_stream_writer
 from langchain_core.runnables import RunnableConfig
 from langchain.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage, RemoveMessage
 
@@ -11,7 +10,6 @@ from src.context import trans_id_ctx
 from src.utils import file_utils, mcp_utils, prompt_utils, utils as gutils
 from src.graphs import utils
 from src.graphs.state import State
-from src.graphs.schemas import FileSummaryOutput
 from src.graphs.tools import tool_list, file_summary_output, product_manager_output
 from src.graphs.common.llms import default_model
 from src.graphs.common.schemas.state_schemas import StateProjectFile
@@ -117,7 +115,6 @@ async def understand_image_node(state: State, runtime: Runtime, config: Runnable
         更新后的状态
     """
     project_id = state["project_id"]
-    writer = get_stream_writer()
     logger.info(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 进入")
     minimax_mcp_tools = await mcp_utils.get_minimax_mcp_tools_by_name()
     logger.info(
@@ -125,6 +122,7 @@ async def understand_image_node(state: State, runtime: Runtime, config: Runnable
     for file in state["new_file_list"]:
         # 发送自定义消息
         cutils.send_custom_message(f"理解《{file["name"]}》中...", GroupMemberRole.PM)
+        logger.warning(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 文件路径:{file["path"]}")
         # 调用 MCP 方法理解文件
         content_output = await minimax_mcp_tools["understand_image"].ainvoke({
             "prompt": ConstSystemPrompt.DOCUMENT_EXTRACTOR.text,

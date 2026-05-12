@@ -6,8 +6,6 @@ import streamlit_antd_components as sac
 from pathlib import Path
 from streamlit_adjustable_columns import adjustable_columns
 
-from src.frontend.enums.requirement_module_status import RequirementModuleStatus
-
 # 将项目根目录（src 的上一级）加入 sys.path
 root_path = str(Path(__file__).resolve().parent.parent.parent.parent)
 if root_path not in sys.path:
@@ -22,6 +20,7 @@ from src.frontend.service.test_case_service import TestCaseService
 from src.frontend.service.project_document_service import ProjectDocumentService
 from src.frontend.enums.project_doc_type import ProjectDocType
 from src.frontend.enums.project_progress import ProjectProgress
+from src.frontend.enums.requirement_module_status import RequirementModuleStatus
 from src.frontend.schemas.project import ProjectBasicInfoResponse
 
 from src.frontend.components.chat_frame import chat_frame, OnChangeEvent

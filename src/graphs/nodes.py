@@ -122,7 +122,6 @@ async def understand_image_node(state: State, runtime: Runtime, config: Runnable
     for file in state["new_file_list"]:
         # 发送自定义消息
         cutils.send_custom_message(f"理解《{file["name"]}》中...", GroupMemberRole.PM)
-        logger.warning(f"trans_id:{trans_id_ctx.get()} 项目Id:{project_id} 文件路径:{file["path"]}")
         # 调用 MCP 方法理解文件
         content_output = await minimax_mcp_tools["understand_image"].ainvoke({
             "prompt": ConstSystemPrompt.DOCUMENT_EXTRACTOR.text,

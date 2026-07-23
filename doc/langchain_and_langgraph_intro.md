@@ -405,3 +405,94 @@ LangSmith 的 Trace 由单次操作的多个 Run 构成，并可借助 `thread_i
 可观测性数据可能包含 Prompt、模型输出、检索片段、文件摘要、项目/事务标识和业务字段。接入前必须定义：哪些字段需要**脱敏**或不记录；密钥、Authorization 头、上传文件原文和敏感业务字段绝不进入 Trace；谁可以查看输入输出；生产流量采用何种采样；以及 Trace、评分和数据集各自的保留周期与删除流程。也应把外部可观测性平台的地域、访问控制和数据处理要求纳入上线评审。
 
 本稿不修改 `src/`、依赖或配置，只提供上述接入设计思路；实施前应先完成数据分类、密钥管理、权限模型和最小化采集评审。
+
+## 11. 常见误区与工程实践
+
+前面的概念和代码最终要落到日常开发中。这里不再增加新的框架名词，而是集中回答最容易让图“能运行、却难维护”的问题。分享时可以把这一节当作复盘：每条误区都对应一个设计动作，也对应一种应该提前写下来的测试。
+
+### 11.1 九个高频误区
+
+1. **把 LangChain 与 LangGraph 当作简单替代关系。** 两者关注的层次不同：LangChain 提供模型、消息、Prompt、Tool 和结构化输出等组件，LangGraph 提供 State、节点、边、持久化和流式执行。本项目正是在 LangGraph 节点中使用 LangChain 组件。选型时应问“是否需要显式状态和流程控制”，而不是问“两个框架只能留哪一个”。
+
+2. **把 Tool Call 当成工具执行结果。** 模型返回的 `AIMessage.tool_calls` 只是调用意图，包含工具名和候选参数；只有 `ToolNode` 或应用代码实际调用函数后，才产生工具结果。本项目在 `src/graphs/graph.py` 注册 `product_manager_tool_node`，工具实现在 `src/graphs/tools.py`。涉及数据库写入、外部请求或文件操作时，还要在执行层处理参数校验、权限、超时、幂等和异常，不能因为模型“选择了工具”就认为操作已经成功。
+
+3. **在节点中随意原地修改共享状态。** LangGraph 节点更适合把输入 State 当作只读快照，并返回自己负责的局部更新，例如 `return {"pm_next_step": next_step}`。随后由 State schema 上的 reducer 合并更新。原地修改会模糊字段所有者，也让并发、重试和 checkpoint 恢复时的行为更难推断。本项目的状态契约位于 `src/graphs/state.py`；新增节点前，应先写清它读取哪些字段、更新哪些字段以及空值语义。
+
+4. **并发字段没有明确 reducer。** `Send` 创建的多个分支可能以不同顺序完成；如果多个分支写入同一字段，必须明确是覆盖、追加、去重、按优先级合并，还是应当拒绝冲突。本项目在 `src/graphs/common/reduce.py` 提供 `rewrite_reducer`、`distinct_reducer` 和 `priority_message_reducer`。选择 reducer 不是语法补丁，而是在定义业务冲突规则；测试也不应依赖某个固定完成顺序。
+
+5. **把 `Command.goto` 当成任意父图回滚机制。** `goto` 表达的是当前命令可作用图上下文中的控制转移，目标仍必须符合图的节点与作用域约束；嵌套图中需要显式理解命令由哪个图处理，不能假定它会自动穿过任意层级并恢复父图的历史状态。真正的“回滚”还涉及业务数据补偿、checkpoint 选择和副作用撤销，不能只靠跳转节点完成。本项目已按 `doc/optimize_list.md` 移除把 `Command.goto` 用作回滚的方案；当前 `src/graphs/tools.py` 主要通过 `Command(update=...)` 返回状态更新。
+
+6. **使用不稳定或未隔离的 `thread_id`。** Checkpoint 依靠 `thread_id` 找到同一执行线程的快照。键在多轮中变化，会让上下文看似“丢失”；不同用户或租户复用同一个键，则可能串联不应共享的状态。本项目在 `src/agents/main_agent.py` 使用 `project_id` 作为 `thread_id`，适合当前项目级会话模型；若扩展到多租户、多环境或同项目并行会话，应设计包含租户和会话边界且不泄露敏感信息的稳定键，并验证清理与迁移策略。
+
+7. **把节点执行与路由决策混在一起。** 节点负责调用模型、工具或业务服务并形成状态更新；路由负责根据已有状态选择下一节点。本项目分别放在 `src/graphs/nodes.py` 与 `src/graphs/routes.py`。分离之后，节点可以用固定 State 单测，路由可以用状态表参数化测试，新增分支也不必改动模型调用逻辑。若路由所需信号尚不存在，应让节点先产出一个明确字段，而不是让路由再次执行昂贵或有副作用的业务操作。
+
+8. **认为 Structured Output 有 schema 就不会出错。** 模型仍可能遗漏字段、给出非法枚举、生成无法解析的参数，或产生语法正确但业务无效的数据。`src/graphs/common/utils/structured_output_utils.py` 已包含识别结构化 Tool Call、重试和错误转化逻辑，但调用方仍需验证 Pydantic/JSON Schema、跨字段业务规则和下游约束，并为重试耗尽、模型不支持与 schema 演进准备错误路径。结构化输出提高的是可验证性，不是无条件正确率。
+
+9. **把 Streaming 理解成单一的“逐字输出”。** 本项目的 `values` 是状态快照，`messages` 是消息块/token 流，`custom` 是节点主动发出的自定义事件；`src/services/interface/conversation_message_interface_service.py` 对三类事件采用不同处理。消费端必须按语义去重、持久化和展示，不能把状态更新当 token，也不能默认 custom 事件经过与正式回答完全相同的过滤链。接口测试还应覆盖首 token、最终消息、断连、异常帧和重复事件。
+
+### 11.2 把规则落实为五层测试
+
+测试重点不是复现模型每个字，而是固定应用能够控制的契约。建议由内向外形成五层防线：越靠内越快、越确定，越靠外越接近真实执行。
+
+1. **节点单元测试。** 为单个节点构造最小 State，替换模型、Tool 或领域服务，断言它读取约定字段并只返回预期的局部更新。至少覆盖成功、空输入、下游异常和重试耗尽；对于有消息输出的节点，还要验证消息类型、metadata 和工具调用关联键。
+
+2. **路由参数化测试。** 把 `tool_calls`、`node_rollback`、`pm_next_step` 等条件整理成输入—目标节点表，对 `src/graphs/routes.py` 的路由逐行参数化。测试正常分支、结束分支、未知枚举和冲突信号，确保返回值始终属于 `add_conditional_edges` 声明的目标集合。路由应保持纯函数，测试中不调用真实模型或数据库。
+
+3. **图级集成测试。** 使用可控的模型和工具替身编译小图或完整图，验证分支、循环、`ToolNode` 往返、`Send` 汇合、结束条件与 checkpoint 恢复。对并发场景改变完成顺序，确认 reducer 结果不依赖调度；对持久化场景使用互不相同的 `thread_id`，确认状态不会串线。
+
+4. **结构化输出契约测试。** 用合法、缺字段、非法枚举、额外字段和业务冲突样例验证 schema 与错误处理；若 schema 会被 API、数据库或其他节点消费，还应加入版本兼容样例。模型替身应能返回错误 Tool Call，借此证明重试、降级或失败消息确实可达，而不是只测试理想 JSON。
+
+5. **离线评测。** 从脱敏的代表性任务建立版本化数据集，分别评估任务完成度、事实性、格式合规、工具选择、路由正确性和安全要求。Prompt、模型或图结构变更时跑同一数据集，比较基线与候选版本；对开放式答案使用明确 rubric，并抽样人工复核 LLM judge。离线评测负责发现质量回归，但不能替代单测、线上监控或发布后的反馈闭环。
+
+实际落地可以从一条“纵向样例”开始：固定一次用户输入，先验证产品经理节点的局部更新，再验证路由进入预期子图，然后验证图能结束且 checkpoint 可读取，最后把同一输入加入离线数据集。这样每增加一个业务阶段，团队都能沿同一层次补齐证据，而不是只在浏览器里手工对话一次。
+
+### 11.3 代码评审时问什么
+
+当变更涉及新的节点、工具或状态字段时，评审者可以顺着四个问题检查：字段由谁拥有、更新怎样合并、失败后停在哪里、外部如何观察。若答案分别能落到 State/reducer、节点返回值、路由/错误边界和 Trace/SSE 事件上，这个流程通常已经具备可维护的骨架。反之，如果主要解释是“模型应该会处理”，就说明仍有应用层契约需要补上。
+
+## 12. 总结：团队开发时先做哪几件事
+
+回到开头的一句话：LangChain 让节点拥有模型与工具能力，LangGraph 让这些节点按受约束的状态和流程协作。创建一个新的 LangGraph 项目时，不必先堆很多 Agent；先完成下面这份启动清单，团队就能用同一种语言讨论实现、测试和上线边界。
+
+1. **写清业务终点与失败终点：** 定义一次运行何时算完成、何时等待输入、何时失败，以及哪些副作用需要补偿。
+2. **先设计 State：** 为每个字段注明类型、所有者、敏感级别、默认值和 reducer；区分跨节点共享状态与节点内部临时数据。
+3. **划分单一职责节点：** 让模型推理、工具执行、领域服务调用和结果整理各有清晰边界，节点只返回局部状态更新。
+4. **定义 Tool 与结构化契约：** 收紧参数 schema，验证业务规则，并补齐权限、幂等、超时、重试和错误结果；牢记 Tool Call 只是意图。
+5. **把路由写成可枚举决策：** 节点产出路由信号，纯路由函数选择下一步；显式覆盖未知值、循环上限和 `END`。
+6. **再加入并发、子图和 reducer：** 只有确认字段合并语义后才使用 `Send`；子图边界要说明输入、输出和命令作用域。
+7. **确定 checkpoint 身份与生命周期：** 设计稳定、隔离的 `thread_id`，并提前考虑存储选型、旧 State 兼容、清理与恢复流程。
+8. **定义流事件与可观测性：** 区分状态、消息 token 和自定义事件；关联 trace、节点、模型、工具、`thread_id` 与业务事务，同时执行脱敏和最小化采集。
+9. **按五层测试后再发布：** 依次建立节点单测、路由参数化、图级集成、结构化输出契约和离线评测，并把关键质量指标带入线上反馈。
+
+如果时间有限，至少先完成 State、路由表和一条图级纵向测试。它们会迫使团队明确“数据是什么、下一步去哪、流程能否结束”，也为后续替换模型、增加 Tool 或引入可观测性保留稳定边界。
+
+## 13. 官方延伸阅读
+
+下面按主题列出会后查阅入口。官方文档会持续演进，实施时应结合仓库锁定的依赖版本核对 API；本稿中的项目行为仍以当前源码为准。
+
+### LangChain
+
+- [LangChain 产品与框架关系](https://docs.langchain.com/oss/python/concepts/products)：建立 LangChain、LangGraph 与相关产品的整体视图。
+- [LangChain Tools](https://docs.langchain.com/oss/python/langchain/tools)：Tool schema、Tool Calling、运行时上下文与状态更新。
+
+### LangGraph
+
+- [LangGraph Overview](https://docs.langchain.com/oss/python/langgraph/overview)：State、节点、边与图运行时总览。
+- [LangGraph Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)：checkpoint、thread 与持久化语义。
+- [LangGraph Streaming](https://docs.langchain.com/oss/python/langgraph/streaming)：不同流模式及其消费方式。
+
+### Dify
+
+- [Dify：创建应用与 Workflow](https://docs.dify.ai/en/guides/application-orchestrate/creating-an-application)：从 Studio 创建、测试和发布应用的官方入口。
+
+### LangSmith
+
+- [LangSmith Observability Concepts](https://docs.langchain.com/langsmith/observability-concepts)：Trace、Run、Thread 与追踪数据模型。
+- [LangSmith Evaluation Concepts](https://docs.langchain.com/langsmith/evaluation-concepts)：数据集、离线评测、在线评测与反馈。
+
+### Langfuse
+
+- [Langfuse Observability Overview](https://langfuse.com/docs/observability/overview)：Trace、Session、Observation 与 LLM 可观测性概览。
+- [Langfuse Evaluation Core Concepts](https://langfuse.com/docs/evaluation/core-concepts)：Scores、数据集、实验与评测工作流。
+
+最后的建议不是“把所有能力一次接齐”，而是让每个新增复杂度都有明确理由和验证方式：先把状态与流程做对，再逐步增加工具、并发、持久化、流式体验和评测。这样框架才能服务业务，而不是让业务迁就框架。

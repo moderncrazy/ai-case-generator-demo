@@ -335,8 +335,8 @@ LangChain/LangGraph 和 Dify 不只是“谁更强”的关系，而是两种不
 | 定位 | LangChain 提供模型、Prompt、Tool 等组件；LangGraph 提供代码优先的有状态流程编排运行时。 | 面向 AI 应用的可视化工作流与应用平台；可用节点、变量和工作流组织应用。 |
 | 主要开发界面 | IDE、代码仓库、测试框架和代码审查。 | Studio 中的应用配置与 Workflow 画布；应用发布后可通过 API 从后端调用。 |
 | 状态与流程控制粒度 | 可显式定义 State、reducer、条件边、循环、并发 `Send`、子图和 checkpoint。 | 以画布节点、变量、分支、迭代等平台能力组织流程；适合将常规步骤直接可视化。 |
-| 自定义业务代码集成 | 可直接调用领域服务、数据库和内部 SDK，并将业务异常、权限与幂等策略纳入代码。 | 通过应用、Workflow 和 API 形成平台边界；深度领域逻辑通常需要在外部服务中实现后再接入。 |
-| 测试与版本管理 | 可沿用单元、集成、端到端测试以及 Git 分支、审查和发布流程。 | 可在画布中 Test Run、检查节点运行日志并发布更新；工作流配置的版本治理仍应结合团队的导出、审查与发布规范。 |
+| 自定义业务代码集成 | 可直接调用领域服务、数据库和内部 SDK，并将业务异常、权限与幂等策略纳入代码。 | 可通过 Code 节点、插件/Tool 或外部服务扩展自定义逻辑；其运行时约束、测试和版本治理方式与仓库原生 Python 代码不同。 |
+| 测试与版本管理 | 可沿用单元、集成、端到端测试以及 Git 分支、审查和发布流程。 | 可在画布中 Test Run、检查节点运行日志并发布更新；对于 Code 节点、插件和外部服务，仍应分别定义可重复测试、版本审查和发布规范。 |
 | 部署和平台能力 | 团队负责把图运行时、持久化、鉴权、监控和服务接口集成到自身部署体系。 | 提供应用创建、发布与 REST API 调用入口；可按组织的部署与治理要求评估其平台能力。 |
 | 适合团队与场景 | 复杂状态、动态路由、并发归并、深度业务集成，以及希望把工程控制留在代码仓库的团队。 | 标准化流程、快速验证，以及产品和开发需要共同在画布上编排应用的团队。 |
 
@@ -348,7 +348,7 @@ LangChain/LangGraph 和 Dify 不只是“谁更强”的关系，而是两种不
 
 这只是初步判断，不替代安全、部署、数据合规、团队技能和已有平台成本的评估。Dify 的画布能力不意味着无法接入复杂服务，LangGraph 的代码灵活性也不意味着每个流程都应自行实现。
 
-**官方资料：** [Dify 30-Minute Quick Start](https://docs.dify.ai/en/guides/application-orchestrate/creating-an-application)（工作流创建、节点配置、测试与发布）、[Dify API guide](https://docs.dify.ai/api-reference/workflows/list-workflow-logs)（已发布应用的 API 调用边界）。
+**官方资料：** [Dify 30-Minute Quick Start](https://docs.dify.ai/en/guides/application-orchestrate/creating-an-application)（工作流创建、节点配置、测试与发布）、[Dify API guide](https://docs.dify.ai/api-reference/workflows/list-workflow-logs)（已发布应用的 API 调用边界）、[Dify Plugin](https://docs.dify.ai/en/develop-plugin/getting-started/getting-started-dify-plugin)（自定义函数、Tool 和外部服务扩展）。
 
 ## 10. LLM 应用可观测性：LangSmith 与 Langfuse
 
@@ -366,7 +366,7 @@ LangChain/LangGraph 和 Dify 不只是“谁更强”的关系，而是两种不
 | --- | --- | --- |
 | 生态集成 | 与 LangChain/LangGraph 生态紧密集成；官方说明支持的框架可自动记录输入、输出和 metadata。 | 面向 LLM 应用追踪；可按其 SDK 与集成方案接入，追踪模型、工具、检索和自定义逻辑。 |
 | 自动追踪 | 对受支持框架可使用自动追踪；需要更细控制时也可使用装饰器、上下文管理器或低层 API。 | 通常通过 SDK、Callback 或 OpenTelemetry（OTel）集成传递追踪数据；具体接入方式以当期官方集成页为准。 |
-| 开源 / 自托管选项 | 本文不把部署形态作为结论；采购、网络边界和合规要求应以当前官方方案另行核对。 | 官方说明其为开源并可自托管；仍需评估自身运维、升级和数据治理能力。 |
+| 开源 / 自托管选项 | 提供自托管部署；官方将其标注为 Enterprise 计划的附加项。团队应确认当前商业许可、部署要求与自身网络/合规边界。 | 开源且可自托管；部分附加功能可能需要许可证，仍需评估自身运维、升级和数据治理能力。 |
 | Prompt 管理 | 可结合其 Prompt 工具与追踪、评测流程管理 Prompt 变更。 | 提供 Prompt Management，并可将 Prompt 与追踪、评测工作流关联。 |
 | 数据集与评测 | 可用数据集、离线/在线评测和反馈衡量质量；离线评测面向样例，在线评测面向生产 runs/threads。 | 可用数据集、实验、在线 trace 评测和 Scores；评分可来自人工、代码、LLM judge 或终端用户反馈。 |
 | 成本与指标分析 | Trace / Run 可承载模型输入输出与 metadata，并支持观测和质量分析；应先验证当前模型的 Token 与成本归集方式。 | Trace / Observation 可记录 Token、延迟、成本、输入输出与工具/检索步骤，并支持指标分析。 |
@@ -383,11 +383,11 @@ export LANGSMITH_PROJECT="ai-case-generator-demo"
 
 LangSmith 的 Trace 由单次操作的多个 Run 构成，并可借助 `thread_id` 或 `session_id` 把多轮 Trace 串为 Thread。Langfuse 将 Trace、Session 与 Observation 作为核心追踪概念，并将追踪、评测、Prompt 管理和指标能力放在同一 LLM 工程工作流中。
 
-**官方资料：** [LangSmith observability concepts](https://docs.langchain.com/langsmith/observability-concepts)、[LangSmith evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts)、[Langfuse observability overview](https://langfuse.com/docs/observability/overview)、[Langfuse evaluation core concepts](https://langfuse.com/docs/evaluation/core-concepts)。
+**官方资料：** [LangSmith observability concepts](https://docs.langchain.com/langsmith/observability-concepts)、[LangSmith evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts)、[Self-hosted LangSmith](https://docs.langchain.com/langsmith/self-hosted)、[Langfuse observability overview](https://langfuse.com/docs/observability/overview)、[Langfuse evaluation core concepts](https://langfuse.com/docs/evaluation/core-concepts)、[Self-host Langfuse](https://langfuse.com/docs/deployment/self-host)。
 
 ### 10.2 本项目：当前日志基础与建议的 Trace 层级
 
-本项目**当前**未安装或配置 LangSmith、Langfuse 或 OTel 追踪依赖；它已有 `trans_id_ctx`、`project.id` 和服务层日志，并在 `_start_agent()` 中把 `values`、`custom`、`messages` 三类图事件转换为 SSE。下表是未来接入设计，不是对当前代码行为的描述。
+在本仓库直接声明的依赖中，未发现 Langfuse 或 OTel 包；对当前 `src/` 和配置的检查也未发现已启用的追踪后端配置或业务集成。实际的传递依赖仍取决于部署环境和完整依赖树。项目已有 `trans_id_ctx`、`project.id` 和服务层日志，并在 `_start_agent()` 中把 `values`、`custom`、`messages` 三类图事件转换为 SSE。下表是未来接入设计，不是对当前代码行为的描述。
 
 | 层级或主题 | 当前基础 | 推荐 Trace 层级 / 关联字段 |
 | --- | --- | --- |

@@ -325,3 +325,83 @@ Send("group_member_review_optimization_doc_node", {"role": role, **state})
 - **做法：** 节点记录 `project_id` 等上下文后 await 结构化输出辅助函数；主图将这些节点编译为可执行图。辅助函数记录模型/工具上下文，对网络调用重试，重试耗尽时抛出 `BusinessException`；结构化输出 Tool 调用异常则记录日志并写入 `ToolMessage`，让图继续处理。未被图内处理的异常到达服务边界后由 `_start_agent()` 捕获，持久化“系统繁忙，请稍后再试！”失败消息，写入 SSE `data:` 帧和 `error:` 帧，最后关闭队列。
 - **原因：** 这种分层让节点与 Tool 保留诊断上下文，图仍能处理可恢复的 Tool 结果；最终由 HTTP 服务层统一将残余失败转成前端协议与可查询的会话记录。
 - **注意事项：** 上述重试与 `ToolMessage` 转换是当前实现，不能把它表述为所有 Tool 都会自动恢复。当前服务层统一捕获异常，尚未在这里按可重试模型错误、业务校验错误和系统错误生成不同前端契约；如需生产级分类，应另行定义错误类型、重试上限、告警和 SSE 错误 schema。
+
+## 9. LangChain/LangGraph 与 Dify：开发模式对比
+
+LangChain/LangGraph 和 Dify 不只是“谁更强”的关系，而是两种不同的开发入口：前者以代码和可组合运行时为中心，后者以应用与工作流画布为中心。Dify 的官方快速开始展示了在 Studio 中创建 Workflow、配置输入与节点、测试并发布的路径；发布后的应用也可以从后端以 REST API 调用。LangGraph 则让团队在代码中直接定义 State、节点和条件路由。两种方式都能编排 LLM、工具和流程，差异主要在控制面和工程边界。
+
+| 维度 | LangChain/LangGraph | Dify |
+| --- | --- | --- |
+| 定位 | LangChain 提供模型、Prompt、Tool 等组件；LangGraph 提供代码优先的有状态流程编排运行时。 | 面向 AI 应用的可视化工作流与应用平台；可用节点、变量和工作流组织应用。 |
+| 主要开发界面 | IDE、代码仓库、测试框架和代码审查。 | Studio 中的应用配置与 Workflow 画布；应用发布后可通过 API 从后端调用。 |
+| 状态与流程控制粒度 | 可显式定义 State、reducer、条件边、循环、并发 `Send`、子图和 checkpoint。 | 以画布节点、变量、分支、迭代等平台能力组织流程；适合将常规步骤直接可视化。 |
+| 自定义业务代码集成 | 可直接调用领域服务、数据库和内部 SDK，并将业务异常、权限与幂等策略纳入代码。 | 通过应用、Workflow 和 API 形成平台边界；深度领域逻辑通常需要在外部服务中实现后再接入。 |
+| 测试与版本管理 | 可沿用单元、集成、端到端测试以及 Git 分支、审查和发布流程。 | 可在画布中 Test Run、检查节点运行日志并发布更新；工作流配置的版本治理仍应结合团队的导出、审查与发布规范。 |
+| 部署和平台能力 | 团队负责把图运行时、持久化、鉴权、监控和服务接口集成到自身部署体系。 | 提供应用创建、发布与 REST API 调用入口；可按组织的部署与治理要求评估其平台能力。 |
+| 适合团队与场景 | 复杂状态、动态路由、并发归并、深度业务集成，以及希望把工程控制留在代码仓库的团队。 | 标准化流程、快速验证，以及产品和开发需要共同在画布上编排应用的团队。 |
+
+### 9.1 选型结论：按流程复杂度和组织边界决定
+
+- **标准化流程、快速验证、产品和开发共同编排：** 优先评估 Dify。画布能让输入、节点、分支和输出直接成为共同讨论对象，适合先验证应用流程。
+- **复杂状态、动态路由、并发归并、深度业务集成：** 优先评估 LangGraph。本项目的 reducer、`Send` 并发评审、业务子图和 SQLite checkpoint 就属于需要细粒度代码控制的例子。
+- **已有 Dify 平台、但局部流程复杂：** 可以采用组合方式：由 Dify 承担应用入口或标准流程，并通过 API 调用独立部署的 LangGraph 服务；服务契约、鉴权、超时和错误映射需要双方明确约定。
+
+这只是初步判断，不替代安全、部署、数据合规、团队技能和已有平台成本的评估。Dify 的画布能力不意味着无法接入复杂服务，LangGraph 的代码灵活性也不意味着每个流程都应自行实现。
+
+**官方资料：** [Dify 30-Minute Quick Start](https://docs.dify.ai/en/guides/application-orchestrate/creating-an-application)（工作流创建、节点配置、测试与发布）、[Dify API guide](https://docs.dify.ai/api-reference/workflows/list-workflow-logs)（已发布应用的 API 调用边界）。
+
+## 10. LLM 应用可观测性：LangSmith 与 Langfuse
+
+日志告诉我们“发生了什么”；LLM 可观测性进一步把一次请求的因果路径组织起来，使排障和质量改进不必只靠零散日志推断。一个实用的心智模型如下：
+
+- **Trace：** 一次完整的用户请求或 Agent run，例如一次 `MainAgent.astream()` 调用。
+- **Run / Span / Observation：** Trace 中的单步操作，例如模型调用、Tool 调用、检索、业务节点或 SSE 输出。LangSmith 使用 Run，并将其类比为 span；Langfuse 使用 Observation。本文用“子 Span”泛指这些可嵌套的步骤。
+- **Thread / Session：** 多轮会话的关联键：每一轮通常是独立 Trace，但通过同一键连接。在本项目中可使用 `thread_id = project_id` 作为会话关联的起点；生产多租户场景还应加入不可冲突的租户边界。
+
+一套可用的可观测性方案至少应能回答：请求走过哪些节点和路由、每步的输入输出是什么、耗时和首 token 延迟如何、消耗了多少 Token 与成本、哪些 Tool 或模型调用失败、以及结果是否获得人工或自动质量评分。Trace 并不是替代业务日志，而是把请求生命周期中的业务、模型与工具证据关联起来。
+
+### 10.1 LangSmith 与 Langfuse：入门对比
+
+| 维度 | LangSmith | Langfuse |
+| --- | --- | --- |
+| 生态集成 | 与 LangChain/LangGraph 生态紧密集成；官方说明支持的框架可自动记录输入、输出和 metadata。 | 面向 LLM 应用追踪；可按其 SDK 与集成方案接入，追踪模型、工具、检索和自定义逻辑。 |
+| 自动追踪 | 对受支持框架可使用自动追踪；需要更细控制时也可使用装饰器、上下文管理器或低层 API。 | 通常通过 SDK、Callback 或 OpenTelemetry（OTel）集成传递追踪数据；具体接入方式以当期官方集成页为准。 |
+| 开源 / 自托管选项 | 本文不把部署形态作为结论；采购、网络边界和合规要求应以当前官方方案另行核对。 | 官方说明其为开源并可自托管；仍需评估自身运维、升级和数据治理能力。 |
+| Prompt 管理 | 可结合其 Prompt 工具与追踪、评测流程管理 Prompt 变更。 | 提供 Prompt Management，并可将 Prompt 与追踪、评测工作流关联。 |
+| 数据集与评测 | 可用数据集、离线/在线评测和反馈衡量质量；离线评测面向样例，在线评测面向生产 runs/threads。 | 可用数据集、实验、在线 trace 评测和 Scores；评分可来自人工、代码、LLM judge 或终端用户反馈。 |
+| 成本与指标分析 | Trace / Run 可承载模型输入输出与 metadata，并支持观测和质量分析；应先验证当前模型的 Token 与成本归集方式。 | Trace / Observation 可记录 Token、延迟、成本、输入输出与工具/检索步骤，并支持指标分析。 |
+
+两者都适合作为“从一次请求找到一次模型/工具执行”的入口。选择时可先问：团队是否希望优先使用 LangChain/LangGraph 的自动追踪，是否需要自托管，以及评测、Prompt 治理和现有监控体系如何衔接；不要把价格或单一产品标签当作结论。
+
+**LangSmith 最小配置示意（仅说明，不代表本项目已配置）：**
+
+```bash
+export LANGSMITH_TRACING=true
+export LANGSMITH_PROJECT="ai-case-generator-demo"
+# LANGSMITH_API_KEY 由部署环境的密钥管理服务注入，不写入仓库。
+```
+
+LangSmith 的 Trace 由单次操作的多个 Run 构成，并可借助 `thread_id` 或 `session_id` 把多轮 Trace 串为 Thread。Langfuse 将 Trace、Session 与 Observation 作为核心追踪概念，并将追踪、评测、Prompt 管理和指标能力放在同一 LLM 工程工作流中。
+
+**官方资料：** [LangSmith observability concepts](https://docs.langchain.com/langsmith/observability-concepts)、[LangSmith evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts)、[Langfuse observability overview](https://langfuse.com/docs/observability/overview)、[Langfuse evaluation core concepts](https://langfuse.com/docs/evaluation/core-concepts)。
+
+### 10.2 本项目：当前日志基础与建议的 Trace 层级
+
+本项目**当前**未安装或配置 LangSmith、Langfuse 或 OTel 追踪依赖；它已有 `trans_id_ctx`、`project.id` 和服务层日志，并在 `_start_agent()` 中把 `values`、`custom`、`messages` 三类图事件转换为 SSE。下表是未来接入设计，不是对当前代码行为的描述。
+
+| 层级或主题 | 当前基础 | 推荐 Trace 层级 / 关联字段 |
+| --- | --- | --- |
+| 根 Trace | `_start_agent()` 调用 `MainAgent.astream()`，并有项目 ID 与事务 ID 日志上下文。 | 一次 `_start_agent()` 或 `MainAgent.astream()` 作为一个根 Trace；记录 `project_id`、事务 ID、环境、模型名和业务阶段。 |
+| 会话关联 | 图调用配置 `configurable.thread_id = project_id`。 | 以 `thread_id = project_id` 关联多轮 Trace；多租户场景同时记录受控的 tenant / user 关联字段，避免跨租户串联。 |
+| 图与业务节点 | 主图调度业务子图、条件路由、并发评审与 checkpoint。 | 为主图、每个业务子图、关键节点和路由创建子 Span；记录节点名、路由目标、路由次数、循环次数和结果状态。 |
+| 模型与 Tool | 节点通过 LangChain 模型和 `ToolNode` 执行模型/工具步骤。 | 为每次模型调用和 Tool 调用创建子 Span；记录模型名、Token/成本、耗时、重试次数、Tool 名、错误类别与结果摘要。 |
+| 流式输出 | 服务层消费 `values`、`custom`、`messages` 并输出 SSE。 | 为 SSE 输出建立子 Span 或事件；记录首 token 延迟、token 流持续时间、事件类型、断连和发送错误。 |
+| 核心指标 | 现有日志可用于定位请求和发送事件。 | 汇总端到端耗时、节点耗时、模型 Token/成本、Tool 错误率、路由次数、循环次数和首 token 延迟；再按环境、模型、业务阶段筛选。 |
+
+推荐按“小步、可验证”接入：先为根 Trace、模型调用和 Tool 调用建立关联；确认数据字段、采样与查询满足排障需求后，再补齐子图、路由、SSE 和质量评分。对于质量评分，可先从少量脱敏后的代表性样例开始建立数据集，再分别使用离线回归和线上抽样观察，不应把单次主观评分当作结论。
+
+### 10.3 数据安全与保留边界
+
+可观测性数据可能包含 Prompt、模型输出、检索片段、文件摘要、项目/事务标识和业务字段。接入前必须定义：哪些字段需要**脱敏**或不记录；密钥、Authorization 头、上传文件原文和敏感业务字段绝不进入 Trace；谁可以查看输入输出；生产流量采用何种采样；以及 Trace、评分和数据集各自的保留周期与删除流程。也应把外部可观测性平台的地域、访问控制和数据处理要求纳入上线评审。
+
+本稿不修改 `src/`、依赖或配置，只提供上述接入设计思路；实施前应先完成数据分类、密钥管理、权限模型和最小化采集评审。

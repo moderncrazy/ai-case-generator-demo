@@ -8,7 +8,7 @@
 
 - 区分 LangChain 与 LangGraph 的职责；
 - 按状态、节点、工具、路由、持久化和流式输出的顺序搭建工作流；
-- 沿本项目代码定位一次 Agent 请求的完整执行过程；
+- 沿本项目代码定位一次 Agent（智能体）请求的完整执行过程；
 - 根据项目约束初步选择 LangGraph、Dify 及可观测性工具。
 
 ### 时间分配
@@ -20,7 +20,7 @@
 
 ### 先记住的三个结论
 
-1. **LangChain 提供 AI 应用组件**：模型、消息、Prompt、Tool 与结构化输出等能力可被统一组合。
+1. **LangChain 提供 AI（人工智能）应用组件**：模型、消息、Prompt（提示词）、Tool（工具）与结构化输出等能力可被统一组合。
 2. **LangGraph 提供有状态编排运行时**：它负责节点、分支、循环、持久化与流式执行。
 3. **本项目在 LangGraph 节点中组合 LangChain 组件**：前者控制业务流程，后者完成模型交互和工具能力。
 
@@ -28,9 +28,18 @@
 
 ## 2. LangChain 是什么
 
-LangChain 是面向模型、消息、Prompt、Tool 和常见 Agent 循环的高层框架与集成层。它把不同模型供应商和常用 AI 应用组件抽象为相对一致的接口，让应用代码更专注于业务规则，而不是逐个适配模型 API。
+LangChain 是面向模型、消息、Prompt、Tool 和常见 Agent 循环的高层框架与集成层。它把不同模型供应商和常用 AI 应用组件抽象为相对一致的接口，让应用代码更专注于业务规则，而不是逐个适配模型 API（应用程序编程接口）。
 
 可以把它理解为“搭建 AI 能力的组件库”：选择模型、组织消息、编写 Prompt、声明工具和约束结构化结果，通常都在这一层完成。它也提供高层 Agent 能力，用于处理常见的“模型判断—调用工具—继续回答”循环。
+
+**最小示意：** 用统一模型接口发送消息即可把供应商调用留在组件层。
+
+```python
+model = init_chat_model(model="your-model", model_provider="your-provider")
+reply = model.invoke("请总结这份需求")
+```
+
+**项目定位：** `src/graphs/common/llms.py` 用 `init_chat_model` 初始化模型；节点再组合消息、Prompt 与 Tool。**注意：** LangChain 统一了组件接口，但不应把多步业务路由全部塞进一个 Agent；流程控制交给 LangGraph。
 
 官方产品定位可参阅 [LangChain products](https://docs.langchain.com/oss/python/concepts/products)。
 
@@ -41,6 +50,16 @@ LangGraph 是面向长时运行、有状态、可循环、可分支工作流的�
 它解决的重点不是“怎样调用一次模型”，而是“复杂任务如何在多步、多分支、可恢复的流程中稳定运行”。例如，需求分析完成后，流程可以进入工具调用、业务子图、人工确认或结束节点，并把每一步状态保存下来。
 
 LangGraph 可以独立使用，但通常会配合 LangChain 的模型与工具抽象。LangChain 的高层 Agent 能力建立在 LangGraph 之上；当我们手写 `StateGraph` 时，则能获得更细粒度的状态、路由和恢复控制。
+
+**最小示意：** 先声明状态，再把处理步骤接成可编译的图。
+
+```python
+builder = StateGraph(State)
+builder.add_node("product_manager_node", product_manager_node)
+graph = builder.compile()
+```
+
+**项目定位：** `src/graphs/graph.py` 的 `create_agent()` 创建主 `StateGraph(State)` 并编译。**注意：** 节点只返回自己负责的状态更新；先定义状态契约与合并规则，再增加分支或循环，避免流程变复杂后难以恢复和排查。
 
 ```mermaid
 flowchart TB

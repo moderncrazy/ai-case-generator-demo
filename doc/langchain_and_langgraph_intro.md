@@ -187,3 +187,130 @@ Reducer 对并发写入尤其重要：如果两个由 `Send` 创建的分支都�
    - 检查问题：调用方是否正确处理状态更新、消息 token 和自定义进度事件，并能定位失败的节点与 thread？
 
 实际落地时，先以一个线性、可打印 State 的最小图验证第 1–4 步；再逐步加入条件路由、`ToolNode`、`Send`、子图、Checkpoint 和 Streaming。这样每次复杂度增加都有可观察、可回退的基线。
+
+## 7. 本项目：一次请求如何穿过整个 Agent
+
+下面沿一次项目对话请求走读。先分清两层：HTTP 服务层负责把图的事件变成前端能消费的 SSE（Server-Sent Events，服务端推送事件）；LangGraph 图负责状态、决策和执行。这样遇到“为什么前端没有回复”时，可以从 SSE 反向定位到具体图节点。
+
+```mermaid
+flowchart LR
+    HTTP[HTTP 对话请求] --> SERVICE[ConversationMessageInterfaceService]
+    SERVICE --> AGENT[MainAgent.astream]
+    AGENT --> MAIN[LangGraph 主图]
+    MAIN --> PM[product_manager_node]
+    PM --> ROUTER{条件路由}
+    ROUTER --> TOOL[ToolNode]
+    ROUTER --> SUBGRAPH[需求/系统/测试子图]
+    TOOL --> PM
+    SUBGRAPH --> CHECKPOINT[(SQLite Checkpoint)]
+    PM --> CHECKPOINT
+    CHECKPOINT --> STREAM[values / custom / messages]
+    STREAM --> SSE[SSE 响应]
+```
+
+这是教学视图：Checkpoint 由已编译的图在执行步骤中维护，并不是某个业务节点手动调用。实际主图在开始时还会经过状态修复、项目加载和可选的图片理解节点；图中的子图完成后会进入结束节点。
+
+### 7.1 从服务边界进入图
+
+`ConversationMessageInterfaceService._start_agent()` 接到项目、用户消息和可选文件后，异步遍历 `main_agent.astream(...)` 的流事件。它不参与模型路由，而是将事件去重、过滤敏感输出、持久化正式会话消息，并通过 `queue.put("data: ...\\n\\n")` 写成 SSE 数据帧。
+
+`MainAgent.astream()` 把用户文本包装为 `HumanMessage`，并连同 `project_id` 与可选 `new_file_list` 作为初始 State 交给已编译图。这里的 `project_id` 有两重含义：业务上它定位项目数据；运行时它也作为 LangGraph 的 `thread_id`，把同一项目的每次请求连接到同一份 checkpoint 状态。
+
+```python
+config={"configurable": {"thread_id": project_id}}
+stream_mode=["values", "custom", "messages"]
+```
+
+因此，`thread_id` 不能随请求随机生成，也必须在多租户场景中避免仅凭可猜测 ID 造成跨租户状态串联。
+
+### 7.2 主图做决策，节点完成工作
+
+首次调用时，`MainAgent.get_agent()` 懒加载 `graph.create_agent()`。后者创建 `StateGraph(State)`、注册状态准备节点、产品经理节点、`ToolNode` 和八个需求/系统/测试业务子图，再以 SQLite saver 编译：
+
+```python
+agent_builder = StateGraph(State)
+agent_builder.add_conditional_edges("product_manager_node", routes.product_manager_tool_router, [...])
+agent = agent_builder.compile(checkpointer=sqlite_saver)
+```
+
+`product_manager_node` 根据项目进度选择 Prompt，绑定项目工具和通用工具，并通过结构化输出辅助函数调用模型。模型输出的 Tool Call 会让路由进入 `product_manager_tool_node`；`ToolNode` 执行后回到产品经理节点，形成“判断—执行—继续判断”的循环。若没有工具调用，路由会根据 `pm_next_step` 进入需求、系统或测试子图；未知或已完成的步骤会进入 `end_node`。
+
+每个节点返回局部 State 更新，`State` 上的 reducer 决定如何合并这些更新；已编译图则按 `thread_id` 将执行快照写入 SQLite。特别是在 `Send` 并发分支汇合时，不能依赖“最后完成者覆盖前者”，而要依赖明确的 reducer 语义。
+
+### 7.3 从图事件回到浏览器
+
+本项目订阅三种流：`values` 提供状态快照，服务层从最后一条非工具 `AIMessage` 中提取正式回复并落库；`custom` 用于节点主动报告“需求理解中”等阶段或通知消息；`messages` 提供 `AIMessageChunk` token，服务层转换为前端的增量 `STREAM` 消息。三类事件都被包装成 SSE `data:` 帧，前端因而既能显示过程，也能显示逐 token 输出和最终正式消息。
+
+异常不应悄悄停在图中：节点和 Tool 记录项目/调用上下文后向图调用层传播异常；`_start_agent()` 在服务边界捕获异常，持久化失败消息，并发送前端可消费的 SSE 错误事件。生产实现还应区分可重试的模型错误、业务校验错误和系统错误，分别决定重试、提示用户还是告警。
+
+## 8. 本项目中的典型开发模式
+
+这一节不是要求照抄现有实现，而是用“代码位置 / 做法 / 原因 / 注意事项”提炼可复用的设计选择。
+
+### 8.1 模型统一初始化
+
+- **代码位置：** `src/graphs/common/llms.py`。
+- **做法：** 集中用 `init_chat_model` 初始化 Ollama 与 MiniMax（Anthropic 兼容）模型，再指定 `default_model`。
+- **原因：** 供应商地址、温度、token 上限与重试策略只有一个维护点，节点可以专注业务。
+- **注意事项：** 不要在节点内散落模型参数；切换默认模型时应复核工具调用和结构化输出的兼容性。
+
+### 8.2 大状态模型
+
+- **代码位置：** `src/graphs/state.py`。
+- **做法：** `State` 继承 `MessagesState`，将项目进度、文档、风险、私有消息等字段声明为带 reducer 的注解字段。
+- **原因：** 主图与子图共享一份可检查的业务契约，消息和业务产物可被 checkpoint 一并恢复。
+- **注意事项：** 状态大不等于节点都可读写全部字段；新增字段要明确所有者和 reducer，避免子图私有字段泄漏。
+
+### 8.3 主图与八个业务子图
+
+- **代码位置：** `src/graphs/graph.py`。
+- **做法：** 主图注册需求大纲、需求模块、整体需求，系统架构、系统模块、数据库、API，以及测试用例共八个子图。
+- **原因：** 主图只负责阶段编排，各阶段的优化循环可独立演进和测试。
+- **注意事项：** 子图输入输出仍共享 State；改动字段名或阶段枚举时，要同步检查主图路由和恢复中的旧快照。
+
+### 8.4 节点执行与路由分离
+
+- **代码位置：** `src/graphs/nodes.py`、`src/graphs/routes.py`。
+- **做法：** 节点调用模型、工具辅助方法或业务服务并返回更新；路由函数只依据 `tool_calls`、`node_rollback`、`pm_next_step` 返回目标节点。
+- **原因：** “做什么”和“下一步去哪”可独立测试，增加阶段时不必把分支判断塞入节点。
+- **注意事项：** 路由返回值必须与 `add_conditional_edges` 的允许目标一致，并为未知枚举保留结束或错误路径。
+
+### 8.5 Tool Calling 与结构化输出
+
+- **代码位置：** `src/graphs/tools.py`、`src/graphs/common/utils/structured_output_utils.py`。
+- **做法：** 用 `@tool` 声明参数 schema；节点 `bind_tools` 后由结构化输出辅助函数识别目标 Tool Call、重试无效输出或将其他 Tool Call 留给 `ToolNode`。
+- **原因：** 模型的自然语言决策被约束为可执行参数和稳定的业务结果，同时保留普通工具调用的闭环。
+- **注意事项：** Tool Call 是模型意图而非函数已经执行；副作用工具需考虑幂等性、权限和失败后的 `ToolMessage`/回滚状态。
+
+### 8.6 通用优化循环与嵌套子图
+
+- **代码位置：** `src/graphs/common/base/graph.py`。
+- **做法：** 抽取初始化、生成方案、评审、优化、PM 评审、成员评审、问题汇总等通用图骨架；成员评审本身又是含 `ToolNode` 的嵌套子图。
+- **原因：** 多类文档阶段复用同一“生成—评审—修订”控制流，只替换具体节点、路由和输出工具。
+- **注意事项：** 复用基类时明确 `messages_key` 和状态 schema；不要为了复用而让无关阶段继承不需要的状态字段。
+
+### 8.7 `Send` 并发评审与 reducer 汇总
+
+- **代码位置：** `src/graphs/common/base/routes.py`、`src/graphs/common/reduce.py`。
+- **做法：** 路由为每个评审角色生成一个动态分支，再以 reducer 合并评审结果。
+
+```python
+Send("group_member_review_optimization_doc_node", {"role": role, **state})
+```
+
+- **原因：** 角色数量在运行时才确定，`Send` 能以同一子图并发处理各角色输入，缩短等待时间。
+- **注意事项：** 分支输入应只包含需要的数据；`distinct_reducer`、优先级消息 reducer 等合并策略必须预先定义，不能假设并发完成顺序。
+
+### 8.8 SQLite Checkpoint 和 `thread_id`
+
+- **代码位置：** `src/graphs/graph.py`、`src/agents/main_agent.py`。
+- **做法：** `create_agent()` 用 `AsyncSqliteSaver` 编译图；`astream()` 和 `get_state()` 都把 `project_id` 放入 `configurable.thread_id`。
+- **原因：** 同一项目跨消息持续使用 State，并可读取对应执行快照，而不需要在每个节点手工传递历史。
+- **注意事项：** SQLite 文件适合当前部署形态；多实例或高并发生产环境应评估共享持久层、迁移和线程/租户隔离策略。
+
+### 8.9 三种 Streaming 模式到 SSE
+
+- **代码位置：** `src/agents/main_agent.py`、`src/services/interface/conversation_message_interface_service.py`。
+- **做法：** 图以 `values`、`custom`、`messages` 三种模式流式执行，服务层分别将最终状态回复、阶段消息和 token 块转换为 SSE。
+- **原因：** 用户既能看到即时反馈，也能得到可持久化的正式回答；服务层无需理解每个业务节点。
+- **注意事项：** `values` 与 `messages` 可能表达同一次回答的不同粒度，服务层要去重；断连、心跳、异常帧和消息落库的一致性应作为接口测试重点。

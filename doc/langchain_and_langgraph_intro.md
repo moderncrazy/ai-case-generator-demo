@@ -8,7 +8,7 @@
 
 - 区分 LangChain 与 LangGraph 的职责；
 - 按状态、节点、工具、路由、持久化和流式输出的顺序搭建工作流；
-- 沿本项目代码定位一次 Agent（智能体）请求的完整执行过程；
+- 沿本项目代码定位一次 AI（人工智能）Agent（智能体）请求的完整执行过程；
 - 根据项目约束初步选择 LangGraph、Dify 及可观测性工具。
 
 ### 主持人路线：58 分钟现场版
@@ -18,13 +18,13 @@
 | 时间 | 章节 | 现场处理 | 必讲内容与取舍 |
 | --- | --- | --- | --- |
 | 0–3 分钟（3 分钟） | 第 1 章 | **现场讲解** | 说明目标、三层心智模型和本路线，先让听众知道后续代码在回答什么问题。 |
-| 3–9 分钟（6 分钟） | 第 2–3 章 | **现场讲解** | 讲清 LangChain 组件层与 LangGraph 编排层的关系；必须展示第 3 章的**框架关系 Mermaid 图**。第 2 章模型调用代码只指出统一接口，不逐行解释。 |
-| 9–16 分钟（7 分钟） | 第 4 章 | **快速带过** | 从概念表只选 Chat Model、Tool Calling、Structured Output 三行，现场解释“模型提出调用意图，执行层才运行工具”；完整六行表和教学代码留作**会后阅读**。 |
-| 16–26 分钟（10 分钟） | 第 5 章 | **现场讲解** | 必须现场走读 **StateGraph 最小示例**，沿 State → Node → Edge → compile 说明执行骨架，再用 reducer、`ToolNode`、checkpoint 各举一个风险。核心概念大表不逐行读，`Send`、子图、Streaming 的完整条目作为**会后阅读**。 |
-| 26–31 分钟（5 分钟） | 第 6 章 | **快速带过** | 用“先契约、后能力、再编排和运行”串起七步流程，只展开 State/reducer、路由退出条件和 `thread_id` 三个检查问题，其余步骤让听众会后按清单复查。 |
-| 31–41 分钟（10 分钟） | 第 7 章 | **现场讲解** | 必须展示**请求生命周期 Mermaid 图**，从 HTTP → 服务 → Agent → 主图 → Tool/子图 → checkpoint → 三类流 → SSE 顺序讲解；现场只读 `thread_id` 和 `stream_mode` 两段关键配置，不展开所有节点注册代码。 |
+| 3–9 分钟（6 分钟） | 第 2–3 章 | **现场讲解** | 讲清 LangChain 组件层与 LangGraph 编排层的关系；必须展示第 3 章的**框架关系 Mermaid（文本绘图语法）图**。第 2 章模型调用代码只指出统一接口，不逐行解释。 |
+| 9–16 分钟（7 分钟） | 第 4 章 | **快速带过** | 从概念表只选 Chat Model（聊天模型）、Tool Calling（工具调用）、Structured Output（结构化输出）三行，现场解释“模型提出调用意图，执行层才运行工具”；完整六行表和教学代码留作**会后阅读**。 |
+| 16–26 分钟（10 分钟） | 第 5 章 | **现场讲解** | 必须现场走读 **StateGraph（状态图构建器）最小示例**，沿 State（状态）→ Node（节点）→ Edge（边）→ compile（编译）说明执行骨架，再用 reducer（归约器）、`ToolNode`（工具节点）、Checkpoint（检查点）各举一个风险。核心概念大表不逐行读，`Send`（动态分支）、子图、Streaming（流式输出）的完整条目作为**会后阅读**。 |
+| 26–31 分钟（5 分钟） | 第 6 章 | **快速带过** | 用“先契约、后能力、再编排和运行”串起七步流程，只展开 State/reducer、路由退出条件和 `thread_id`（线程标识）三个检查问题，其余步骤让听众会后按清单复查。 |
+| 31–41 分钟（10 分钟） | 第 7 章 | **现场讲解** | 必须展示**请求生命周期 Mermaid 图**，从 HTTP（超文本传输协议）→ 服务 → Agent → 主图 → Tool（工具）/子图 → Checkpoint → 三类流 → SSE（服务端推送事件）顺序讲解；现场只读 `thread_id` 和 `stream_mode`（流模式）两段关键配置，不展开所有节点注册代码。 |
 | 41–47 分钟（6 分钟） | 第 8 章 | **现场讲解（选讲）** | 只选四个项目代码模式：8.4 节点/路由分离、8.7 `Send` 与 reducer、8.8 checkpoint/`thread_id`、8.9 Streaming 到 SSE。8.1–8.3、8.5–8.6、8.10 作为**会后阅读**，异常边界的长路径与行号不现场逐项核对。 |
-| 47–50 分钟（3 分钟） | 第 9–10 章 | **快速带过** | 第 9 章只讲“按复杂度和组织边界选型”，第 10 章只讲 Trace 层级与数据安全。Dify 对比表、LangSmith/Langfuse 对比表、Trace 层级表及配置代码均不逐行读，作为**会后阅读**。 |
+| 47–50 分钟（3 分钟） | 第 9–10 章 | **快速带过** | 第 9 章只讲“按复杂度和组织边界选型”，第 10 章只讲 Trace（追踪）层级与数据安全。Dify 对比表、LangSmith/Langfuse 对比表、Trace 层级表及配置代码均不逐行读，作为**会后阅读**。 |
 | 50–55 分钟（5 分钟） | 第 11 章 | **现场讲解（选讲）** | 九个误区只展开第 2 项 Tool Call、第 4 项并发 reducer、第 6 项 `thread_id`；其余六项留作**会后阅读**。五层测试现场各用一句话串成“节点 → 路由 → 图 → 输出契约 → 离线评测”，不逐条展开所有样例。 |
 | 55–58 分钟（3 分钟） | 第 12–13 章 | 第 12 章**现场讲解**；第 13 章**会后阅读** | 用第 12 章九项启动清单收束并给出团队下一步；明确第 13 章是**纯参考资料，不占现场讲解时间**。 |
 
@@ -123,7 +123,7 @@ response = model.bind_tools([get_project_progress]).invoke(
 )
 ```
 
-模型返回 tool call 不等于工具已经执行：它只是 `AIMessage` 中的一项调用请求。本项目用 `ToolNode` 接收该请求、执行函数并写回 `ToolMessage`，由此形成“模型判断—工具执行—模型继续回答”的闭环。
+模型返回 tool call 不等于工具已经执行：它只是 `AIMessage` 中的一项调用请求。对于普通工具，本项目把请求交回图路由，由 `ToolNode` 执行并写回 `ToolMessage`；指定的结构化输出工具则由 `llm_tool_structured_output` 在辅助函数内部直接执行。两条路径及其异常边界详见 8.5。
 
 **官方依据：** [LangChain Tools](https://docs.langchain.com/oss/python/langchain/tools)（工具 schema、调用和 `Command`）。
 
@@ -138,7 +138,7 @@ response = model.bind_tools([get_project_progress]).invoke(
 | Edge（边） | 表达确定的先后流转。 | `add_edge("a", "b")` | 主图和子图的 `add_edge`。 | 线性边保持简单；循环必须有退出条件。 |
 | Conditional Edge（条件边） | 按状态或路由结果选择下一步。 | `add_conditional_edges("a", route)` | `src/graphs/graph.py` 的多处条件路由。 | 路由应覆盖所有返回值，并显式处理异常或结束分支。 |
 | Reducer（归约器） | 合并同一字段的多次或并发更新。 | `Annotated[list[str], add]` | `src/graphs/common/reduce.py` 的重写、去重 reducer。 | 先决定覆盖、追加、去重或拒绝；不要依赖并发写入顺序。 |
-| `ToolNode`（工具节点） | 真正执行模型产生的工具调用并回写结果。 | `ToolNode(tools)` | `src/graphs/graph.py` 的 `product_manager_tool_node`。 | 它是执行闭环，不是模型绑定的替代；要处理工具错误和消息键。 |
+| `ToolNode`（工具节点） | 执行被图路由接收的普通工具调用并回写结果。 | `ToolNode(tools)` | `src/graphs/graph.py` 的 `product_manager_tool_node`。 | 它是普通工具的执行闭环；指定结构化输出工具由辅助函数直接执行，详见 8.5。 |
 | `Command`（命令） | 让工具/节点同时返回状态更新和控制信息。 | `Command(update={"x": 1})` | `src/graphs/tools.py` 的确认、重置工具。 | 更新字段仍受 reducer 约束；工具结果应附带 `ToolMessage`。 |
 | `Send`（动态分支） | 为运行时发现的并行任务创建分支。 | `Send("review", task_state)` | `src/graphs/common/utils/router_utils.py`；`src/graphs/common/base/routes.py` 也生成评审分支。 | 每个分支输入要最小化；汇合字段必须设计 reducer。 |
 | Subgraph（子图） | 封装可复用流程，避免主图膨胀。 | `add_node("sub", subgraph)` | `src/graphs/requirement/*/graph.py`、`src/graphs/system/*/graph.py`。 | 明确父子状态边界，避免把内部临时字段泄漏给父图。 |
@@ -187,7 +187,7 @@ Reducer 对并发写入尤其重要：如果两个由 `Send` 创建的分支都�
    - 检查问题：模型不知道的信息是否已被放入 Prompt 或通过 Tool 提供，且输出是否能被下游消费？
 4. **编写单一职责节点与 schema 明确的 Tool。**
    - 产物：只读写必要 State 字段的节点，以及参数、返回值和副作用清晰的 `@tool` 函数。
-   - 检查问题：模型提出 tool call 后，究竟由哪个 `ToolNode` 执行，失败结果又如何回到模型？
+   - 检查问题：模型提出 tool call 后，它是由辅助函数直接执行的指定结构化输出工具，还是交给 `ToolNode` 的普通工具；失败结果又如何回到模型？
 5. **添加固定边、条件路由、循环和子图。**
    - 产物：可读的图拓扑、路由函数与可复用子图边界。
    - 检查问题：每个分支和循环是否都有明确退出条件，异常或人工确认会流向哪里？
@@ -249,13 +249,13 @@ agent_builder.add_conditional_edges("product_manager_node", routes.product_manag
 agent = agent_builder.compile(checkpointer=sqlite_saver)
 ```
 
-`product_manager_node` 根据项目进度选择 Prompt，绑定项目工具和通用工具，并通过结构化输出辅助函数调用模型。模型输出的 Tool Call 会让路由进入 `product_manager_tool_node`；`ToolNode` 执行后回到产品经理节点，形成“判断—执行—继续判断”的循环。若没有工具调用，路由会根据 `pm_next_step` 进入需求、系统或测试子图；未知或已完成的步骤会进入 `end_node`。
+`product_manager_node` 根据项目进度选择 Prompt，绑定项目工具和通用工具，并通过结构化输出辅助函数调用模型。辅助函数会在内部直接执行指定的结构化输出工具并返回其结果；只有其他普通 Tool Call 才作为 `AIMessage` 返回图执行，由路由送入 `product_manager_tool_node`，再由 `ToolNode` 执行并回到产品经理节点。指定结构化输出工具若抛出异常，会先留在辅助函数的消息与重试循环中，不会立即送往 `ToolNode` 或下游路由；完整边界见 8.5。若最终状态没有工具调用，路由会根据 `pm_next_step` 进入需求、系统或测试子图；未知或已完成的步骤会进入 `end_node`。
 
 每个节点返回局部 State 更新，`State` 上的 reducer 决定如何合并这些更新；已编译图则按 `thread_id` 将执行快照写入 SQLite。特别是在 `Send` 并发分支汇合时，不能依赖“最后完成者覆盖前者”，而要依赖明确的 reducer 语义。
 
 ### 7.3 从图事件回到浏览器
 
-本项目订阅三种流：`values` 提供状态快照，服务层从最后一条非工具 `AIMessage` 中提取、过滤敏感内容后落库；`custom` 用于节点主动报告“需求理解中”等阶段或通知消息，去重后直接转发，不调用同一敏感输出过滤；`messages` 提供 `AIMessageChunk` token，过滤敏感内容后转换为前端的增量 `STREAM` 消息。三类事件都被包装成 SSE `data:` 帧，前端因而既能显示过程，也能显示逐 token 输出和最终正式消息。
+本项目订阅三种流：`values` 提供状态快照，服务层只检查 `state["messages"][-1]`；仅当它是有内容、无 `tool_calls` 且未被近期去重的 `AIMessage` 时，才过滤敏感内容、落库并发送正式回复。`custom` 用于节点主动报告“需求理解中”等阶段或通知消息，去重后直接转发，不调用同一敏感输出过滤；`messages` 提供 `AIMessageChunk` token，过滤敏感内容后转换为前端的增量 `STREAM` 消息。三类事件都被包装成 SSE `data:` 帧，前端因而既能显示过程，也能显示逐 token 输出和最终正式消息。
 
 ## 8. 本项目中的典型开发模式
 
@@ -292,9 +292,9 @@ agent = agent_builder.compile(checkpointer=sqlite_saver)
 ### 8.5 Tool Calling 与结构化输出
 
 - **代码位置：** `src/graphs/tools.py`、`src/graphs/common/utils/structured_output_utils.py`。
-- **做法：** 用 `@tool` 声明参数 schema；节点 `bind_tools` 后由结构化输出辅助函数识别目标 Tool Call、重试无效输出或将其他 Tool Call 留给 `ToolNode`。
-- **原因：** 模型的自然语言决策被约束为可执行参数和稳定的业务结果，同时保留普通工具调用的闭环。
-- **注意事项：** Tool Call 是模型意图而非函数已经执行；副作用工具需考虑幂等性、权限和失败后的 `ToolMessage`/回滚状态。
+- **做法：** 用 `@tool` 声明参数 schema，节点 `bind_tools` 后调用 `llm_tool_structured_output`。若模型首个 Tool Call 的名称等于指定结构化输出工具，辅助函数只保留这一次调用，构造 `ToolRuntime`，并在函数内部直接执行 `structured_output_func.ainvoke(...)`，其结果不会再经过 `ToolNode`。若模型调用的是其他普通工具，且不是被禁止的其他角色输出工具，辅助函数只把含 `tool_calls` 的 `AIMessage` 返回到消息状态；图路由随后进入对应 `ToolNode` 执行，再把 `ToolMessage` 带回模型循环。
+- **原因：** 指定结构化输出工具把模型决策直接收敛为节点所需的稳定状态结果；普通工具仍保留“模型提出意图—图路由—`ToolNode` 执行—模型继续判断”的闭环，两条路径不会重复执行同一工具。
+- **注意事项：** Tool Call 只是模型意图。没有 Tool Call、误调其他角色输出工具，或指定结构化输出工具执行异常时，辅助函数会把对应的 `AIMessage`/`ToolMessage` 追加到本地消息列表，并在下一轮让模型重试；指定结构化输出工具的异常不会立即返回图路由。模型网络调用有内层重试，结构化循环耗尽后抛出 `BusinessException`。普通副作用工具则由 `ToolNode` 执行，仍需分别考虑幂等性、权限及其错误处理。
 
 ### 8.6 通用优化循环与嵌套子图
 
@@ -334,9 +334,9 @@ Send("group_member_review_optimization_doc_node", {"role": role, **state})
 ### 8.10 异常边界
 
 - **代码位置：** `src/graphs/nodes.py:product_manager_node` 第 187–206 行，`src/graphs/common/utils/structured_output_utils.py:llm_tool_structured_output` 第 109–155 行，`src/graphs/graph.py:create_agent` 第 107 行，以及 `src/services/interface/conversation_message_interface_service.py:_start_agent` 第 183–213 行。
-- **做法：** 节点记录 `project_id` 等上下文后 await 结构化输出辅助函数；主图将这些节点编译为可执行图。辅助函数记录模型/工具上下文，对网络调用重试，重试耗尽时抛出 `BusinessException`；结构化输出 Tool 调用异常则记录日志并写入 `ToolMessage`，让图继续处理。未被图内处理的异常到达服务边界后由 `_start_agent()` 捕获，持久化“系统繁忙，请稍后再试！”失败消息，写入 SSE `data:` 帧和 `error:` 帧，最后关闭队列。
-- **原因：** 这种分层让节点与 Tool 保留诊断上下文，图仍能处理可恢复的 Tool 结果；最终由 HTTP 服务层统一将残余失败转成前端协议与可查询的会话记录。
-- **注意事项：** 上述重试与 `ToolMessage` 转换是当前实现，不能把它表述为所有 Tool 都会自动恢复。当前服务层统一捕获异常，尚未在这里按可重试模型错误、业务校验错误和系统错误生成不同前端契约；如需生产级分类，应另行定义错误类型、重试上限、告警和 SSE 错误 schema。
+- **做法：** 节点记录 `project_id` 等上下文后 await 结构化输出辅助函数；主图将这些节点编译为可执行图。按 8.5 所述，指定结构化输出工具的执行异常会先留在辅助函数的消息与重试循环中，耗尽后才抛出 `BusinessException`，不会立即送往图路由；只有普通 Tool Call 会返回图并交给 `ToolNode`。未被图内处理的异常到达服务边界后由 `_start_agent()` 捕获，持久化“系统繁忙，请稍后再试！”失败消息，写入 SSE `data:` 帧和 `error:` 帧，最后关闭队列。
+- **原因：** 这种分层让可修正的结构化输出失败先在本地重试，而最终残余失败由 HTTP 服务层转成前端协议和可查询的会话记录。
+- **注意事项：** 上述本地消息与重试仅描述指定结构化输出路径，不能推导为 `ToolNode` 中所有普通 Tool 都会自动恢复。当前服务层统一捕获异常，尚未在这里按可重试模型错误、业务校验错误和系统错误生成不同前端契约；如需生产级分类，应另行定义错误类型、重试上限、告警和 SSE 错误 schema。
 
 ## 9. LangChain/LangGraph 与 Dify：开发模式对比
 
@@ -406,7 +406,7 @@ LangSmith 的 Trace 由单次操作的多个 Run 构成，并可借助 `thread_i
 | 根 Trace | `_start_agent()` 调用 `MainAgent.astream()`，并有项目 ID 与事务 ID 日志上下文。 | 一次 `_start_agent()` 或 `MainAgent.astream()` 作为一个根 Trace；记录 `project_id`、事务 ID、环境、模型名和业务阶段。 |
 | 会话关联 | 图调用配置 `configurable.thread_id = project_id`。 | 以 `thread_id = project_id` 关联多轮 Trace；多租户场景同时记录受控的 tenant / user 关联字段，避免跨租户串联。 |
 | 图与业务节点 | 主图调度业务子图、条件路由、并发评审与 checkpoint。 | 为主图、每个业务子图、关键节点和路由创建子 Span；记录节点名、路由目标、路由次数、循环次数和结果状态。 |
-| 模型与 Tool | 节点通过 LangChain 模型和 `ToolNode` 执行模型/工具步骤。 | 为每次模型调用和 Tool 调用创建子 Span；记录模型名、Token/成本、耗时、重试次数、Tool 名、错误类别与结果摘要。 |
+| 模型与 Tool | 节点调用 LangChain 模型；指定结构化输出工具由辅助函数直接执行，普通工具由 `ToolNode` 执行。 | 为每次模型调用和 Tool 调用创建子 Span；记录模型名、Token/成本、耗时、重试次数、Tool 名、错误类别与结果摘要。 |
 | 流式输出 | 服务层消费 `values`、`custom`、`messages` 并输出 SSE。 | 为 SSE 输出建立子 Span 或事件；记录首 token 延迟、token 流持续时间、事件类型、断连和发送错误。 |
 | 核心指标 | 现有日志可用于定位请求和发送事件。 | 汇总端到端耗时、节点耗时、模型 Token/成本、Tool 错误率、路由次数、循环次数和首 token 延迟；再按环境、模型、业务阶段筛选。 |
 
@@ -426,7 +426,7 @@ LangSmith 的 Trace 由单次操作的多个 Run 构成，并可借助 `thread_i
 
 1. **把 LangChain 与 LangGraph 当作简单替代关系。** 两者关注的层次不同：LangChain 提供模型、消息、Prompt、Tool 和结构化输出等组件，LangGraph 提供 State、节点、边、持久化和流式执行。本项目正是在 LangGraph 节点中使用 LangChain 组件。选型时应问“是否需要显式状态和流程控制”，而不是问“两个框架只能留哪一个”。
 
-2. **把 Tool Call 当成工具执行结果。** 模型返回的 `AIMessage.tool_calls` 只是调用意图，包含工具名和候选参数；只有 `ToolNode` 或应用代码实际调用函数后，才产生工具结果。本项目在 `src/graphs/graph.py` 注册 `product_manager_tool_node`，工具实现在 `src/graphs/tools.py`。涉及数据库写入、外部请求或文件操作时，还要在执行层处理参数校验、权限、超时、幂等和异常，不能因为模型“选择了工具”就认为操作已经成功。
+2. **把 Tool Call 当成工具执行结果。** 模型返回的 `AIMessage.tool_calls` 只是调用意图，包含工具名和候选参数；只有 `ToolNode` 或应用代码实际调用函数后，才产生工具结果。本项目的指定结构化输出工具由辅助函数直接执行，其他普通工具调用返回图后由 `product_manager_tool_node` 等 `ToolNode` 执行。涉及数据库写入、外部请求或文件操作时，还要在执行层处理参数校验、权限、超时、幂等和异常，不能因为模型“选择了工具”就认为操作已经成功。
 
 3. **在节点中随意原地修改共享状态。** LangGraph 节点更适合把输入 State 当作只读快照，并返回自己负责的局部更新，例如 `return {"pm_next_step": next_step}`。随后由 State schema 上的 reducer 合并更新。原地修改会模糊字段所有者，也让并发、重试和 checkpoint 恢复时的行为更难推断。本项目的状态契约位于 `src/graphs/state.py`；新增节点前，应先写清它读取哪些字段、更新哪些字段以及空值语义。
 
@@ -480,7 +480,7 @@ LangSmith 的 Trace 由单次操作的多个 Run 构成，并可借助 `thread_i
 
 ## 13. 官方延伸阅读
 
-下面按主题列出会后查阅入口。官方文档会持续演进，实施时应结合仓库锁定的依赖版本核对 API；本稿中的项目行为仍以当前源码为准。
+下面按主题列出会后查阅入口。官方文档会持续演进，实施时应结合仓库声明的版本下限及实际部署解析版本核对 API；本仓库没有依赖锁文件，本稿中的项目行为仍以当前源码为准。
 
 ### LangChain
 

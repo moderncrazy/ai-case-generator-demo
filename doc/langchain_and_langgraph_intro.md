@@ -212,9 +212,11 @@ flowchart LR
 
 ### 7.1 从服务边界进入图
 
-`ConversationMessageInterfaceService._start_agent()` 接到项目、用户消息和可选文件后，异步遍历 `main_agent.astream(...)` 的流事件。它不参与模型路由，而是将事件去重、过滤敏感输出、持久化正式会话消息，并通过 `queue.put("data: ...\\n\\n")` 写成 SSE 数据帧。
+`ConversationMessageInterfaceService._start_agent()` 接到项目、用户消息和可选文件后，异步遍历 `main_agent.astream(...)` 的流事件。它不参与模型路由：`custom` 进度事件会去重后转发；`values` 和 `messages` 中的 AI 输出才会经过敏感内容过滤。正式会话消息会被持久化，并通过 `queue.put("data: ...\\n\\n")` 写成 SSE 数据帧。
 
 `MainAgent.astream()` 把用户文本包装为 `HumanMessage`，并连同 `project_id` 与可选 `new_file_list` 作为初始 State 交给已编译图。这里的 `project_id` 有两重含义：业务上它定位项目数据；运行时它也作为 LangGraph 的 `thread_id`，把同一项目的每次请求连接到同一份 checkpoint 状态。
+
+**对应项目源码：** `src/agents/main_agent.py:MainAgent.astream` 第 66–71 行；以下是原样保留的关键配置行。
 
 ```python
 config={"configurable": {"thread_id": project_id}}
@@ -226,6 +228,8 @@ stream_mode=["values", "custom", "messages"]
 ### 7.2 主图做决策，节点完成工作
 
 首次调用时，`MainAgent.get_agent()` 懒加载 `graph.create_agent()`。后者创建 `StateGraph(State)`、注册状态准备节点、产品经理节点、`ToolNode` 和八个需求/系统/测试业务子图，再以 SQLite saver 编译：
+
+**对应项目源码（节选）：** `src/graphs/graph.py:create_agent` 第 37、77–87、106–107 行。下面的 `[...]` 是对源码中完整目标节点列表的缩写。
 
 ```python
 agent_builder = StateGraph(State)
@@ -239,9 +243,7 @@ agent = agent_builder.compile(checkpointer=sqlite_saver)
 
 ### 7.3 从图事件回到浏览器
 
-本项目订阅三种流：`values` 提供状态快照，服务层从最后一条非工具 `AIMessage` 中提取正式回复并落库；`custom` 用于节点主动报告“需求理解中”等阶段或通知消息；`messages` 提供 `AIMessageChunk` token，服务层转换为前端的增量 `STREAM` 消息。三类事件都被包装成 SSE `data:` 帧，前端因而既能显示过程，也能显示逐 token 输出和最终正式消息。
-
-异常不应悄悄停在图中：节点和 Tool 记录项目/调用上下文后向图调用层传播异常；`_start_agent()` 在服务边界捕获异常，持久化失败消息，并发送前端可消费的 SSE 错误事件。生产实现还应区分可重试的模型错误、业务校验错误和系统错误，分别决定重试、提示用户还是告警。
+本项目订阅三种流：`values` 提供状态快照，服务层从最后一条非工具 `AIMessage` 中提取、过滤敏感内容后落库；`custom` 用于节点主动报告“需求理解中”等阶段或通知消息，去重后直接转发，不调用同一敏感输出过滤；`messages` 提供 `AIMessageChunk` token，过滤敏感内容后转换为前端的增量 `STREAM` 消息。三类事件都被包装成 SSE `data:` 帧，前端因而既能显示过程，也能显示逐 token 输出和最终正式消息。
 
 ## 8. 本项目中的典型开发模式
 
@@ -294,6 +296,8 @@ agent = agent_builder.compile(checkpointer=sqlite_saver)
 - **代码位置：** `src/graphs/common/base/routes.py`、`src/graphs/common/reduce.py`。
 - **做法：** 路由为每个评审角色生成一个动态分支，再以 reducer 合并评审结果。
 
+**对应项目源码：** `src/graphs/common/base/routes.py:AnyOptimizationDocRoutes.pm_review_optimization_doc_tool_router` 第 119–122 行；以下是其中原样的单个 `Send` 表达式。
+
 ```python
 Send("group_member_review_optimization_doc_node", {"role": role, **state})
 ```
@@ -314,3 +318,10 @@ Send("group_member_review_optimization_doc_node", {"role": role, **state})
 - **做法：** 图以 `values`、`custom`、`messages` 三种模式流式执行，服务层分别将最终状态回复、阶段消息和 token 块转换为 SSE。
 - **原因：** 用户既能看到即时反馈，也能得到可持久化的正式回答；服务层无需理解每个业务节点。
 - **注意事项：** `values` 与 `messages` 可能表达同一次回答的不同粒度，服务层要去重；断连、心跳、异常帧和消息落库的一致性应作为接口测试重点。
+
+### 8.10 异常边界
+
+- **代码位置：** `src/graphs/nodes.py:product_manager_node` 第 187–206 行，`src/graphs/common/utils/structured_output_utils.py:llm_tool_structured_output` 第 109–155 行，`src/graphs/graph.py:create_agent` 第 107 行，以及 `src/services/interface/conversation_message_interface_service.py:_start_agent` 第 183–213 行。
+- **做法：** 节点记录 `project_id` 等上下文后 await 结构化输出辅助函数；主图将这些节点编译为可执行图。辅助函数记录模型/工具上下文，对网络调用重试，重试耗尽时抛出 `BusinessException`；结构化输出 Tool 调用异常则记录日志并写入 `ToolMessage`，让图继续处理。未被图内处理的异常到达服务边界后由 `_start_agent()` 捕获，持久化“系统繁忙，请稍后再试！”失败消息，写入 SSE `data:` 帧和 `error:` 帧，最后关闭队列。
+- **原因：** 这种分层让节点与 Tool 保留诊断上下文，图仍能处理可恢复的 Tool 结果；最终由 HTTP 服务层统一将残余失败转成前端协议与可查询的会话记录。
+- **注意事项：** 上述重试与 `ToolMessage` 转换是当前实现，不能把它表述为所有 Tool 都会自动恢复。当前服务层统一捕获异常，尚未在这里按可重试模型错误、业务校验错误和系统错误生成不同前端契约；如需生产级分类，应另行定义错误类型、重试上限、告警和 SSE 错误 schema。

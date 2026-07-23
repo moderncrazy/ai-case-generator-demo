@@ -79,18 +79,20 @@ flowchart TB
 
 ## 4. LangChain 核心概念
 
-这一节把 LangChain 看作节点内部的“能力工具箱”。先记住：模型负责推理，工具负责执行，状态和流程仍由 LangGraph 管理。
+这一节把 LangChain 看作节点内部的“能力工具箱”。下表每行都用同一套问题讲解：它是什么、解决什么、最小形态、项目在哪里、使用时防什么坑。先记住：模型负责推理，工具负责执行，状态和流程仍由 LangGraph 管理。
 
-| 概念 | 职责 | 本项目位置 |
-| --- | --- | --- |
-| Chat Model | 统一不同模型供应商的调用接口，接收消息并生成回复或工具调用意图。 | `src/graphs/common/llms.py` 使用 `init_chat_model` 初始化 Ollama、MiniMax 等模型。 |
-| Message | 用带角色的对象保存对话：`SystemMessage` 规定系统规则，`HumanMessage` 表示用户输入，`AIMessage` 保存模型回复，`ToolMessage` 保存工具执行结果。 | `src/graphs/state.py` 继承 `MessagesState`；`src/graphs/tools.py` 在工具返回中构造 `ToolMessage`。 |
-| Prompt | 把业务规则、检索到的上下文和当前输入组织为模型可执行的指令。 | 各业务节点在调用模型前组合项目状态、指令模板和消息。 |
-| Tool 与 Tool Calling | 用函数及其 schema 声明可用能力；模型只产生“想调用哪个工具、传什么参数”的意图，执行器才真正运行函数。 | `src/graphs/tools.py` 以 `@tool` 声明工具；主图注册工具节点。 |
-| Structured Output | 用 Pydantic 模型或 schema 约束输出字段、类型和格式，让结果可被程序稳定消费。 | `src/graphs/schemas.py` 与 `src/graphs/common/utils/structured_output_utils.py` 定义并处理结构化结果。 |
-| Runnable 与 `RunnableConfig` | 将模型、Prompt、工具等统一为可调用组件；`RunnableConfig` 是传递调用配置、callbacks、tags 和 metadata 的入口。 | `src/graphs/nodes.py`、`src/graphs/common/base/nodes.py` 的节点参数接收 `RunnableConfig`。 |
+| 概念（是什么） | 解决的问题 | 最小示意 | 本项目位置 | 实践注意 |
+| --- | --- | --- | --- | --- |
+| Chat Model（聊天模型） | 统一供应商接口，避免节点逐个适配模型 API。 | `init_chat_model(...).invoke(messages)` | `src/graphs/common/llms.py` 初始化 Ollama、MiniMax。 | 固定模型名、超时、重试和温度；不要把供应商参数散落在节点中。 |
+| Message（消息） | 让对话角色和工具往返可追踪。 | `System/Human/AI/ToolMessage` | `src/graphs/state.py` 继承 `MessagesState`；`src/graphs/tools.py` 构造 `ToolMessage`。 | 工具结果必须带正确 `tool_call_id`，否则模型无法关联请求与结果。 |
+| Prompt（提示词） | 将业务规则、上下文和输入变成可执行指令。 | `system_rule + context + user_input` | 业务节点组合项目状态、指令模板和消息。 | 只放必要且可信的上下文；把稳定规则与易变输入分开。 |
+| Tool（工具）与 Tool Calling（工具调用） | 让模型请求真实数据或副作用操作，而非凭空回答。 | `@tool` → `bind_tools([...])` → tool call | `src/graphs/tools.py` 的 `@tool`；主图注册工具节点。 | 模型只提出意图，不会执行函数；参数 schema、权限和幂等性要明确。 |
+| Structured Output（结构化输出） | 将自然语言答案变为可被下游稳定读取的字段。 | `OutputModel(field: str)` | `src/graphs/schemas.py`、`src/graphs/common/utils/structured_output_utils.py`。 | schema 校验失败要有重试/降级；不要把未经校验的文本直接写入状态。 |
+| Runnable（可运行组件）与 `RunnableConfig`（运行配置） | 以统一调用方式传递配置、callbacks、tags 和 metadata。 | `runnable.invoke(input, config)` | `src/graphs/nodes.py`、`src/graphs/common/base/nodes.py` 接收 `RunnableConfig`。 | 用 config 传追踪与调用级配置，不要把会话业务数据偷塞进全局变量。 |
 
-**最小示例：** 这里刻意采用本项目当前的导入风格。把工具绑定给模型后，模型才知道自己可以查询项目进度。
+**最小示例：** 以下是教学等价代码，不是从项目函数复制；它采用当前项目的导入风格，并显示工具绑定后的模型调用。
+
+**对应源码：** `src/graphs/common/llms.py`、`src/graphs/tools.py`。
 
 ```python
 from langchain.chat_models import init_chat_model
@@ -111,25 +113,29 @@ response = model.bind_tools([get_project_progress]).invoke(
 
 模型返回 tool call 不等于工具已经执行：它只是 `AIMessage` 中的一项调用请求。本项目用 `ToolNode` 接收该请求、执行函数并写回 `ToolMessage`，由此形成“模型判断—工具执行—模型继续回答”的闭环。
 
+**官方依据：** [LangChain Tools](https://docs.langchain.com/oss/python/langchain/tools)（工具 schema、调用和 `Command`）。
+
 ## 5. LangGraph 核心概念
 
-如果说 LangChain 解决“节点里能做什么”，LangGraph 解决的就是“这些节点以什么状态、什么顺序、能否恢复地协作”。下面的概念可以直接对照项目走读。
+如果说 LangChain 解决“节点里能做什么”，LangGraph 解决的就是“这些节点以什么状态、什么顺序、能否恢复地协作”。仍按“是什么—问题—最小示意—位置—注意”走读，表中的示意用于理解，不代表完整生产实现。
 
-| 概念 | 含义与本项目映射 |
-| --- | --- |
-| State | 图内共享的数据契约。项目的 `src/graphs/state.py:State` 保存消息、项目进度、需求、风险等字段。 |
-| Node | 读取当前状态、完成单一职责工作并返回局部更新的执行单元；例如 `product_manager_node`。 |
-| Edge | 固定流转关系；主图中的 `add_edge` 将确定的后继节点连接起来。 |
-| Conditional Edge | 根据当前状态或路由函数选择下一节点；项目使用 `add_conditional_edges` 处理下一步、工具调用和业务分支。 |
-| Reducer | 同一 State 字段多次收到更新时的合并规则。项目的 `rewrite_reducer` 覆盖旧值，`distinct_reducer` 支持去重追加和清空。 |
-| `ToolNode` | 读取模型产生的工具调用、执行对应 `@tool` 函数，并把结果写回消息状态。主图的 `product_manager_tool_node` 即为此类节点。 |
-| `Command` | 工具或节点返回的状态更新载体，也可以表达控制指令。`src/graphs/tools.py` 的确认、重置等工具通过 `Command(update=...)` 同时更新业务字段和工具消息。 |
-| `Send` | 为并行任务动态创建分支，每个分支带自己的状态输入。项目路由会为每个待评审角色生成一个 `Send`。 |
-| Subgraph | 将可复用的流程编译为节点后嵌入父图。项目把需求、架构、数据库、API、测试用例等流程拆为子图。 |
-| Checkpoint | 按 `thread_id` 保存每一步状态快照，支持中断后恢复；主图编译时传入 SQLite checkpointer。 |
-| Streaming | 在运行过程中逐步消费状态更新、消息 token 或自定义进度事件。项目通过 `get_stream_writer()` 写出自定义进度消息。 |
+| 概念（是什么） | 解决的问题 | 最小示意 | 本项目位置 | 实践注意 |
+| --- | --- | --- | --- | --- |
+| State（状态） | 让节点共享受约束的数据契约。 | `{"project_id": "p1"}` | `src/graphs/state.py:State` 保存消息、进度、需求和风险。 | 先定义字段所有权；避免节点直接修改输入状态。 |
+| Node（节点） | 将工作拆成可测试的单一职责单元。 | `def node(state): return {"x": 1}` | `product_manager_node` 等业务节点。 | 只返回自己负责的局部更新，副作用要可追踪或幂等。 |
+| Edge（边） | 表达确定的先后流转。 | `add_edge("a", "b")` | 主图和子图的 `add_edge`。 | 线性边保持简单；循环必须有退出条件。 |
+| Conditional Edge（条件边） | 按状态或路由结果选择下一步。 | `add_conditional_edges("a", route)` | `src/graphs/graph.py` 的多处条件路由。 | 路由应覆盖所有返回值，并显式处理异常或结束分支。 |
+| Reducer（归约器） | 合并同一字段的多次或并发更新。 | `Annotated[list[str], add]` | `src/graphs/common/reduce.py` 的重写、去重 reducer。 | 先决定覆盖、追加、去重或拒绝；不要依赖并发写入顺序。 |
+| `ToolNode`（工具节点） | 真正执行模型产生的工具调用并回写结果。 | `ToolNode(tools)` | `src/graphs/graph.py` 的 `product_manager_tool_node`。 | 它是执行闭环，不是模型绑定的替代；要处理工具错误和消息键。 |
+| `Command`（命令） | 让工具/节点同时返回状态更新和控制信息。 | `Command(update={"x": 1})` | `src/graphs/tools.py` 的确认、重置工具。 | 更新字段仍受 reducer 约束；工具结果应附带 `ToolMessage`。 |
+| `Send`（动态分支） | 为运行时发现的并行任务创建分支。 | `Send("review", task_state)` | `src/graphs/common/utils/router_utils.py`；`src/graphs/common/base/routes.py` 也生成评审分支。 | 每个分支输入要最小化；汇合字段必须设计 reducer。 |
+| Subgraph（子图） | 封装可复用流程，避免主图膨胀。 | `add_node("sub", subgraph)` | `src/graphs/requirement/*/graph.py`、`src/graphs/system/*/graph.py`。 | 明确父子状态边界，避免把内部临时字段泄漏给父图。 |
+| Checkpoint（检查点） | 按 `thread_id` 保存每步快照，以便恢复。 | `compile(checkpointer=saver)` | `src/graphs/graph.py` 编译时传入 SQLite saver。 | `thread_id` 必须稳定且隔离租户；演进 State 时考虑旧快照兼容。 |
+| Streaming（流式输出） | 让调用方逐步获得状态、token 或进度，而非等待结束。 | `graph.astream(...)` / writer event | `src/graphs/common/utils/utils.py`、`format_utils.py` 用 `get_stream_writer()`。 | 区分状态、token 和自定义事件；消费者须能处理乱序、断连和重连。 |
 
-**最小图示例：** `notes` 字段使用 `add` 作为 reducer，表示每次节点返回的新笔记会追加到已有笔记，而不是覆盖。
+**最小图示例：** 以下是教学等价代码，不是从项目函数复制；`notes` 使用 `add` 作为 reducer，表示新笔记会追加而不是覆盖。
+
+**对应源码：** `src/graphs/graph.py`、`src/graphs/state.py`。
 
 ```python
 from typing import Annotated, TypedDict
@@ -151,6 +157,8 @@ graph = builder.compile()
 ```
 
 Reducer 对并发写入尤其重要：如果两个由 `Send` 创建的分支都更新列表字段，没有明确合并规则，结果可能发生覆盖、顺序不确定或运行时冲突。状态字段应在设计时明确“覆盖、追加、去重还是拒绝”的语义，而不是把决定留给节点实现细节。
+
+**官方依据：** [LangGraph overview](https://docs.langchain.com/oss/python/langgraph/overview)、[Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)、[Streaming](https://docs.langchain.com/oss/python/langgraph/streaming)。
 
 ## 6. LangChain/LangGraph 标准开发流程
 

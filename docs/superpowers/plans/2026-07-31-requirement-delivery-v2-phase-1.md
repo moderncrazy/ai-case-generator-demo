@@ -1,5 +1,8 @@
 # Requirement Delivery V2 Phase 1 Implementation Plan
 
+> [!WARNING]
+> 本计划已废弃，不得执行。当前 V2 直接替换 V1，不使用功能开关、兼容接口、SQLite 或旧表增量方案；后续实施计划必须以已批准 PRD、当前总体架构和 ADR 0001—0024 为依据重新编写。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a feature-flagged V2 requirement pipeline that turns confirmed project facts into versioned, traceable, quality-gated requirement outlines, requirement modules, and PRDs without silently inventing business scope.

@@ -1,5 +1,8 @@
 # AI 软件交付平台 V2 设计
 
+> [!WARNING]
+> 本文已被 `docs/product/platform-v2-prd.md`、`docs/architecture/platform-v2-architecture.md` 和 ADR 0001—0024 取代，仅保留为历史讨论记录。不得据此实施；其中 V1/V2 共存、旧数据导入、ArtifactManifest 和早期 Profile 方案均已废弃。
+
 ## 1. 背景与目标
 
 当前项目已经通过 LangGraph Multi-Agent 流程实现从需求输入到需求大纲、需求模块、PRD、架构、数据库、接口和测试用例的完整 Demo 链路，但现有流程以“Demo 优先：速度 > 细节”为主要约束，生成效果存在以下系统性问题：

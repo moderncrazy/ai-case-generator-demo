@@ -12,6 +12,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     String,
     Text,
@@ -38,7 +39,7 @@ class ProjectFile(Base):
         UUID(), ForeignKey("project.id"), nullable=False
     )
     message_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(), ForeignKey("project_message.id"), nullable=False
+        UUID(), nullable=False
     )
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     content_type: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -79,6 +80,13 @@ class ProjectFile(Base):
         UniqueConstraint(
             "extracted_text_key",
             name="uq_project_file_extracted_text_key",
+        ),
+        # Same-project integrity — a file's source message must belong to
+        # the file's project.
+        ForeignKeyConstraint(
+            ["project_id", "message_id"],
+            ["project_message.project_id", "project_message.id"],
+            name="fk_project_file_message",
         ),
         Index(
             "ix_project_file_project_created",

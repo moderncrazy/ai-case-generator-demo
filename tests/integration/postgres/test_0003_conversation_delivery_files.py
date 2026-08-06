@@ -1788,3 +1788,229 @@ async def test_non_terminal_status_without_stop_audit_succeeds(
         },
     )
     await async_session.flush()
+
+
+# ===================================================================
+# Terminal stop audit must include BOTH fields (Finding 5)
+# ===================================================================
+
+
+@pytest.mark.asyncio
+async def test_cancelled_without_stop_audit_rejected(
+    async_session: AsyncSession, msg_project, msg_users,
+) -> None:
+    """Terminal status CANCELLED without stopped_by_user_id and stopped_at
+    must be rejected — the audit trail is mandatory."""
+    with pytest.raises(IntegrityError):
+        await async_session.execute(
+            text(
+                """
+                INSERT INTO project_message
+                  (id, project_id, user_id, idempotency_key, request_hash,
+                   role, content, status, process, process_version, diagnostics,
+                   created_at, updated_at)
+                VALUES
+                  (:id, :proj, :uid, :key, :hash,
+                   'USER', '', 'CANCELLED', '[]'::jsonb, 0, '[]'::jsonb,
+                   now(), now())
+                """
+            ),
+            {
+                "id": uuid4(), "proj": msg_project, "uid": msg_users.a,
+                "key": uuid4(), "hash": "h1" + "c" * 62,
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_cancelled_with_only_stopped_at_rejected(
+    async_session: AsyncSession, msg_project, msg_users,
+) -> None:
+    """Terminal status with stopped_at but missing stopped_by_user_id must be
+    rejected — both audit fields are mandatory."""
+    with pytest.raises(IntegrityError):
+        await async_session.execute(
+            text(
+                """
+                INSERT INTO project_message
+                  (id, project_id, user_id, idempotency_key, request_hash,
+                   role, content, status, process, process_version, diagnostics,
+                   stopped_by_user_id, stopped_at, created_at, updated_at)
+                VALUES
+                  (:id, :proj, :uid, :key, :hash,
+                   'USER', '', 'CANCELLED', '[]'::jsonb, 0, '[]'::jsonb,
+                   NULL, now(), now(), now())
+                """
+            ),
+            {
+                "id": uuid4(), "proj": msg_project, "uid": msg_users.a,
+                "key": uuid4(), "hash": "h2" + "c" * 62,
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_interrupted_with_only_stopped_by_user_rejected(
+    async_session: AsyncSession, msg_project, msg_users,
+) -> None:
+    """Terminal status with stopped_by_user_id but missing stopped_at must be
+    rejected — both audit fields are mandatory."""
+    with pytest.raises(IntegrityError):
+        await async_session.execute(
+            text(
+                """
+                INSERT INTO project_message
+                  (id, project_id, user_id, idempotency_key, request_hash,
+                   role, content, status, process, process_version, diagnostics,
+                   stopped_by_user_id, stopped_at, created_at, updated_at)
+                VALUES
+                  (:id, :proj, :uid, :key, :hash,
+                   'USER', '', 'INTERRUPTED', '[]'::jsonb, 0, '[]'::jsonb,
+                   :uid, NULL, now(), now())
+                """
+            ),
+            {
+                "id": uuid4(), "proj": msg_project, "uid": msg_users.a,
+                "key": uuid4(), "hash": "h3" + "c" * 62,
+            },
+        )
+
+
+# ===================================================================
+# Cross-project ownership — delivery_run and project_file (Finding 7)
+# ===================================================================
+
+
+async def _insert_project_inline(
+    session: AsyncSession, profile_id, user_id, name: str,
+):
+    """Insert a project in the caller's transaction and return its UUID."""
+    proj_id = uuid4()
+    await session.execute(
+        text(
+            """
+            INSERT INTO project
+              (id, creation_idempotency_key, creation_request_hash,
+               name, status, truth, revision,
+               profile_id, profile_version, profile_hash,
+               profile_migration_status, artifact_counters,
+               default_branch, created_by_user_id, created_at, updated_at)
+            VALUES
+              (:id, :key, :hash, :name, 'ACTIVE', '{}'::jsonb, 0,
+               :pid, 0, :phash, 'CURRENT', '{}'::jsonb,
+               'main', :uid, now(), now())
+            """
+        ),
+        {
+            "id": proj_id, "key": uuid4(), "hash": "x1" + "c" * 62,
+            "name": name, "pid": profile_id, "phash": "x2" + "d" * 62,
+            "uid": user_id,
+        },
+    )
+    await session.flush()
+    return proj_id
+
+
+@pytest.mark.asyncio
+async def test_delivery_run_rejects_cross_project_trigger_message(
+    async_session: AsyncSession, msg_project, msg_users, msg_profile,
+) -> None:
+    """A delivery_run in project A must not reference a trigger message that
+    belongs to project B."""
+    proj_b = await _insert_project_inline(
+        async_session, msg_profile, msg_users.a, "Delivery Proj B",
+    )
+    other_msg = await _insert_user_message(
+        async_session, proj_b, msg_users.a, uuid4(), "hash-cross-trigger",
+    )
+    with pytest.raises(IntegrityError):
+        await async_session.execute(
+            text(
+                """
+                INSERT INTO delivery_run
+                  (project_id, run_id, trigger_message_id, response_message_id,
+                   status, project_revision, profile_id, profile_version,
+                   profile_hash, input_baselines, retry_count,
+                   started_at, updated_at)
+                VALUES
+                  (:proj, :run, :trig, :resp,
+                   'QUEUED', 0, :pid, 0, :phash, '[]'::jsonb, 0,
+                   now(), now())
+                """
+            ),
+            {
+                "proj": msg_project, "run": uuid4(),
+                "trig": other_msg, "resp": other_msg,
+                "pid": msg_profile, "phash": "x3" + "e" * 62,
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_delivery_run_rejects_cross_project_response_message(
+    async_session: AsyncSession, msg_project, msg_users, msg_profile,
+) -> None:
+    """A delivery_run in project A must not reference a response message that
+    belongs to project B."""
+    proj_b = await _insert_project_inline(
+        async_session, msg_profile, msg_users.a, "Delivery Proj C",
+    )
+    own_msg = await _insert_user_message(
+        async_session, msg_project, msg_users.a, uuid4(), "hash-own-trigger",
+    )
+    other_msg = await _insert_user_message(
+        async_session, proj_b, msg_users.a, uuid4(), "hash-cross-response",
+    )
+    with pytest.raises(IntegrityError):
+        await async_session.execute(
+            text(
+                """
+                INSERT INTO delivery_run
+                  (project_id, run_id, trigger_message_id, response_message_id,
+                   status, project_revision, profile_id, profile_version,
+                   profile_hash, input_baselines, retry_count,
+                   started_at, updated_at)
+                VALUES
+                  (:proj, :run, :trig, :resp,
+                   'QUEUED', 0, :pid, 0, :phash, '[]'::jsonb, 0,
+                   now(), now())
+                """
+            ),
+            {
+                "proj": msg_project, "run": uuid4(),
+                "trig": own_msg, "resp": other_msg,
+                "pid": msg_profile, "phash": "x4" + "e" * 62,
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_project_file_rejects_cross_project_message(
+    async_session: AsyncSession, msg_project, msg_users, msg_profile,
+) -> None:
+    """A project_file in project A must not reference a message from project B."""
+    proj_b = await _insert_project_inline(
+        async_session, msg_profile, msg_users.a, "File Proj B",
+    )
+    other_msg = await _insert_user_message(
+        async_session, proj_b, msg_users.a, uuid4(), "hash-cross-file",
+    )
+    with pytest.raises(IntegrityError):
+        await async_session.execute(
+            text(
+                """
+                INSERT INTO project_file
+                  (id, project_id, message_id, filename, content_type,
+                   size_bytes, sha256, object_key, status,
+                   created_at, updated_at)
+                VALUES
+                  (:id, :proj, :msg, 'cross.txt', 'text/plain',
+                   100, :sha, :okey, 'UPLOADED',
+                   now(), now())
+                """
+            ),
+            {
+                "id": uuid4(), "proj": msg_project, "msg": other_msg,
+                "sha": "x5" + "f" * 62, "okey": f"files/{uuid4().hex}",
+            },
+        )

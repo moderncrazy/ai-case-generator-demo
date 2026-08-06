@@ -66,7 +66,15 @@ def alembic_config(test_database_url: str) -> Config:
 
 @pytest.fixture(scope="session")
 def _run_migrations(alembic_config: Config) -> None:
-    """Run alembic migrations once per test session."""
+    """Run alembic migrations once per test session.
+
+    The disposable test database is reset to ``base`` first, then rebuilt
+    to ``head``, so committed fixtures from a previous run cannot leak
+    into this session.  This makes the integration suite repeatably
+    isolated: the same full suite passes twice consecutively without a
+    manual Alembic reset between runs.
+    """
+    downgrade(alembic_config, "base")
     upgrade(alembic_config, "head")
 
 

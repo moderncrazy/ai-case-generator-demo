@@ -12,8 +12,24 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.modules.delivery.models import ProjectStage
 from src.modules.profiles.models import DomainProfile, DomainProfileVersion
 from src.modules.projects.models import Project, ProjectMember
+
+
+# The nine approved project stages created atomically at project creation
+# (matches ``ck_project_stage_stage``).
+PROJECT_STAGE_CODES = [
+    "PROJECT_CHARTER",
+    "REQUIREMENT_OUTLINE",
+    "REQUIREMENT_MODULE",
+    "PRD",
+    "ARCHITECTURE",
+    "SYSTEM_MODULE",
+    "API",
+    "DATABASE",
+    "TEST",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +208,8 @@ class ProjectRepository:
         inserted_id: uuid.UUID | None = result.scalar_one_or_none()
 
         if inserted_id is not None:
-            # Insert succeeded — create the creator OWNER membership
+            # Insert succeeded — create the creator OWNER membership and the
+            # nine mandatory stage rows atomically in the same transaction.
             member_stmt = pg_insert(ProjectMember).values(
                 id=uuid.uuid4(),
                 project_id=inserted_id,
@@ -203,6 +220,19 @@ class ProjectRepository:
                 updated_at=now,
             )
             await self._session.execute(member_stmt)
+            for stage in PROJECT_STAGE_CODES:
+                stage_stmt = pg_insert(ProjectStage).values(
+                    id=uuid.uuid4(),
+                    project_id=inserted_id,
+                    stage=stage,
+                    status="NOT_STARTED",
+                    revision=0,
+                    baseline_version=0,
+                    publish_attempts=0,
+                    created_at=now,
+                    updated_at=now,
+                )
+                await self._session.execute(stage_stmt)
             await self._session.flush()
 
             # Re-fetch to return a fully-populated ORM instance

@@ -30,6 +30,11 @@ DependencyProbe = Callable[[], Awaitable[bool]]
 # via ``app.state.probe_timeout_seconds``.
 PROBE_TIMEOUT_SECONDS = 1.0
 
+# Readiness is authoritative only when every required dependency is
+# confirmed ready; anything less (missing, failed, or timed out probe)
+# is ``unavailable`` and degrades the endpoint.
+REQUIRED_PROBES = ("postgres", "redis")
+
 
 @router.get("/health/live")
 async def liveness() -> dict[str, str]:
@@ -54,7 +59,12 @@ async def _run_probe(
 
 @router.get("/health/ready")
 async def readiness(request: Request) -> JSONResponse:
-    """Report PostgreSQL and Redis readiness without exposing secrets."""
+    """Report PostgreSQL and Redis readiness without exposing secrets.
+
+    Every required dependency must probe ``ready``; a missing, failed, or
+    timed-out probe is reported as ``unavailable`` (never silently
+    dropped) and degrades the endpoint to 503.
+    """
     probes: Mapping[str, DependencyProbe] = getattr(
         request.app.state, "health_probes", {}
     )
@@ -66,7 +76,9 @@ async def readiness(request: Request) -> JSONResponse:
             *(_run_probe(name, probe, timeout) for name, probe in probes.items())
         )
     )
-    all_ready = all(state == "ready" for state in states.values())
+    for name in REQUIRED_PROBES:
+        states.setdefault(name, "unavailable")
+    all_ready = all(states.get(name) == "ready" for name in REQUIRED_PROBES)
     return JSONResponse(
         content={"status": "ready" if all_ready else "degraded", **states},
         status_code=200 if all_ready else 503,

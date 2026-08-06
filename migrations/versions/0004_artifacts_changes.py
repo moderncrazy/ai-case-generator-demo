@@ -127,6 +127,11 @@ def upgrade() -> None:
         sa.UniqueConstraint(
             "project_id", "git_path", name="uq_artifact_git_path",
         ),
+        # Candidate key — id is project-scoped so artifact_draft's composite
+        # base_artifact FK can enforce same-project references.
+        sa.UniqueConstraint(
+            "project_id", "id", name="uq_artifact_project_id",
+        ),
         # Foreign keys
         sa.ForeignKeyConstraint(
             ["project_id"],
@@ -293,9 +298,11 @@ def upgrade() -> None:
             ["domain_profile.id"],
             name="fk_artifact_draft_profile",
         ),
+        # Same-project integrity — a draft's base artifact must belong to
+        # the draft's project.
         sa.ForeignKeyConstraint(
-            ["base_artifact_id"],
-            ["artifact.id"],
+            ["project_id", "base_artifact_id"],
+            ["artifact.project_id", "artifact.id"],
             name="fk_artifact_draft_base_artifact",
         ),
         sa.ForeignKeyConstraint(
@@ -414,15 +421,25 @@ def upgrade() -> None:
             "decision_git_commit_sha IS NOT NULL)",
             name="ck_project_change_terminal_decision",
         ),
+        # Terminal status/decision correlation — APPLIED must be APPROVED,
+        # REJECTED must be REJECTED, WITHDRAWN must be WITHDRAWN.
+        sa.CheckConstraint(
+            "(status <> 'APPLIED' OR decision = 'APPROVED') "
+            "AND (status <> 'REJECTED' OR decision = 'REJECTED') "
+            "AND (status <> 'WITHDRAWN' OR decision = 'WITHDRAWN')",
+            name="ck_project_change_status_decision",
+        ),
         # Foreign keys
         sa.ForeignKeyConstraint(
             ["project_id"],
             ["project.id"],
             name="fk_project_change_project",
         ),
+        # Same-project integrity — a change's trigger message must belong to
+        # the change's project.
         sa.ForeignKeyConstraint(
-            ["source_message_id"],
-            ["project_message.id"],
+            ["project_id", "source_message_id"],
+            ["project_message.project_id", "project_message.id"],
             name="fk_project_change_source_message",
         ),
         sa.ForeignKeyConstraint(

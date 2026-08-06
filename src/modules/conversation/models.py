@@ -106,9 +106,17 @@ class ProjectMessage(Base):
             name="ck_project_message_delivery_mode",
         ),
         CheckConstraint(
-            "(status IN ('CANCELLED', 'INTERRUPTED')) "
-            "OR (stopped_at IS NULL)",
+            "(status IN ('CANCELLED', 'INTERRUPTED') AND "
+            "stopped_by_user_id IS NOT NULL AND stopped_at IS NOT NULL) "
+            "OR (status NOT IN ('CANCELLED', 'INTERRUPTED') AND "
+            "stopped_by_user_id IS NULL AND stopped_at IS NULL)",
             name="ck_project_message_stopped_at",
+        ),
+        # Candidate key — id is project-scoped so composite FKs from
+        # delivery_run / project_file / project_change can enforce
+        # same-project references.
+        UniqueConstraint(
+            "project_id", "id", name="uq_project_message_project_id",
         ),
         # Partial unique index — scoped to project + user when key present
         Index(

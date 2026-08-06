@@ -30,6 +30,7 @@ from src.modules.access.models import AppUser
 from src.modules.profiles.models import DomainProfile
 from src.modules.projects.models import Project, ProjectMember
 from src.modules.projects.repository import (
+    PROJECT_STAGE_CODES,
     CreationIdempotencyConflict,
     LastOwnerCannotBeRemoved,
     ProjectNotFound,
@@ -720,6 +721,187 @@ async def test_insert_project_creates_creator_owner_membership(
 
 
 # ===================================================================
+# Atomic nine-stage creation (Finding 4)
+# ===================================================================
+
+
+@pytest.mark.asyncio
+async def test_insert_project_creates_exactly_nine_stages(
+    project_repo: ProjectRepository,
+    users: SimpleNamespace,
+    profile: DomainProfile,
+) -> None:
+    """Project creation must atomically create exactly the nine approved
+    stage rows — the returned project is immediately stage-scoped valid."""
+    project = await project_repo.insert_project(
+        users.owner_a.id, uuid4(), "hash-nine-stages", profile,
+    )
+    result = await project_repo._session.execute(
+        text(
+            """
+            SELECT stage FROM project_stage
+            WHERE project_id = :p
+            ORDER BY stage
+            """
+        ),
+        {"p": project.id},
+    )
+    stages = [row[0] for row in result.all()]
+    assert len(stages) == 9, f"Expected exactly 9 stages, got {len(stages)}"
+    assert stages == sorted(PROJECT_STAGE_CODES)
+    # Every stage starts NOT_STARTED (valid, non-SEALED baseline state)
+    result = await project_repo._session.execute(
+        text(
+            """
+            SELECT COUNT(*) FROM project_stage
+            WHERE project_id = :p AND status = 'NOT_STARTED'
+            """
+        ),
+        {"p": project.id},
+    )
+    assert result.scalar() == 9
+
+
+@pytest.mark.asyncio
+async def test_insert_project_stage_rows_not_duplicated_on_replay(
+    project_repo: ProjectRepository,
+    users: SimpleNamespace,
+    profile: DomainProfile,
+) -> None:
+    """An idempotent replay of the same creation key must not duplicate the
+    nine stage rows."""
+    key = uuid4()
+    first = await project_repo.insert_project(
+        users.owner_a.id, key, "hash-stage-replay", profile,
+    )
+    second = await project_repo.insert_project(
+        users.owner_a.id, key, "hash-stage-replay", profile,
+    )
+    assert first.id == second.id
+
+    result = await project_repo._session.execute(
+        text(
+            "SELECT COUNT(*) FROM project_stage WHERE project_id = :p"
+        ),
+        {"p": first.id},
+    )
+    assert result.scalar() == 9
+
+
+@pytest.mark.asyncio
+async def test_insert_project_rolls_back_owner_and_stages_atomically(
+    async_engine: AsyncEngine,
+) -> None:
+    """Project, OWNER membership, and all nine stages are one transaction.
+
+    Rolling the transaction back must leave no project, member, or stage
+    row behind — creation is atomic across all three tables."""
+    from src.persistence.postgres.session import session_factory as sf
+
+    maker = sf(async_engine)
+    async with maker() as session:
+        tx = await session.begin()
+        proj_id = None
+        try:
+            now = datetime.now(UTC)
+            uid = uuid4()
+            pid = uuid4()
+            content_hash_val = hashlib.sha256(b"rollback-stages").hexdigest()
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO app_user
+                      (id, username, display_name, password_hash, password_salt,
+                       system_role, status, must_change_password, created_at, updated_at)
+                    VALUES (:id, :un, :dn, 'hash', decode('aa','hex'),
+                            'USER', 'ACTIVE', false, :now, :now)
+                    """
+                ),
+                {"id": uid, "un": f"rb-{uid.hex[:8]}", "dn": "Rollback User",
+                 "now": now},
+            )
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO domain_profile
+                      (id, code, name, status, is_builtin_general,
+                       current_version, created_by_user_id, created_at, updated_at)
+                    VALUES (:id, :code, :name, 'ACTIVE', false,
+                            1, :uid, :now, :now)
+                    """
+                ),
+                {"id": pid, "code": f"rb-prof-{pid.hex[:8]}",
+                 "name": "Rollback Profile", "uid": uid, "now": now},
+            )
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO domain_profile_version
+                      (id, profile_id, version, content, content_hash,
+                       validation_result, published_by_user_id, published_at)
+                    VALUES (:id, :pid, 1, '{}'::jsonb, :hash,
+                            '{}'::jsonb, :uid, :now)
+                    """
+                ),
+                {"id": uuid4(), "pid": pid, "hash": content_hash_val,
+                 "uid": uid, "now": now},
+            )
+            result = await session.execute(
+                select(DomainProfile).where(DomainProfile.id == pid)
+            )
+            profile_obj = result.scalar_one()
+
+            repo = ProjectRepository(session)
+            project = await repo.insert_project(
+                uid, uuid4(), "hash-rollback-stages", profile_obj,
+            )
+            proj_id = project.id
+
+            # Within the transaction everything is visible
+            stage_count = (
+                await session.execute(
+                    text(
+                        "SELECT COUNT(*) FROM project_stage WHERE project_id = :p"
+                    ),
+                    {"p": proj_id},
+                )
+            ).scalar()
+            member_count = (
+                await session.execute(
+                    text(
+                        "SELECT COUNT(*) FROM project_member WHERE project_id = :p"
+                    ),
+                    {"p": proj_id},
+                )
+            ).scalar()
+            assert stage_count == 9
+            assert member_count == 1
+        finally:
+            await tx.rollback()
+
+    # Nothing may persist — creation must be atomic across the three tables.
+    async with maker() as check:
+        assert (
+            await check.execute(
+                text("SELECT COUNT(*) FROM project WHERE id = :p"),
+                {"p": proj_id},
+            )
+        ).scalar() == 0
+        assert (
+            await check.execute(
+                text("SELECT COUNT(*) FROM project_stage WHERE project_id = :p"),
+                {"p": proj_id},
+            )
+        ).scalar() == 0
+        assert (
+            await check.execute(
+                text("SELECT COUNT(*) FROM project_member WHERE project_id = :p"),
+                {"p": proj_id},
+            )
+        ).scalar() == 0
+
+
+# ===================================================================
 # Published profile content-hash binding (Finding 4)
 # ===================================================================
 
@@ -849,6 +1031,24 @@ async def test_insert_project_concurrent_race_same_hash(
         f"Both concurrent sessions must return the same project: "
         f"{id_a} != {id_b}"
     )
+
+    # The winning session atomically created all nine stages; the losing
+    # session must not have duplicated or dropped any.
+    with sync_engine.connect() as conn:
+        stage_count = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM project_stage WHERE project_id = :p"
+            ),
+            {"p": id_a},
+        ).scalar()
+        member_count = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM project_member WHERE project_id = :p"
+            ),
+            {"p": id_a},
+        ).scalar()
+    assert stage_count == 9, f"Expected 9 stages after race, got {stage_count}"
+    assert member_count == 1, f"Expected 1 OWNER after race, got {member_count}"
 
 
 @pytest.mark.asyncio

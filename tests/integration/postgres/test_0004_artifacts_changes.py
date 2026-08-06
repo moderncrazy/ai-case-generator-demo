@@ -1672,3 +1672,329 @@ def test_project_change_varchar_columns_have_explicit_lengths() -> None:
             f"ProjectChange.{col_name} length expected {length}, "
             f"got {col.type.length}"
         )
+
+
+# ===================================================================
+# Cross-project ownership — artifact_draft.base_artifact_id and
+# project_change.source_message_id (Finding 7)
+# ===================================================================
+
+
+def _insert_sync_draft(
+    db: Session,
+    project_id: str,
+    profile_id: str,
+    artifact_code=None,
+    canonical_key: str | None = None,
+    artifact_type: str = "REQUIREMENT",
+    operation: str = "CREATE",
+    status: str = "DRAFT",
+    base_artifact_id=None,
+) -> str:
+    """Insert an artifact_draft row (sync) and return its UUID."""
+    import hashlib
+    if canonical_key is None:
+        canonical_key = f"ck-{uuid4().hex[:12]}"
+    draft_id = uuid4()
+    body = {"key": f"val-{draft_id.hex[:8]}"}
+    content_hash = hashlib.sha256(repr(body).encode()).hexdigest()
+    db.execute(
+        text(
+            """
+            INSERT INTO artifact_draft
+              (id, project_id, stage, artifact_type, artifact_code,
+               canonical_key, title, artifact_version, schema_version,
+               body, source_refs, requirement_refs, module_refs,
+               decision_refs, architecture_refs, api_refs,
+               read_table_refs, write_table_refs,
+               content_hash, profile_id, profile_version, profile_hash,
+               base_artifact_id, operation, status,
+               validation_result, review_result,
+               created_at, updated_at)
+            VALUES
+              (:id, :proj, 'REQUIREMENT_MODULE', :atype, :acode,
+               :ckey, :title, 0, 1,
+               CAST(:body AS jsonb), '{}', '{}', '{}',
+               '{}', '{}', '{}',
+               '{}', '{}',
+               :chash, :pid, 0, :phash,
+               :baid, :op, :st,
+               '{}'::jsonb, '{}'::jsonb,
+               now(), now())
+            """
+        ),
+        {
+            "id": draft_id, "proj": project_id, "atype": artifact_type,
+            "acode": artifact_code, "ckey": canonical_key,
+            "title": f"Draft {canonical_key}",
+            "body": "{}",
+            "chash": content_hash, "pid": profile_id, "phash": content_hash,
+            "baid": base_artifact_id, "op": operation, "st": status,
+        },
+    )
+    db.flush()
+    return str(draft_id)
+
+
+def test_artifact_draft_rejects_cross_project_base_artifact(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """An artifact_draft in project A must not reference an artifact that
+    belongs to project B — the composite (project_id, base_artifact_id) FK
+    must reject it."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_a = _insert_sync_project(
+        migrated_db, migrated_db_user, pid, name="Base Proj A",
+    )
+    proj_b = _insert_sync_project(
+        migrated_db, migrated_db_user, pid, name="Base Proj B",
+    )
+    # Both projects need the stage row so the only violation is the
+    # cross-project base_artifact reference.
+    _insert_sync_stage(migrated_db, proj_a, "REQUIREMENT_MODULE")
+    _insert_sync_stage(migrated_db, proj_b, "REQUIREMENT_MODULE")
+    art_b = _insert_sync_artifact(
+        migrated_db, proj_b, pid,
+        artifact_code="REQ-BASE-B", canonical_key="base-b",
+    )
+
+    with pytest.raises(IntegrityError):
+        _insert_sync_draft(
+            migrated_db, proj_a, pid,
+            artifact_code="REQ-BASE-A", canonical_key="base-a",
+            operation="UPDATE", base_artifact_id=art_b,
+        )
+
+
+def test_artifact_draft_same_project_base_artifact_succeeds(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """An artifact_draft referencing an artifact in the *same* project must
+    succeed — cross-project enforcement must not break valid behavior."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_a = _insert_sync_project(
+        migrated_db, migrated_db_user, pid, name="Base Same Proj",
+    )
+    _insert_sync_stage(migrated_db, proj_a, "REQUIREMENT_MODULE")
+    art_a = _insert_sync_artifact(
+        migrated_db, proj_a, pid,
+        artifact_code="REQ-BASE-A", canonical_key="base-same",
+    )
+
+    draft_id = _insert_sync_draft(
+        migrated_db, proj_a, pid,
+        artifact_code="REQ-BASE-A2", canonical_key="base-same-2",
+        operation="UPDATE", base_artifact_id=art_a,
+    )
+    assert draft_id is not None
+
+
+def test_project_change_rejects_cross_project_source_message(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """A project_change in project A must not reference a message that
+    belongs to project B — the composite (project_id, source_message_id) FK
+    must reject it."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_a = _insert_sync_project(
+        migrated_db, migrated_db_user, pid, name="Change Proj A",
+    )
+    proj_b = _insert_sync_project(
+        migrated_db, migrated_db_user, pid, name="Change Proj B",
+    )
+    other_msg = _insert_sync_message(migrated_db, proj_b, migrated_db_user)
+
+    with pytest.raises(IntegrityError):
+        migrated_db.execute(
+            text(
+                """
+                INSERT INTO project_change
+                  (id, project_id, source_message_id, requested_by_user_id,
+                   request_content, target_artifact_codes, base_baselines,
+                   status, created_at, updated_at)
+                VALUES
+                  (:id, :proj, :msg, :uid,
+                   'Change request', '{}', '[]'::jsonb,
+                   'PROPOSED', now(), now())
+                """
+            ),
+            {
+                "id": uuid4(), "proj": proj_a, "msg": other_msg,
+                "uid": migrated_db_user,
+            },
+        )
+
+
+def test_project_change_same_project_source_message_succeeds(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """A project_change referencing a message in the *same* project must
+    succeed — cross-project enforcement must not break valid behavior."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_a = _insert_sync_project(
+        migrated_db, migrated_db_user, pid, name="Change Same Proj",
+    )
+    own_msg = _insert_sync_message(migrated_db, proj_a, migrated_db_user)
+
+    ch_id = uuid4()
+    migrated_db.execute(
+        text(
+            """
+            INSERT INTO project_change
+              (id, project_id, source_message_id, requested_by_user_id,
+               request_content, target_artifact_codes, base_baselines,
+               status, created_at, updated_at)
+            VALUES
+              (:id, :proj, :msg, :uid,
+               'Change request', '{}', '[]'::jsonb,
+               'PROPOSED', now(), now())
+            """
+        ),
+        {
+            "id": ch_id, "proj": proj_a, "msg": own_msg,
+            "uid": migrated_db_user,
+        },
+    )
+    assert ch_id is not None
+
+
+# ===================================================================
+# Terminal status/decision consistency (Finding 8)
+# ===================================================================
+
+
+def _insert_sync_change(
+    db: Session,
+    project_id: str,
+    message_id: str,
+    user_id: str,
+    status: str = "PROPOSED",
+    decision: str | None = None,
+    decided_by_user_id=None,
+    decided_at=None,
+    decision_artifact_code: str | None = None,
+    decision_git_commit_sha: str | None = None,
+) -> str:
+    """Insert a project_change row (sync) with full decision-pointer control."""
+    now = datetime.now(UTC)
+    ch_id = uuid4()
+    db.execute(
+        text(
+            """
+            INSERT INTO project_change
+              (id, project_id, source_message_id, requested_by_user_id,
+               request_content, target_artifact_codes, base_baselines,
+               status, decision, decided_by_user_id, decided_at,
+               decision_artifact_code, decision_git_commit_sha,
+               created_at, updated_at)
+            VALUES
+              (:id, :proj, :msg, :uid,
+               'Change request', '{}', '[]'::jsonb,
+               :status, :decision, :dby, :dat,
+               :dac, :dgcs,
+               now(), now())
+            """
+        ),
+        {
+            "id": ch_id, "proj": project_id, "msg": message_id,
+            "uid": user_id, "status": status,
+            "decision": decision, "dby": decided_by_user_id,
+            "dat": decided_at, "dac": decision_artifact_code,
+            "dgcs": decision_git_commit_sha,
+        },
+    )
+    db.flush()
+    return str(ch_id)
+
+
+def test_applied_status_rejects_rejected_decision(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """APPLIED must not carry decision=REJECTED — a status/decision
+    contradiction must be rejected by the CHECK constraint."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_id = _insert_sync_project(migrated_db, migrated_db_user, pid)
+    msg_id = _insert_sync_message(migrated_db, proj_id, migrated_db_user)
+
+    with pytest.raises(IntegrityError):
+        _insert_sync_change(
+            migrated_db, proj_id, msg_id, migrated_db_user,
+            status="APPLIED", decision="REJECTED",
+            decided_by_user_id=migrated_db_user, decided_at=datetime.now(UTC),
+            decision_artifact_code="CHG-001",
+            decision_git_commit_sha="f1" + "c" * 62,
+        )
+
+
+def test_rejected_status_rejects_approved_decision(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """REJECTED must not carry decision=APPROVED."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_id = _insert_sync_project(migrated_db, migrated_db_user, pid)
+    msg_id = _insert_sync_message(migrated_db, proj_id, migrated_db_user)
+
+    with pytest.raises(IntegrityError):
+        _insert_sync_change(
+            migrated_db, proj_id, msg_id, migrated_db_user,
+            status="REJECTED", decision="APPROVED",
+            decided_by_user_id=migrated_db_user, decided_at=datetime.now(UTC),
+            decision_artifact_code="CHG-001",
+            decision_git_commit_sha="f2" + "c" * 62,
+        )
+
+
+def test_withdrawn_status_rejects_approved_decision(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """WITHDRAWN must not carry decision=APPROVED."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_id = _insert_sync_project(migrated_db, migrated_db_user, pid)
+    msg_id = _insert_sync_message(migrated_db, proj_id, migrated_db_user)
+
+    with pytest.raises(IntegrityError):
+        _insert_sync_change(
+            migrated_db, proj_id, msg_id, migrated_db_user,
+            status="WITHDRAWN", decision="APPROVED",
+            decided_by_user_id=migrated_db_user, decided_at=datetime.now(UTC),
+            decision_artifact_code="CHG-001",
+            decision_git_commit_sha="f3" + "c" * 62,
+        )
+
+
+def test_rejected_status_with_rejected_decision_succeeds(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """REJECTED + decision=REJECTED with a full decision pointer must be
+    accepted — enforcement must not break valid terminal rows."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_id = _insert_sync_project(migrated_db, migrated_db_user, pid)
+    msg_id = _insert_sync_message(migrated_db, proj_id, migrated_db_user)
+
+    ch_id = _insert_sync_change(
+        migrated_db, proj_id, msg_id, migrated_db_user,
+        status="REJECTED", decision="REJECTED",
+        decided_by_user_id=migrated_db_user, decided_at=datetime.now(UTC),
+        decision_artifact_code="CHG-001",
+        decision_git_commit_sha="f4" + "c" * 62,
+    )
+    assert ch_id is not None
+
+
+def test_withdrawn_status_with_withdrawn_decision_succeeds(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """WITHDRAWN + decision=WITHDRAWN with a full decision pointer must be
+    accepted — enforcement must not break valid terminal rows."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_id = _insert_sync_project(migrated_db, migrated_db_user, pid)
+    msg_id = _insert_sync_message(migrated_db, proj_id, migrated_db_user)
+
+    ch_id = _insert_sync_change(
+        migrated_db, proj_id, msg_id, migrated_db_user,
+        status="WITHDRAWN", decision="WITHDRAWN",
+        decided_by_user_id=migrated_db_user, decided_at=datetime.now(UTC),
+        decision_artifact_code="CHG-001",
+        decision_git_commit_sha="f5" + "c" * 62,
+    )
+    assert ch_id is not None

@@ -22,11 +22,40 @@ from src.persistence.postgres.checkpoints import CheckpointStore
 from src.persistence.postgres.session import create_engine
 
 
+class CheckpointSetupResource:
+    """Adapt a ``CheckpointStore`` so opening the resource also runs setup.
+
+    The Worker owns the official LangGraph checkpoint tables.  When its
+    lifecycle opens this resource, the store is opened and
+    ``AsyncPostgresSaver.setup()`` is run, guaranteeing the checkpoint
+    tables exist before any Graph invocation.  The API and Scheduler
+    never construct this resource, so they stay free of checkpoint
+    ownership.
+    """
+
+    def __init__(self, store: CheckpointStore) -> None:
+        self._store = store
+
+    async def open(self) -> None:
+        await self._store.open()
+        await self._store.setup()
+
+    async def close(self) -> None:
+        await self._store.close()
+
+    @property
+    def store(self) -> CheckpointStore:
+        """The wrapped store, for graph compilation and diagnostics."""
+        return self._store
+
+
 def build_worker_lifecycle(settings: Settings) -> ManagedLifecycle:
     """Build the Worker resource set: PostgreSQL, Redis, CheckpointStore.
 
     The Worker owns the CheckpointStore so future Graph execution can
-    recover delivery runs from PostgreSQL checkpoints.
+    recover delivery runs from PostgreSQL checkpoints.  Startup runs the
+    official ``AsyncPostgresSaver.setup()`` so the checkpoint tables are
+    initialized before the store is usable.
     """
     resources: dict[str, LifecycleResource] = {}
     if settings.database_url is not None:
@@ -34,7 +63,7 @@ def build_worker_lifecycle(settings: Settings) -> ManagedLifecycle:
     if settings.redis_url is not None:
         resources["redis"] = RedisRuntime(url=settings.redis_url.get_secret_value())
     if settings.checkpoint_database_url is not None:
-        resources["checkpoint"] = CheckpointStore(settings)
+        resources["checkpoint"] = CheckpointSetupResource(CheckpointStore(settings))
     return ManagedLifecycle(resources)
 
 

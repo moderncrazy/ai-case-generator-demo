@@ -23,6 +23,12 @@ from src.persistence.postgres.base import Base
 import src.modules.access.models  # noqa: E402, F401  # AppUser, LoginLog
 import src.modules.profiles.models  # noqa: E402, F401  # DomainProfile, …
 import src.integrations.models.profile_model  # noqa: E402, F401  # ModelProfile
+import src.modules.projects.models  # noqa: E402, F401  # Project, ProjectMember
+import src.modules.conversation.models  # noqa: E402, F401  # ProjectMessage
+import src.modules.delivery.models  # noqa: E402, F401  # DeliveryRun, ProjectStage
+import src.modules.files.models  # noqa: E402, F401  # ProjectFile
+import src.modules.artifacts.models  # noqa: E402, F401  # Artifact, ArtifactDraft
+import src.modules.changes.models  # noqa: E402, F401  # ProjectChange
 
 # ---------------------------------------------------------------------------
 # Alembic Config object (read from alembic.ini)

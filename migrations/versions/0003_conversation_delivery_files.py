@@ -109,9 +109,17 @@ def upgrade() -> None:
             name="ck_project_message_delivery_mode",
         ),
         sa.CheckConstraint(
-            "(status IN ('CANCELLED', 'INTERRUPTED')) "
-            "OR (stopped_at IS NULL)",
+            "(status IN ('CANCELLED', 'INTERRUPTED') AND "
+            "stopped_by_user_id IS NOT NULL AND stopped_at IS NOT NULL) "
+            "OR (status NOT IN ('CANCELLED', 'INTERRUPTED') AND "
+            "stopped_by_user_id IS NULL AND stopped_at IS NULL)",
             name="ck_project_message_stopped_at",
+        ),
+        # Candidate key — id is project-scoped so composite FKs from
+        # delivery_run / project_file / project_change can enforce
+        # same-project references.
+        sa.UniqueConstraint(
+            "project_id", "id", name="uq_project_message_project_id",
         ),
         # Foreign keys
         sa.ForeignKeyConstraint(
@@ -226,14 +234,16 @@ def upgrade() -> None:
             ["project.id"],
             name="fk_delivery_run_project",
         ),
+        # Same-project integrity — trigger/response messages must belong to
+        # the run's project (composite FK on the project_message candidate key).
         sa.ForeignKeyConstraint(
-            ["trigger_message_id"],
-            ["project_message.id"],
+            ["project_id", "trigger_message_id"],
+            ["project_message.project_id", "project_message.id"],
             name="fk_delivery_run_trigger_message",
         ),
         sa.ForeignKeyConstraint(
-            ["response_message_id"],
-            ["project_message.id"],
+            ["project_id", "response_message_id"],
+            ["project_message.project_id", "project_message.id"],
             name="fk_delivery_run_response_message",
         ),
         sa.ForeignKeyConstraint(
@@ -432,9 +442,11 @@ def upgrade() -> None:
             ["project.id"],
             name="fk_project_file_project",
         ),
+        # Same-project integrity — a file's source message must belong to
+        # the file's project.
         sa.ForeignKeyConstraint(
-            ["message_id"],
-            ["project_message.id"],
+            ["project_id", "message_id"],
+            ["project_message.project_id", "project_message.id"],
             name="fk_project_file_message",
         ),
     )

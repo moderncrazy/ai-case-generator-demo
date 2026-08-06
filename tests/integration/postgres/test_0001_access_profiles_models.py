@@ -9,7 +9,7 @@ Covers:
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import Engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import Session
@@ -838,7 +838,7 @@ async def test_delete_non_builtin_profile_succeeds(
 
 @pytest.mark.asyncio
 async def test_ensure_builtin_general_is_concurrently_idempotent(
-    async_engine: AsyncEngine,
+    async_engine: AsyncEngine, sync_engine: Engine,
 ) -> None:
     """Two concurrent transactions both succeed — no IntegrityError or lost row.
 
@@ -851,6 +851,22 @@ async def test_ensure_builtin_general_is_concurrently_idempotent(
 
     from src.persistence.postgres.session import (
         session_factory as app_session_factory,
+    )
+
+    # The disposable test DB resets itself at session start (downgrade base
+    # then upgrade head), so no built-in row can leak from a previous run.
+    # Guarding against committed fixtures keeps the race genuinely
+    # concurrent on every run instead of bypassing it on re-runs.
+    with sync_engine.connect() as conn:
+        builtin_count = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM domain_profile "
+                "WHERE code = 'BUILTIN_GENERAL'"
+            )
+        ).scalar()
+    assert builtin_count == 0, (
+        "Built-in profile leaked into this session from a prior run — "
+        "the test database must reset itself at session start."
     )
 
     maker = app_session_factory(async_engine)

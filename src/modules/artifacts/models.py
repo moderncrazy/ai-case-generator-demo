@@ -15,7 +15,7 @@ from sqlalchemy import (
     Index, String, Text, UniqueConstraint, text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.persistence.postgres.base import Base
 
@@ -126,6 +126,11 @@ class Artifact(Base):
         UniqueConstraint(
             "project_id", "git_path", name="uq_artifact_git_path",
         ),
+        # Candidate key — id is project-scoped so artifact_draft's composite
+        # base_artifact FK can enforce same-project references.
+        UniqueConstraint(
+            "project_id", "id", name="uq_artifact_project_id",
+        ),
         ForeignKeyConstraint(
             ["project_id", "stage"],
             ["project_stage.project_id", "project_stage.stage"],
@@ -226,7 +231,6 @@ class ArtifactDraft(Base):
     # base artifact (NULL for CREATE)
     # ------------------------------------------------------------------
     base_artifact_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("artifact.id", name="fk_artifact_draft_base_artifact"),
         nullable=True,
     )
 
@@ -250,13 +254,6 @@ class ArtifactDraft(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False,
-    )
-
-    # ------------------------------------------------------------------
-    # relationships
-    # ------------------------------------------------------------------
-    base_artifact: Mapped["Artifact | None"] = relationship(
-        "Artifact", foreign_keys=[base_artifact_id],
     )
 
     # ------------------------------------------------------------------
@@ -285,6 +282,13 @@ class ArtifactDraft(Base):
             ["project_id", "stage"],
             ["project_stage.project_id", "project_stage.stage"],
             name="fk_artifact_draft_project_stage",
+        ),
+        # Same-project integrity — a draft's base artifact must belong to
+        # the draft's project.
+        ForeignKeyConstraint(
+            ["project_id", "base_artifact_id"],
+            ["artifact.project_id", "artifact.id"],
+            name="fk_artifact_draft_base_artifact",
         ),
         Index(
             "uq_artifact_draft_code",

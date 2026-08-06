@@ -151,6 +151,55 @@ async def test_readiness_bounds_a_stalled_probe() -> None:
     assert set(body) == {"status", "postgres", "redis"}
 
 
+@pytest.mark.asyncio
+async def test_readiness_fails_closed_with_no_probes() -> None:
+    """With no probes registered, readiness must report both dependencies
+    ``unavailable`` with 503 — never an empty ``ready`` (fail open)."""
+    from fastapi import FastAPI
+
+    app = FastAPI()
+    app.include_router(health_router)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test"
+    ) as client:
+        response = await client.get("/health/ready")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["postgres"] == "unavailable"
+    assert body["redis"] == "unavailable"
+    assert set(body) == {"status", "postgres", "redis"}
+
+
+@pytest.mark.asyncio
+async def test_readiness_reports_missing_probe_unavailable() -> None:
+    """A partially-registered probe set must still report the missing
+    dependency as ``unavailable`` (503), never silently succeed."""
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    async def _down() -> bool:
+        return False
+
+    # Only ``postgres`` is wired; ``redis`` is missing entirely.
+    app.state.health_probes = {"postgres": _down}
+    app.include_router(health_router)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test"
+    ) as client:
+        response = await client.get("/health/ready")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["postgres"] == "unavailable"
+    assert body["redis"] == "unavailable"
+    assert set(body) == {"status", "postgres", "redis"}
+
+
 def _registered_paths(routes: object) -> set[str]:
     """Collect served route paths, recursing through included routers.
 

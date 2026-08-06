@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    CheckConstraint, DateTime, ForeignKey, Index,
+    CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint, Index,
     String, Text, text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -46,7 +46,6 @@ class ProjectChange(Base):
         nullable=False,
     )
     source_message_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("project_message.id", name="fk_project_change_source_message"),
         nullable=False,
     )
     requested_by_user_id: Mapped[uuid.UUID] = mapped_column(
@@ -129,6 +128,21 @@ class ProjectChange(Base):
             "decision_artifact_code IS NOT NULL AND "
             "decision_git_commit_sha IS NOT NULL)",
             name="ck_project_change_terminal_decision",
+        ),
+        # Terminal status/decision correlation — APPLIED must be APPROVED,
+        # REJECTED must be REJECTED, WITHDRAWN must be WITHDRAWN.
+        CheckConstraint(
+            "(status <> 'APPLIED' OR decision = 'APPROVED') "
+            "AND (status <> 'REJECTED' OR decision = 'REJECTED') "
+            "AND (status <> 'WITHDRAWN' OR decision = 'WITHDRAWN')",
+            name="ck_project_change_status_decision",
+        ),
+        # Same-project integrity — a change's trigger message must belong
+        # to the change's project.
+        ForeignKeyConstraint(
+            ["project_id", "source_message_id"],
+            ["project_message.project_id", "project_message.id"],
+            name="fk_project_change_source_message",
         ),
         Index(
             "ix_project_change_project_created",

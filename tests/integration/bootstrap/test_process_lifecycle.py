@@ -15,7 +15,7 @@ from src.bootstrap.api import build_api_lifecycle
 from src.bootstrap.lifespan import ManagedLifecycle
 from src.bootstrap.scheduler import build_scheduler_lifecycle
 from src.bootstrap.settings import Settings
-from src.bootstrap.worker import build_worker_lifecycle
+from src.bootstrap.worker import CheckpointSetupResource, build_worker_lifecycle
 from src.integrations.redis.client import RedisRuntime
 from src.persistence.postgres.checkpoints import CheckpointStore
 
@@ -89,10 +89,62 @@ async def test_api_lifecycle_opens_postgres_and_redis(api_lifecycle) -> None:
 @pytest.mark.asyncio
 async def test_worker_lifecycle_owns_checkpoint_store(worker_lifecycle) -> None:
     checkpoint = worker_lifecycle.get("checkpoint")
-    assert isinstance(checkpoint, CheckpointStore)
-    assert checkpoint.saver is not None
+    assert isinstance(checkpoint, CheckpointSetupResource)
+    store = checkpoint.store
+    assert isinstance(store, CheckpointStore)
+    assert store.saver is not None
     assert worker_lifecycle.get("postgres") is not None
     assert worker_lifecycle.get("redis") is not None
+
+
+@pytest.mark.asyncio
+async def test_worker_lifecycle_runs_checkpoint_setup(
+    monkeypatch, test_settings,
+) -> None:
+    """Opening the Worker must run the official checkpoint ``setup()``.
+
+    The Worker owns the LangGraph checkpoint tables: startup must call
+    ``CheckpointStore.setup()`` (which drives
+    ``AsyncPostgresSaver.setup()``) so the tables exist before any Graph
+    invocation.
+    """
+    calls: list[str] = []
+    original_setup = CheckpointStore.setup
+
+    async def _recording_setup(self: CheckpointStore) -> None:
+        calls.append("setup")
+        await original_setup(self)
+
+    monkeypatch.setattr(CheckpointStore, "setup", _recording_setup)
+    lifecycle = build_worker_lifecycle(test_settings)
+    await lifecycle.start()
+    try:
+        assert calls == ["setup"]
+    finally:
+        await lifecycle.stop()
+
+
+@pytest.mark.asyncio
+async def test_worker_lifecycle_setup_creates_checkpoint_tables(
+    worker_lifecycle,
+) -> None:
+    """After Worker startup the official langgraph tables must exist."""
+    checkpoint = worker_lifecycle.get("checkpoint")
+    assert isinstance(checkpoint, CheckpointSetupResource)
+    pool = checkpoint.store._pool  # dedicated langgraph-scoped pool
+    assert pool is not None
+    async with pool.connection() as conn:
+        result = await conn.execute(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = 'langgraph'"
+        )
+        tables = {row["table_name"] for row in await result.fetchall()}
+    assert {
+        "checkpoints",
+        "checkpoint_blobs",
+        "checkpoint_writes",
+        "checkpoint_migrations",
+    } <= tables
 
 
 @pytest.mark.asyncio

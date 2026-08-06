@@ -12,6 +12,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -39,10 +40,10 @@ class DeliveryRun(Base):
     )
     run_id: Mapped[uuid.UUID] = mapped_column(UUID(), nullable=False)
     trigger_message_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(), ForeignKey("project_message.id"), nullable=False
+        UUID(), nullable=False
     )
     response_message_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(), ForeignKey("project_message.id"), nullable=False
+        UUID(), nullable=False
     )
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     project_revision: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -80,6 +81,19 @@ class DeliveryRun(Base):
             name="ck_delivery_run_status",
         ),
         UniqueConstraint("run_id", name="uq_delivery_run_run_id"),
+        # Same-project integrity — a run's trigger/response messages must
+        # belong to the run's project (composite FK against the
+        # (project_id, id) candidate key on project_message).
+        ForeignKeyConstraint(
+            ["project_id", "trigger_message_id"],
+            ["project_message.project_id", "project_message.id"],
+            name="fk_delivery_run_trigger_message",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "response_message_id"],
+            ["project_message.project_id", "project_message.id"],
+            name="fk_delivery_run_response_message",
+        ),
         Index(
             "ix_delivery_run_status_lease",
             "status",

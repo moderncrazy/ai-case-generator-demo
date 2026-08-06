@@ -766,12 +766,15 @@ async def test_insert_project_rejects_unpublished_profile(
 
 
 @pytest.mark.asyncio
-async def test_insert_project_concurrent_sessions_same_hash(
+async def test_insert_project_concurrent_race_same_hash(
     async_engine: AsyncEngine,
     sync_engine,
 ) -> None:
-    """Two independent sessions racing to insert with the same key+hash:
-    both get the same project (atomic insert-or-replay)."""
+    """Two sessions race to insert with same key+hash via asyncio.gather.
+
+    Neither session commits before the other starts — they genuinely
+    overlap.  The atomic INSERT … ON CONFLICT DO NOTHING prevents raw
+    integrity errors; both sessions return the same project ID."""
     from src.persistence.postgres.session import session_factory as sf
 
     now = datetime.now(UTC)
@@ -782,7 +785,6 @@ async def test_insert_project_concurrent_sessions_same_hash(
     content_hash_val = hashlib.sha256(b"concurrent-race").hexdigest()
     req_hash = "hash-concurrent-same"
 
-    # Setup committed shared data via sync engine
     with sync_engine.begin() as conn:
         conn.execute(
             text(
@@ -824,37 +826,40 @@ async def test_insert_project_concurrent_sessions_same_hash(
 
     maker = sf(async_engine)
 
-    # Session A: insert and commit so the row is visible to other sessions
-    async with maker() as session_a:
-        repo_a = ProjectRepository(session_a)
-        ra = await session_a.execute(
-            select(DomainProfile).where(DomainProfile.id == pid)
-        )
-        pa = ra.scalar_one()
-        proj_a = await repo_a.insert_project(uid, key, req_hash, pa)
-        await session_a.commit()
+    async def attempt():
+        async with maker() as session:
+            repo = ProjectRepository(session)
+            r = await session.execute(
+                select(DomainProfile).where(DomainProfile.id == pid)
+            )
+            p = r.scalar_one()
+            try:
+                proj = await repo.insert_project(uid, key, req_hash, p)
+                await session.commit()
+                return proj.id
+            except CreationIdempotencyConflict:
+                await session.rollback()
+                return None
 
-    # Session B: same key + hash → idempotent replay, same project ID
-    async with maker() as session_b:
-        repo_b = ProjectRepository(session_b)
-        rb = await session_b.execute(
-            select(DomainProfile).where(DomainProfile.id == pid)
-        )
-        pb = rb.scalar_one()
-        proj_b = await repo_b.insert_project(uid, key, req_hash, pb)
-        assert proj_b.id == proj_a.id, (
-            f"Independent session must return the same project on replay: "
-            f"{proj_b.id} != {proj_a.id}"
-        )
-        await session_b.rollback()
+    id_a, id_b = await asyncio.gather(attempt(), attempt())
+
+    assert id_a is not None, "Concurrent session A must not get a conflict"
+    assert id_b is not None, "Concurrent session B must not get a conflict"
+    assert id_a == id_b, (
+        f"Both concurrent sessions must return the same project: "
+        f"{id_a} != {id_b}"
+    )
 
 
 @pytest.mark.asyncio
-async def test_insert_project_concurrent_sessions_different_hash(
+async def test_insert_project_concurrent_race_different_hash(
     async_engine: AsyncEngine,
     sync_engine,
 ) -> None:
-    """Independent session gets CreationIdempotencyConflict when hash differs."""
+    """Two sessions race to insert with same key but different hashes.
+
+    Both overlap via asyncio.gather — neither commits before the other
+    starts.  One creates; the other gets CreationIdempotencyConflict."""
     from src.persistence.postgres.session import session_factory as sf
 
     now = datetime.now(UTC)
@@ -904,29 +909,171 @@ async def test_insert_project_concurrent_sessions_different_hash(
         )
 
     maker = sf(async_engine)
+    results: list[str] = []
 
-    # Session A creates the project with hash-A
-    async with maker() as session_a:
-        async with session_a.begin():
-            repo_a = ProjectRepository(session_a)
-            ra = await session_a.execute(
+    async def attempt(hash_val: str) -> None:
+        async with maker() as session:
+            repo = ProjectRepository(session)
+            r = await session.execute(
                 select(DomainProfile).where(DomainProfile.id == pid)
             )
-            pa = ra.scalar_one()
-            await repo_a.insert_project(uid, key, "hash-alpha", pa)
-            await session_a.commit()
+            p = r.scalar_one()
+            try:
+                await repo.insert_project(uid, key, hash_val, p)
+                await session.commit()
+                results.append("created")
+            except CreationIdempotencyConflict:
+                await session.rollback()
+                results.append("conflict")
 
-    # Session B tries with same key but hash-B → conflict
-    async with maker() as session_b:
-        async with session_b.begin():
-            repo_b = ProjectRepository(session_b)
-            rb = await session_b.execute(
-                select(DomainProfile).where(DomainProfile.id == pid)
-            )
-            pb = rb.scalar_one()
-            with pytest.raises(CreationIdempotencyConflict):
-                await repo_b.insert_project(uid, key, "hash-beta", pb)
-            await session_b.rollback()
+    await asyncio.gather(
+        attempt("hash-alpha"),
+        attempt("hash-beta"),
+    )
+
+    assert "created" in results, f"One session must create, got {results}"
+    assert "conflict" in results, f"One session must get conflict, got {results}"
+
+
+# ===================================================================
+# Stale-profile: bind DB-current version, not caller object (Fix 2.1)
+# ===================================================================
+
+
+@pytest.mark.asyncio
+async def test_insert_project_binds_current_db_version_not_stale_caller(
+    project_repo: ProjectRepository,
+    async_session: AsyncSession,
+    users: SimpleNamespace,
+) -> None:
+    """A stale caller DomainProfile must not dictate the bound version.
+
+    Detaches the ORM object, advances the database row to version 2,
+    then proves insert_project resolves the current version and hash
+    from the database instead of trusting the stale object.
+    """
+    now = datetime.now(UTC)
+    pid = uuid4()
+    content_hash_v1 = hashlib.sha256(b"v1-content").hexdigest()
+    content_hash_v2 = hashlib.sha256(b"v2-content").hexdigest()
+
+    # Create profile with current_version=1
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO domain_profile
+              (id, code, name, status, is_builtin_general,
+               current_version, created_by_user_id, created_at, updated_at)
+            VALUES (:id, :code, :name, 'ACTIVE', false,
+                    1, :uid, :now, :now)
+            """
+        ),
+        {"id": pid, "code": f"stale-{pid.hex[:8]}", "name": "Stale Test",
+         "uid": users.owner_a.id, "now": now},
+    )
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO domain_profile_version
+              (id, profile_id, version, content, content_hash,
+               validation_result, published_by_user_id, published_at)
+            VALUES (:id, :pid, 1, '{}'::jsonb, :hash,
+                    '{}'::jsonb, :uid, :now)
+            """
+        ),
+        {"id": uuid4(), "pid": pid, "hash": content_hash_v1,
+         "uid": users.owner_a.id, "now": now},
+    )
+    await async_session.flush()
+
+    # Load the profile ORM object
+    result = await async_session.execute(
+        select(DomainProfile).where(DomainProfile.id == pid)
+    )
+    profile_obj = result.scalar_one()
+    assert profile_obj.current_version == 1
+
+    # Detach — the object is now stale (still shows version 1)
+    async_session.expunge(profile_obj)
+
+    # Advance the profile to version 2 in the database
+    await async_session.execute(
+        text("UPDATE domain_profile SET current_version = 2 WHERE id = :pid"),
+        {"pid": pid},
+    )
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO domain_profile_version
+              (id, profile_id, version, content, content_hash,
+               validation_result, published_by_user_id, published_at)
+            VALUES (:id, :pid, 2, '{}'::jsonb, :hash,
+                    '{}'::jsonb, :uid, :now)
+            """
+        ),
+        {"id": uuid4(), "pid": pid, "hash": content_hash_v2,
+         "uid": users.owner_a.id, "now": now},
+    )
+    await async_session.flush()
+
+    # Stale object still believes it is version 1
+    assert profile_obj.current_version == 1
+
+    # insert_project must resolve the database-current version 2
+    project = await project_repo.insert_project(
+        users.owner_a.id, uuid4(), "hash-stale-profile", profile_obj,
+    )
+
+    assert project.profile_version == 2, (
+        f"Must bind DB-current version 2, not stale {project.profile_version}"
+    )
+    assert project.profile_hash == content_hash_v2, (
+        f"Must bind v2 content hash, not v1"
+    )
+
+
+# ===================================================================
+# Three-or-more-owner invariants (Fix 2.3)
+# ===================================================================
+
+
+@pytest.mark.asyncio
+async def test_delete_owner_with_three_owners_succeeds(
+    project_repo: ProjectRepository,
+    project: Project,
+    users: SimpleNamespace,
+) -> None:
+    """Deleting one OWNER from among three OWNERs succeeds (no MultipleResultsFound)."""
+    # project fixture creates owner_a as OWNER.  Add two more.
+    await project_repo.put_member(
+        project.id, users.owner_b.id, "OWNER", users.owner_a.id,
+    )
+    await project_repo.put_member(
+        project.id, users.member.id, "OWNER", users.owner_a.id,
+    )
+    # Delete owner_b — 2 owners remain, must not raise
+    await project_repo.delete_member(project.id, users.owner_b.id)
+    assert await project_repo.member_count(project.id, users.owner_a.id) == 1
+    assert await project_repo.member_count(project.id, users.member.id) == 1
+
+
+@pytest.mark.asyncio
+async def test_downgrade_owner_with_three_owners_succeeds(
+    project_repo: ProjectRepository,
+    project: Project,
+    users: SimpleNamespace,
+) -> None:
+    """Downgrading one of three OWNERs succeeds (no MultipleResultsFound)."""
+    await project_repo.put_member(
+        project.id, users.owner_b.id, "OWNER", users.owner_a.id,
+    )
+    await project_repo.put_member(
+        project.id, users.member.id, "OWNER", users.owner_a.id,
+    )
+    updated = await project_repo.put_member(
+        project.id, users.owner_b.id, "MEMBER", users.owner_a.id,
+    )
+    assert updated.role == "MEMBER"
 
 
 # ===================================================================

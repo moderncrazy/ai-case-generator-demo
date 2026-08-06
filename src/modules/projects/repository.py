@@ -63,12 +63,22 @@ class ProjectRepository:
     ) -> tuple[int, str]:
         """Return ``(version, content_hash)`` from the current published version.
 
-        Queries ``domain_profile_version`` for the row matching
-        *profile.current_version*.  Rejects profiles that have no
-        published version (``current_version == 0``) or whose published
-        version row is missing.
+        Resolves the profile's current version from the database inside the
+        transaction — the caller-supplied ``profile.current_version`` is
+        ignored to prevent binding a stale/outdated version.
+
+        Rejects profiles that have no published version
+        (``current_version == 0``) or whose published version row is missing.
         """
-        if profile.current_version == 0:
+        # Resolve current version from the database, not the caller object
+        current_stmt = select(DomainProfile.current_version).where(
+            DomainProfile.id == profile.id,
+        )
+        current_result = await self._session.execute(current_stmt)
+        current_version: int | None = current_result.scalar_one_or_none()
+        if current_version is None:
+            raise ValueError(f"Profile {profile.id} not found")
+        if current_version == 0:
             raise ValueError(
                 f"Profile {profile.id} has no published version "
                 f"(current_version is 0)"
@@ -76,16 +86,16 @@ class ProjectRepository:
 
         stmt = select(DomainProfileVersion.content_hash).where(
             DomainProfileVersion.profile_id == profile.id,
-            DomainProfileVersion.version == profile.current_version,
+            DomainProfileVersion.version == current_version,
         )
         result = await self._session.execute(stmt)
         content_hash: str | None = result.scalar_one_or_none()
         if content_hash is None:
             raise ValueError(
-                f"Published version {profile.current_version} for profile "
+                f"Published version {current_version} for profile "
                 f"{profile.id} not found in domain_profile_version"
             )
-        return profile.current_version, content_hash
+        return current_version, content_hash
 
     # ------------------------------------------------------------------
     # project access
@@ -250,10 +260,14 @@ class ProjectRepository:
             existing_result = await self._session.execute(existing_stmt)
             existing_role: str | None = existing_result.scalar_one_or_none()
             if existing_role == "OWNER":
-                other_stmt = select(ProjectMember.id).where(
-                    ProjectMember.project_id == project_id,
-                    ProjectMember.role == "OWNER",
-                    ProjectMember.user_id != user_id,
+                other_stmt = (
+                    select(ProjectMember.id)
+                    .where(
+                        ProjectMember.project_id == project_id,
+                        ProjectMember.role == "OWNER",
+                        ProjectMember.user_id != user_id,
+                    )
+                    .limit(1)
                 )
                 other_result = await self._session.execute(other_stmt)
                 if other_result.scalar_one_or_none() is None:
@@ -323,12 +337,16 @@ class ProjectRepository:
             return  # idempotent no-op
 
         if member.role == "OWNER":
-            # Count other OWNERs (we hold the project lock; no concurrent
-            # membership changes can happen under this project)
-            count_stmt = select(ProjectMember.id).where(
-                ProjectMember.project_id == project_id,
-                ProjectMember.role == "OWNER",
-                ProjectMember.user_id != user_id,
+            # Check any other OWNER exists (we hold the project lock;
+            # no concurrent membership changes can happen under this project)
+            count_stmt = (
+                select(ProjectMember.id)
+                .where(
+                    ProjectMember.project_id == project_id,
+                    ProjectMember.role == "OWNER",
+                    ProjectMember.user_id != user_id,
+                )
+                .limit(1)
             )
             count_result = await self._session.execute(count_stmt)
             if count_result.scalar_one_or_none() is None:

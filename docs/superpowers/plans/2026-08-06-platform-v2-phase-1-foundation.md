@@ -78,7 +78,7 @@ Expected: FAIL because the V2 package files do not exist.
 fastapi>=0.115,<1
 pydantic>=2.10,<3
 pydantic-settings>=2.7,<3
-sqlalchemy>=2.0,<2.1
+sqlalchemy[asyncio]>=2.0,<2.1
 alembic>=1.18,<1.19
 psycopg[binary,pool]>=3.2,<4
 redis>=7,<8
@@ -230,17 +230,20 @@ executor:
 - Create: `src/persistence/postgres/session.py`
 - Create: `src/modules/access/models.py`
 - Create: `src/modules/profiles/models.py`
+- Create: `src/modules/profiles/repository.py`
 - Create: `src/integrations/models/__init__.py`
 - Create: `src/integrations/models/profile_model.py`
 - Create: `docs/operations/database-migration-policy.md`
 - Create: `tests/integration/postgres/conftest.py`
 - Create: `tests/integration/postgres/test_0001_access_profiles_models.py`
+- Modify: `requirements-v2.txt`
 
 **Interfaces:**
 - Produces: `create_engine(settings) -> AsyncEngine`.
 - Produces: `session_factory(engine) -> async_sessionmaker[AsyncSession]`.
 - Produces tables: `app_user`, `login_log`, `domain_profile`, `domain_profile_draft`, `domain_profile_version`, `profile_migration`, `model_profile`.
 - Owns `model_profile` persistence under `src/integrations/models`; Profile modules must not absorb model-gateway configuration.
+- Produces `ProfileRepository(session: AsyncSession)` with transactional `ensure_builtin_general(created_by_user_id)`, `publish_version(...)`, `set_status(...)`, and `delete_profile(...)` operations. Publication locks the Profile row, requires `version == current_version + 1`, and increments `current_version` atomically. The repository exposes no update/delete operation for published versions and rejects disabling or deleting the built-in general Profile.
 - Later Tasks consume the shared SQLAlchemy `Base` and transaction factory; domain modules never receive the raw engine.
 
 - [ ] **Step 1: Write failing migration constraint tests**
@@ -270,7 +273,7 @@ async def test_access_and_profile_constraints(migrated_db) -> None:
         """), {"id": uuid4()})
 ```
 
-The real test must also assert independent salt non-null, system/status checks, one built-in general Profile, continuous Profile version uniqueness, adjacent migration check, immutable published version policy at the repository boundary, and one active default Model Profile per purpose.
+The real test must also assert independent salt non-null, system/status checks, idempotent creation of exactly one built-in general Profile, versions starting at 1 and publishing continuously under a row lock, monotonic `current_version`, adjacent migration check, immutable published version policy at the repository boundary, built-in Profile disable/delete rejection, one active default Model Profile per purpose, and a successful real transaction through `create_engine` plus `session_factory`.
 
 - [ ] **Step 2: Run the migration test before implementation**
 
@@ -280,9 +283,11 @@ Expected: FAIL because Alembic and the tables do not exist.
 
 - [ ] **Step 3: Implement async PostgreSQL infrastructure and migration 0001**
 
-Use `postgresql+psycopg://` with `create_async_engine`. Model every fixed field from database design 1.1; use `varchar + CheckConstraint`, UUID keys, timezone-aware timestamps, bytea salt, JSONB content, partial unique indexes, and no PostgreSQL ENUM.
+Use `postgresql+psycopg://` with `create_async_engine`. Declare SQLAlchemy's `asyncio` extra in `requirements-v2.txt` so the async runtime dependency is explicit. Model every fixed field from database design 1.1; use `varchar + CheckConstraint`, UUID keys, timezone-aware timestamps, bytea salt, JSONB content, partial unique indexes, and no PostgreSQL ENUM.
 
-Document that production migration recovery is forward-only: restore or fix forward after a failed release. Alembic downgrade is a development/CI verification aid, not the production rollback mechanism. The document must include fresh install, pre-deployment backup, upgrade verification, application rollback compatibility boundary, and failed-migration operator steps.
+The built-in Profile row is application bootstrap data, not Alembic seed data, because it requires the first ADMIN foreign key. `ensure_builtin_general(created_by_user_id)` creates or returns the row idempotently after that ADMIN exists. Its initial published content remains owned by the later Profile feature; Task 3 may leave `current_version = 0`.
+
+Document that production migration recovery is forward-only: restore or fix forward after a failed release. Alembic downgrade is a development/CI verification aid, not the production rollback mechanism. The document must include fresh install, pre-deployment backup, upgrade verification, application rollback compatibility boundary, and failed-migration operator steps. Backup commands must use libpq-compatible credential handling without exposing passwords in argv, produce encrypted and access-restricted output, verify the backup, and restore into a clean target database/schema. Production verification is read-only; mutation-based constraint tests run only against a guarded disposable clone using `TEST_DATABASE_URL`.
 
 - [ ] **Step 4: Verify migration and constraints**
 
@@ -301,7 +306,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add alembic.ini migrations src/persistence/postgres src/modules/access src/modules/profiles src/integrations/models docs/operations/database-migration-policy.md tests/integration/postgres
+git add requirements-v2.txt alembic.ini migrations src/persistence/postgres src/modules/access src/modules/profiles src/integrations/models docs/operations/database-migration-policy.md tests/integration/postgres
 git commit -m "feat: add access and profile postgres schema"
 ```
 

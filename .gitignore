@@ -20,11 +20,18 @@ wheels/
 .installed.cfg
 *.egg
 
+# Test and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Virtual Environment
 venv/
 env/
 ENV/
-.venv
+.venv/
 .env
 
 # IDE
@@ -51,6 +58,12 @@ Thumbs.db
 .env.local
 *.pem
 *.key
+.env.v2
+.env.v2.local
+
+# Generated API output
+openapi.json
+openapi.yaml
 
 # Model cache
 /ollama/

@@ -30,6 +30,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # ------------------------------------------------------------------
+    # langgraph schema — owned by AsyncPostgresSaver.setup()
+    # ------------------------------------------------------------------
+    op.execute("CREATE SCHEMA IF NOT EXISTS langgraph")
+
+    # ------------------------------------------------------------------
     # app_user
     # ------------------------------------------------------------------
     op.create_table(
@@ -380,6 +385,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute("DROP SCHEMA IF EXISTS langgraph CASCADE")
     op.drop_table("model_profile")
     op.drop_table("profile_migration")
     op.drop_table("domain_profile_version")

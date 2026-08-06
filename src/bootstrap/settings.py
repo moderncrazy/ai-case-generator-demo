@@ -50,6 +50,18 @@ class Settings(BaseSettings):
     checkpoint_max_overflow: int = Field(default=10, ge=0)
 
     @model_validator(mode="after")
+    def _default_checkpoint_database_url(self) -> "Settings":
+        """Fall back to ``database_url`` when no dedicated checkpoint URL is set.
+
+        This keeps local and test configurations simple — both business
+        and checkpoint schemas coexist in the same PostgreSQL instance,
+        isolated by ``search_path``.
+        """
+        if self.checkpoint_database_url is None and self.database_url is not None:
+            self.checkpoint_database_url = self.database_url
+        return self
+
+    @model_validator(mode="after")
     def production_requires_external_urls(self) -> "Settings":
         """Reject production configuration that lacks the three external URLs."""
         if self.environment is not Environment.PRODUCTION:

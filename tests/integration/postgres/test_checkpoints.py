@@ -143,6 +143,7 @@ class TestSettingsProduction:
                 database_url="postgresql+psycopg://u:p@h/biz",
                 redis_url="redis://localhost:6379",
                 environment="production",
+                _env_file=None,
             )
 
     def test_production_rejects_missing_redis_url(self) -> None:

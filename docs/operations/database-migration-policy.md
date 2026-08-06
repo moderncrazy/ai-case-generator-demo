@@ -66,14 +66,16 @@ pg_dump \
 
 # 2. Encrypt the dump.  The passphrase file must be stored on a separate
 #    filesystem or in a secrets manager with 0400 permissions.
+#    The plaintext is deleted ONLY when encryption succeeds (&&).
+#    On failure, openssl exits non-zero, the && short-circuits, the
+#    plaintext dump is preserved, and the operator sees the openssl
+#    error on stderr.
 openssl enc -aes-256-cbc -pbkdf2 -iter 100000 \
   -salt \
   -in "backup-${TIMESTAMP}.dump" \
   -out "backup-${TIMESTAMP}.dump.enc" \
-  -pass "file:/secure/backup-key"
-
-# 3. Remove the plaintext dump so only the encrypted artefact remains.
-rm "backup-${TIMESTAMP}.dump"
+  -pass "file:/secure/backup-key" \
+  && rm "backup-${TIMESTAMP}.dump"
 ```
 
 - `--format=custom` produces a compressed binary archive suitable for `pg_restore`.
@@ -82,18 +84,20 @@ rm "backup-${TIMESTAMP}.dump"
 - `openssl enc -aes-256-cbc -pbkdf2 -iter 100000` applies AES-256-CBC
   encryption with a key derived from the passphrase file; this is the
   encryption layer — not delegated to filesystem or volume assumptions.
-- The plaintext dump is deleted immediately after encryption so it never
-  lingers on disk.
+- The plaintext dump is deleted only after `openssl` confirms successful
+  encryption (exit 0).  If encryption fails the plaintext dump is preserved
+  and the operator sees the error — no silent data loss.
 
 ### 3.3 Verify the Backup
 
 ```bash
 # Verify the encrypted backup is complete and readable.  Exit code 0 means
 # the archive is intact and the encryption key is valid.
+# pg_restore reads stdin when no archive filename is given — do not pass "-".
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
   -in "backup-${TIMESTAMP}.dump.enc" \
   -pass "file:/secure/backup-key" \
-  | pg_restore --list - > /dev/null
+  | pg_restore --list > /dev/null
 ```
 
 ### 3.4 Restore into a Clean Target

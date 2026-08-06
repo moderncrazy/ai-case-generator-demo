@@ -1,10 +1,4 @@
-import sys
-from pathlib import Path
 from uuid import UUID
-
-# The V2 runtime is a top-level `src` package without an editable install, so
-# expose the repository root when pytest is invoked from the worktree.
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from src.shared.ids.types import new_uuid
 

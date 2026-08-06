@@ -1,12 +1,11 @@
 """RedisRuntime — lifecycle-managed async Redis client.
 
-Provides ``open()``, ``close()``, ``ping()``, and ``flushdb()`` (for
-test isolation) over a single Redis connection pool.
+Provides ``open()``, ``close()``, and ``ping()`` over a single Redis
+connection pool.  Test isolation (e.g. ``flushdb``) is the
+responsibility of the test fixture, not of the production runtime.
 """
 
 from __future__ import annotations
-
-from typing import cast
 
 import redis.asyncio as aioredis
 
@@ -46,10 +45,6 @@ class RedisRuntime:
     async def ping(self) -> bool:
         """Return ``True`` when Redis responds to PING."""
         return await self.client.ping()
-
-    async def flushdb(self) -> None:
-        """Remove all keys from the current database (test isolation)."""
-        await self.client.flushdb()
 
     # ------------------------------------------------------------------
     # accessor

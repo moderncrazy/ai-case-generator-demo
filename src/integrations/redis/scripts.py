@@ -11,6 +11,9 @@ Result vocabulary (exactly five values):
     OCCUPIED   — key owned by a *different* user; no change made
     RELEASED   — key was owned by the calling user and has been deleted
     NOT_OWNER  — key is owned by a different user; release denied
+
+The occupancy TTL is fixed at 300 seconds per the database design
+section 13.3.  Callers cannot vary it.
 """
 
 from __future__ import annotations
@@ -18,8 +21,19 @@ from __future__ import annotations
 from enum import StrEnum
 
 import redis.asyncio as aioredis
+from redis.exceptions import NoScriptError
 
 from src.integrations.redis.keys import conversation_owner_key
+
+# ---------------------------------------------------------------------------
+# Occupancy TTL — section 13.3
+# ---------------------------------------------------------------------------
+
+OCCUPANCY_TTL_SECONDS: int = 300
+"""Approved conversation-owner key TTL (seconds).
+
+TTL: 300 seconds sliding or worker renewal (database design §13.3).
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +106,10 @@ class OccupancyManager:
     ``acquire`` / ``release`` whose behaviour is entirely defined by
     the scripts above.
 
+    Cached script SHAs are recovered transparently after Redis
+    restarts, failovers, or ``SCRIPT FLUSH``: the first ``NoScriptError``
+    triggers a reload, cache update, and single retry.
+
     It does *not* implement Access or Conversation domain policy
     (e.g. OWNER governance takeover is a higher-level concern).
     """
@@ -109,15 +127,15 @@ class OccupancyManager:
         self,
         project_id: str,
         user_id: str,
-        ttl_seconds: int,
     ) -> OccupancyResult:
         """Atomically acquire or renew the conversation owner for *project_id*.
 
+        The occupancy TTL is always ``OCCUPANCY_TTL_SECONDS`` (300 s).
         Returns one of ``ACQUIRED``, ``RENEWED``, or ``OCCUPIED``.
         """
         sha = await self._load_acquire()
         key = conversation_owner_key(project_id=project_id)
-        raw: bytes = await self._client.evalsha(sha, 1, key, user_id, str(ttl_seconds))
+        raw: bytes = await self._evalsha_acquire(sha, key, user_id)
         return OccupancyResult(raw.decode())
 
     async def release(
@@ -133,11 +151,11 @@ class OccupancyManager:
         """
         sha = await self._load_release()
         key = conversation_owner_key(project_id=project_id)
-        raw: bytes = await self._client.evalsha(sha, 1, key, user_id)
+        raw: bytes = await self._evalsha_release(sha, key, user_id)
         return OccupancyResult(raw.decode())
 
     # ------------------------------------------------------------------
-    # script loading
+    # script loading (with NoScriptError recovery)
     # ------------------------------------------------------------------
 
     async def _load_acquire(self) -> str:
@@ -149,3 +167,26 @@ class OccupancyManager:
         if self._release_sha is None:
             self._release_sha = await self._client.script_load(_RELEASE_SCRIPT)
         return self._release_sha
+
+    async def _evalsha_acquire(
+        self, sha: str, key: str, user_id: str,
+    ) -> bytes:
+        ttl_str = str(OCCUPANCY_TTL_SECONDS)
+        try:
+            return await self._client.evalsha(sha, 1, key, user_id, ttl_str)
+        except NoScriptError:
+            self._acquire_sha = await self._client.script_load(_ACQUIRE_SCRIPT)
+            return await self._client.evalsha(
+                self._acquire_sha, 1, key, user_id, ttl_str,
+            )
+
+    async def _evalsha_release(
+        self, sha: str, key: str, user_id: str,
+    ) -> bytes:
+        try:
+            return await self._client.evalsha(sha, 1, key, user_id)
+        except NoScriptError:
+            self._release_sha = await self._client.script_load(_RELEASE_SCRIPT)
+            return await self._client.evalsha(
+                self._release_sha, 1, key, user_id,
+            )

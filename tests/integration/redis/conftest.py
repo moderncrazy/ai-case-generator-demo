@@ -69,8 +69,9 @@ async def redis_runtime(redis_url: str) -> AsyncGenerator[RedisRuntime, None]:
     """Provide an opened RedisRuntime that is flushed and closed per test."""
     runtime = RedisRuntime(url=redis_url)
     await runtime.open()
-    # Flush the test database so every test starts with clean state.
-    await runtime.flushdb()
+    # Flush the isolated test database via the raw client so
+    # production-facing RedisRuntime does not expose flushdb.
+    await runtime.client.flushdb()
     try:
         yield runtime
     finally:

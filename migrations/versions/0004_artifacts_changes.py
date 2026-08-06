@@ -138,6 +138,11 @@ def upgrade() -> None:
             ["domain_profile.id"],
             name="fk_artifact_profile",
         ),
+        sa.ForeignKeyConstraint(
+            ["project_id", "stage"],
+            ["project_stage.project_id", "project_stage.stage"],
+            name="fk_artifact_project_stage",
+        ),
     )
     # Indexes
     op.create_index(
@@ -293,6 +298,11 @@ def upgrade() -> None:
             ["artifact.id"],
             name="fk_artifact_draft_base_artifact",
         ),
+        sa.ForeignKeyConstraint(
+            ["project_id", "stage"],
+            ["project_stage.project_id", "project_stage.stage"],
+            name="fk_artifact_draft_project_stage",
+        ),
     )
     # Partial unique: (project_id, artifact_code) WHERE NOT NULL
     op.create_index(
@@ -393,13 +403,14 @@ def upgrade() -> None:
             "('APPROVED', 'REJECTED', 'WITHDRAWN')",
             name="ck_project_change_decision",
         ),
-        # Terminal states must have decision, decider, decided_at, and
-        # decision_git_commit_sha.
+        # Terminal states require decision, decider, decided_at, and both
+        # decision pointer fields (artifact code + git commit sha).
         sa.CheckConstraint(
             "(status NOT IN ('APPLIED', 'REJECTED', 'WITHDRAWN')) OR ("
             "decision IS NOT NULL AND "
             "decided_by_user_id IS NOT NULL AND "
             "decided_at IS NOT NULL AND "
+            "decision_artifact_code IS NOT NULL AND "
             "decision_git_commit_sha IS NOT NULL)",
             name="ck_project_change_terminal_decision",
         ),

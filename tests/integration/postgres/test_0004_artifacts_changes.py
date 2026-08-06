@@ -17,7 +17,7 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import text
+from sqlalchemy import String, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -723,6 +723,143 @@ def test_artifact_git_path_unique_per_project(
 
 
 # ===================================================================
+# DDL constraint tests — stage FK (sync)
+# ===================================================================
+
+
+def test_artifact_rejects_nonexistent_stage(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """Inserting an artifact with a stage that has no matching row in
+    project_stage must be rejected by the composite FK."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_id = _insert_sync_project(migrated_db, migrated_db_user, pid)
+    # Intentionally skip _insert_sync_stage — no 'REQUIREMENT_MODULE'
+    # row exists for this project.
+
+    with pytest.raises(IntegrityError):
+        _insert_sync_artifact(
+            migrated_db, proj_id, pid,
+            artifact_code="REQ-NOSTAGE",
+            canonical_key="no-stage",
+        )
+
+
+def test_artifact_rejects_cross_project_stage(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """A (project_id, stage) pair must reference a project_stage row
+    belonging to the *same* project — a stage from another project must
+    be rejected."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_a = _insert_sync_project(
+        migrated_db, migrated_db_user, pid, name="Proj A",
+    )
+    proj_b = _insert_sync_project(
+        migrated_db, migrated_db_user, pid, name="Proj B",
+    )
+    # Create stage only in project B
+    _insert_sync_stage(migrated_db, proj_b, "REQUIREMENT_MODULE")
+
+    # Insert into project A — proj_a has no matching stage row
+    with pytest.raises(IntegrityError):
+        _insert_sync_artifact(
+            migrated_db, proj_a, pid,
+            artifact_code="REQ-CROSS",
+            canonical_key="cross-project",
+        )
+
+
+def test_artifact_draft_rejects_nonexistent_stage(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """Inserting an artifact_draft with a stage that has no matching row in
+    project_stage must be rejected by the composite FK."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_id = _insert_sync_project(migrated_db, migrated_db_user, pid)
+    # Skip _insert_sync_stage
+
+    with pytest.raises(IntegrityError):
+        migrated_db.execute(
+            text(
+                """
+                INSERT INTO artifact_draft
+                  (id, project_id, stage, artifact_type, artifact_code,
+                   canonical_key, title, artifact_version, schema_version,
+                   body, source_refs, requirement_refs, module_refs,
+                   decision_refs, architecture_refs, api_refs,
+                   read_table_refs, write_table_refs,
+                   content_hash, profile_id, profile_version, profile_hash,
+                   base_artifact_id, operation, status,
+                   validation_result, review_result,
+                   created_at, updated_at)
+                VALUES
+                  (:id, :proj, 'REQUIREMENT_MODULE', 'REQUIREMENT', NULL,
+                   'nostage-draft', 'No Stage Draft', 0, 1,
+                   '{}'::jsonb, '{}', '{}', '{}',
+                   '{}', '{}', '{}',
+                   '{}', '{}',
+                   :chash, :pid, 0, :phash,
+                   NULL, 'CREATE', 'DRAFT',
+                   '{}'::jsonb, '{}'::jsonb,
+                   now(), now())
+                """
+            ),
+            {
+                "id": uuid4(), "proj": proj_id,
+                "chash": "ns1" + "a" * 61, "pid": pid, "phash": "ns2" + "b" * 61,
+            },
+        )
+
+
+def test_artifact_draft_rejects_cross_project_stage(
+    migrated_db: Session, migrated_db_user: str,
+) -> None:
+    """An artifact_draft (project_id, stage) pair must reference a stage
+    belonging to the same project — cross-project pairs must be rejected."""
+    pid = _insert_sync_profile(migrated_db, migrated_db_user)
+    proj_a = _insert_sync_project(
+        migrated_db, migrated_db_user, pid, name="Draft Proj A",
+    )
+    proj_b = _insert_sync_project(
+        migrated_db, migrated_db_user, pid, name="Draft Proj B",
+    )
+    _insert_sync_stage(migrated_db, proj_b, "REQUIREMENT_MODULE")
+
+    with pytest.raises(IntegrityError):
+        migrated_db.execute(
+            text(
+                """
+                INSERT INTO artifact_draft
+                  (id, project_id, stage, artifact_type, artifact_code,
+                   canonical_key, title, artifact_version, schema_version,
+                   body, source_refs, requirement_refs, module_refs,
+                   decision_refs, architecture_refs, api_refs,
+                   read_table_refs, write_table_refs,
+                   content_hash, profile_id, profile_version, profile_hash,
+                   base_artifact_id, operation, status,
+                   validation_result, review_result,
+                   created_at, updated_at)
+                VALUES
+                  (:id, :proj, 'REQUIREMENT_MODULE', 'REQUIREMENT', NULL,
+                   'xproj-draft', 'Cross Proj Draft', 0, 1,
+                   '{}'::jsonb, '{}', '{}', '{}',
+                   '{}', '{}', '{}',
+                   '{}', '{}',
+                   :chash, :pid, 0, :phash,
+                   NULL, 'CREATE', 'DRAFT',
+                   '{}'::jsonb, '{}'::jsonb,
+                   now(), now())
+                """
+            ),
+            {
+                "id": uuid4(), "proj": proj_a,
+                "chash": "xp1" + "c" * 61, "pid": pid, "phash": "xp2" + "d" * 61,
+            },
+        )
+
+
+# ===================================================================
 # DDL constraint tests — project_change (sync)
 # ===================================================================
 
@@ -756,24 +893,36 @@ def test_project_change_status_check_rejects_bad_value(
         )
 
 
-def test_terminal_change_requires_decision_pointer(
-    migrated_db: Session, migrated_db_user: str,
+@pytest.mark.parametrize("null_field", [
+    "decision",
+    "decided_by_user_id",
+    "decided_at",
+    "decision_artifact_code",
+    "decision_git_commit_sha",
+])
+def test_terminal_change_rejects_missing_pointer_field(
+    migrated_db: Session, migrated_db_user: str, null_field: str,
 ) -> None:
-    """APPLIED/REJECTED/WITHDRAWN must have decision, decided_by_user_id,
-    decided_at, and decision_git_commit_sha.
+    """APPLIED status must reject when any required terminal pointer field
+    is NULL.
 
-    This uses a CHECK constraint that enforces the terminal-state invariant:
-    status NOT IN ('APPLIED','REJECTED','WITHDRAWN')
-      OR (decision IS NOT NULL
-          AND decided_by_user_id IS NOT NULL
-          AND decided_at IS NOT NULL
-          AND decision_git_commit_sha IS NOT NULL)
+    The terminal CHECK requires all five fields to be non-null:
+    decision, decided_by_user_id, decided_at, decision_artifact_code,
+    decision_git_commit_sha.  This test nulls each independently while
+    keeping the other four populated so only the targeted field triggers
+    the violation.
     """
     pid = _insert_sync_profile(migrated_db, migrated_db_user)
     proj_id = _insert_sync_project(migrated_db, migrated_db_user, pid)
     msg_id = _insert_sync_message(migrated_db, proj_id, migrated_db_user)
+    now = datetime.now(UTC)
 
-    # Marking a change as APPLIED without decision pointer must fail
+    decision = None if null_field == "decision" else "APPROVED"
+    dby = None if null_field == "decided_by_user_id" else migrated_db_user
+    dat = None if null_field == "decided_at" else now
+    dac = None if null_field == "decision_artifact_code" else "CHG-001"
+    dgcs = None if null_field == "decision_git_commit_sha" else "b1" + "c" * 62
+
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -787,14 +936,16 @@ def test_terminal_change_requires_decision_pointer(
                 VALUES
                   (:id, :proj, :msg, :uid,
                    'Change request', '{}', '[]'::jsonb,
-                   'APPLIED', 'APPROVED', :uid, now(),
-                   NULL, NULL,
+                   'APPLIED', :decision, :dby, :dat,
+                   :dac, :dgcs,
                    now(), now())
                 """
             ),
             {
                 "id": uuid4(), "proj": proj_id, "msg": msg_id,
                 "uid": migrated_db_user,
+                "decision": decision, "dby": dby, "dat": dat,
+                "dac": dac, "dgcs": dgcs,
             },
         )
 
@@ -1408,4 +1559,116 @@ async def test_artifact_code_unique_non_null_async(
         await _insert_draft(
             async_session, art_project, art_stage, art_profile,
             artifact_code="REQ-ASYNC-001", canonical_key="key-async-2",
+        )
+
+
+# ===================================================================
+# ORM metadata type-assertion tests
+# ===================================================================
+
+
+def test_artifact_datetime_columns_are_timezone_aware() -> None:
+    """All datetime columns on Artifact must declare DateTime(timezone=True)."""
+    from src.modules.artifacts.models import Artifact
+    for col_name in ("created_at", "updated_at"):
+        col = Artifact.__table__.c[col_name]
+        assert col.type.timezone is True, (
+            f"Artifact.{col_name} must be DateTime(timezone=True), "
+            f"got {col.type}"
+        )
+
+
+def test_artifact_draft_datetime_columns_are_timezone_aware() -> None:
+    """All datetime columns on ArtifactDraft must declare DateTime(timezone=True)."""
+    from src.modules.artifacts.models import ArtifactDraft
+    for col_name in ("created_at", "updated_at"):
+        col = ArtifactDraft.__table__.c[col_name]
+        assert col.type.timezone is True, (
+            f"ArtifactDraft.{col_name} must be DateTime(timezone=True), "
+            f"got {col.type}"
+        )
+
+
+def test_project_change_datetime_columns_are_timezone_aware() -> None:
+    """All datetime columns on ProjectChange must declare DateTime(timezone=True)."""
+    from src.modules.changes.models import ProjectChange
+    for col_name in ("created_at", "updated_at", "decided_at"):
+        col = ProjectChange.__table__.c[col_name]
+        assert col.type.timezone is True, (
+            f"ProjectChange.{col_name} must be DateTime(timezone=True), "
+            f"got {col.type}"
+        )
+
+
+def test_artifact_varchar_columns_have_explicit_lengths() -> None:
+    """Constrained varchar columns on Artifact must declare String(N)
+    with authoritative lengths matching the migration DDL."""
+    from src.modules.artifacts.models import Artifact
+
+    expected: dict[str, int] = {
+        "stage": 40,
+        "artifact_type": 40,
+        "artifact_code": 40,
+        "canonical_key": 300,
+        "content_hash": 64,
+        "profile_hash": 64,
+        "git_commit_sha": 64,
+    }
+    for col_name, length in expected.items():
+        col = Artifact.__table__.c[col_name]
+        assert isinstance(col.type, String), (
+            f"Artifact.{col_name} must be String, got {type(col.type).__name__}"
+        )
+        assert col.type.length == length, (
+            f"Artifact.{col_name} length expected {length}, got {col.type.length}"
+        )
+
+
+def test_artifact_draft_varchar_columns_have_explicit_lengths() -> None:
+    """Constrained varchar columns on ArtifactDraft must declare String(N)
+    with authoritative lengths matching the migration DDL."""
+    from src.modules.artifacts.models import ArtifactDraft
+
+    expected: dict[str, int] = {
+        "stage": 40,
+        "artifact_type": 40,
+        "artifact_code": 40,
+        "canonical_key": 300,
+        "content_hash": 64,
+        "profile_hash": 64,
+        "operation": 16,
+        "status": 24,
+    }
+    for col_name, length in expected.items():
+        col = ArtifactDraft.__table__.c[col_name]
+        assert isinstance(col.type, String), (
+            f"ArtifactDraft.{col_name} must be String, "
+            f"got {type(col.type).__name__}"
+        )
+        assert col.type.length == length, (
+            f"ArtifactDraft.{col_name} length expected {length}, "
+            f"got {col.type.length}"
+        )
+
+
+def test_project_change_varchar_columns_have_explicit_lengths() -> None:
+    """Constrained varchar columns on ProjectChange must declare String(N)
+    with authoritative lengths matching the migration DDL."""
+    from src.modules.changes.models import ProjectChange
+
+    expected: dict[str, int] = {
+        "status": 24,
+        "decision": 16,
+        "decision_artifact_code": 40,
+        "decision_git_commit_sha": 64,
+    }
+    for col_name, length in expected.items():
+        col = ProjectChange.__table__.c[col_name]
+        assert isinstance(col.type, String), (
+            f"ProjectChange.{col_name} must be String, "
+            f"got {type(col.type).__name__}"
+        )
+        assert col.type.length == length, (
+            f"ProjectChange.{col_name} length expected {length}, "
+            f"got {col.type.length}"
         )

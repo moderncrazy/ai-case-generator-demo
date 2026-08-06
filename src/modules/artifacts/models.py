@@ -10,7 +10,10 @@ analysis (on ``artifact``) and candidate impact checking (on ``artifact_draft``)
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Text, UniqueConstraint, text
+from sqlalchemy import (
+    CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint,
+    Index, String, Text, UniqueConstraint, text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -36,15 +39,15 @@ class Artifact(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("project.id", name="fk_artifact_project"), nullable=False,
     )
-    stage: Mapped[str] = mapped_column(nullable=False)
-    artifact_type: Mapped[str] = mapped_column(nullable=False)
-    artifact_code: Mapped[str] = mapped_column(nullable=False)
-    canonical_key: Mapped[str] = mapped_column(nullable=False)
+    stage: Mapped[str] = mapped_column(String(40), nullable=False)
+    artifact_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    artifact_code: Mapped[str] = mapped_column(String(40), nullable=False)
+    canonical_key: Mapped[str] = mapped_column(String(300), nullable=False)
 
     # ------------------------------------------------------------------
     # content
     # ------------------------------------------------------------------
-    title: Mapped[str] = mapped_column(nullable=False)
+    title: Mapped[str] = mapped_column(Text(), nullable=False)
     artifact_version: Mapped[int] = mapped_column(nullable=False)
     schema_version: Mapped[int] = mapped_column(nullable=False)
     body: Mapped[dict] = mapped_column(JSONB(), nullable=False)
@@ -80,7 +83,7 @@ class Artifact(Base):
     # ------------------------------------------------------------------
     # content integrity
     # ------------------------------------------------------------------
-    content_hash: Mapped[str] = mapped_column(nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
     # ------------------------------------------------------------------
     # profile binding
@@ -90,20 +93,24 @@ class Artifact(Base):
         nullable=False,
     )
     profile_version: Mapped[int] = mapped_column(nullable=False)
-    profile_hash: Mapped[str] = mapped_column(nullable=False)
+    profile_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
     # ------------------------------------------------------------------
     # approval metadata
     # ------------------------------------------------------------------
     baseline_version: Mapped[int] = mapped_column(nullable=False)
-    git_path: Mapped[str] = mapped_column(nullable=False)
-    git_commit_sha: Mapped[str] = mapped_column(nullable=False)
+    git_path: Mapped[str] = mapped_column(Text(), nullable=False)
+    git_commit_sha: Mapped[str] = mapped_column(String(64), nullable=False)
 
     # ------------------------------------------------------------------
     # timestamps
     # ------------------------------------------------------------------
-    created_at: Mapped[datetime] = mapped_column(nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
 
     # ------------------------------------------------------------------
     # table-level constraints
@@ -118,6 +125,11 @@ class Artifact(Base):
         ),
         UniqueConstraint(
             "project_id", "git_path", name="uq_artifact_git_path",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "stage"],
+            ["project_stage.project_id", "project_stage.stage"],
+            name="fk_artifact_project_stage",
         ),
         Index("ix_artifact_project_stage", "project_id", "stage"),
         Index("ix_artifact_project_type", "project_id", "artifact_type"),
@@ -154,15 +166,15 @@ class ArtifactDraft(Base):
         ForeignKey("project.id", name="fk_artifact_draft_project"),
         nullable=False,
     )
-    stage: Mapped[str] = mapped_column(nullable=False)
-    artifact_type: Mapped[str] = mapped_column(nullable=False)
-    artifact_code: Mapped[str | None] = mapped_column(nullable=True)
-    canonical_key: Mapped[str] = mapped_column(nullable=False)
+    stage: Mapped[str] = mapped_column(String(40), nullable=False)
+    artifact_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    artifact_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    canonical_key: Mapped[str] = mapped_column(String(300), nullable=False)
 
     # ------------------------------------------------------------------
     # content
     # ------------------------------------------------------------------
-    title: Mapped[str] = mapped_column(nullable=False)
+    title: Mapped[str] = mapped_column(Text(), nullable=False)
     artifact_version: Mapped[int] = mapped_column(nullable=False)
     schema_version: Mapped[int] = mapped_column(nullable=False)
     body: Mapped[dict] = mapped_column(JSONB(), nullable=False)
@@ -198,7 +210,7 @@ class ArtifactDraft(Base):
     # ------------------------------------------------------------------
     # content integrity
     # ------------------------------------------------------------------
-    content_hash: Mapped[str] = mapped_column(nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
     # ------------------------------------------------------------------
     # profile binding
@@ -208,7 +220,7 @@ class ArtifactDraft(Base):
         nullable=False,
     )
     profile_version: Mapped[int] = mapped_column(nullable=False)
-    profile_hash: Mapped[str] = mapped_column(nullable=False)
+    profile_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
     # ------------------------------------------------------------------
     # base artifact (NULL for CREATE)
@@ -221,8 +233,8 @@ class ArtifactDraft(Base):
     # ------------------------------------------------------------------
     # lifecycle
     # ------------------------------------------------------------------
-    operation: Mapped[str] = mapped_column(nullable=False)
-    status: Mapped[str] = mapped_column(nullable=False)
+    operation: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
     validation_result: Mapped[dict] = mapped_column(
         JSONB(), nullable=False, server_default="{}",
     )
@@ -233,8 +245,12 @@ class ArtifactDraft(Base):
     # ------------------------------------------------------------------
     # timestamps
     # ------------------------------------------------------------------
-    created_at: Mapped[datetime] = mapped_column(nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
 
     # ------------------------------------------------------------------
     # relationships
@@ -264,6 +280,11 @@ class ArtifactDraft(Base):
         UniqueConstraint(
             "project_id", "artifact_type", "canonical_key",
             name="uq_artifact_draft_type_canonical_key",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "stage"],
+            ["project_stage.project_id", "project_stage.stage"],
+            name="fk_artifact_draft_project_stage",
         ),
         Index(
             "uq_artifact_draft_code",

@@ -10,7 +10,10 @@ full decision text is rendered into approved artifacts in Git.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Text, text
+from sqlalchemy import (
+    CheckConstraint, DateTime, ForeignKey, Index,
+    String, Text, text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +27,7 @@ class ProjectChange(Base):
         decision IS NOT NULL
         AND decided_by_user_id IS NOT NULL
         AND decided_at IS NOT NULL
+        AND decision_artifact_code IS NOT NULL
         AND decision_git_commit_sha IS NOT NULL
     """
 
@@ -53,7 +57,7 @@ class ProjectChange(Base):
     # ------------------------------------------------------------------
     # request
     # ------------------------------------------------------------------
-    request_content: Mapped[str] = mapped_column(nullable=False)
+    request_content: Mapped[str] = mapped_column(Text(), nullable=False)
     target_artifact_codes: Mapped[list[str]] = mapped_column(
         ARRAY(Text()), nullable=False, server_default="{}",
     )
@@ -62,20 +66,26 @@ class ProjectChange(Base):
     # ------------------------------------------------------------------
     # lifecycle
     # ------------------------------------------------------------------
-    status: Mapped[str] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
     impact: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
 
     # ------------------------------------------------------------------
     # decision
     # ------------------------------------------------------------------
-    decision: Mapped[str | None] = mapped_column(nullable=True)
+    decision: Mapped[str | None] = mapped_column(String(16), nullable=True)
     decided_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("app_user.id", name="fk_project_change_decided_by"),
         nullable=True,
     )
-    decided_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    decision_artifact_code: Mapped[str | None] = mapped_column(nullable=True)
-    decision_git_commit_sha: Mapped[str | None] = mapped_column(nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    decision_artifact_code: Mapped[str | None] = mapped_column(
+        String(40), nullable=True,
+    )
+    decision_git_commit_sha: Mapped[str | None] = mapped_column(
+        String(64), nullable=True,
+    )
 
     # ------------------------------------------------------------------
     # application result
@@ -88,8 +98,12 @@ class ProjectChange(Base):
     # ------------------------------------------------------------------
     # timestamps
     # ------------------------------------------------------------------
-    created_at: Mapped[datetime] = mapped_column(nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
 
     # ------------------------------------------------------------------
     # table-level constraints
@@ -112,6 +126,7 @@ class ProjectChange(Base):
             "decision IS NOT NULL AND "
             "decided_by_user_id IS NOT NULL AND "
             "decided_at IS NOT NULL AND "
+            "decision_artifact_code IS NOT NULL AND "
             "decision_git_commit_sha IS NOT NULL)",
             name="ck_project_change_terminal_decision",
         ),

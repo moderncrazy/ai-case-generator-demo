@@ -1189,7 +1189,11 @@ async def test_message_key_scope_and_server_id(
     async_session: AsyncSession, msg_project, msg_users,
 ) -> None:
     """Server generates message UUID different from client idempotency key.
-    Same (project, user, key) is unique; different user same key is OK."""
+
+    Same (project, user, key) is unique per the partial unique index.
+    A nested savepoint absorbs the expected violation so the outer
+    transaction stays usable for the different-user assertion that follows.
+    """
     key = uuid4()
     # First message: server ID != client key
     first_id = await _insert_user_message(
@@ -1197,32 +1201,20 @@ async def test_message_key_scope_and_server_id(
     )
     assert first_id != str(key), "Server-generated ID must differ from idempotency key"
 
-    # Same project, same user, same key → IntegrityError (unique constraint)
-    with pytest.raises(IntegrityError):
+    # Same project, same user, same key → IntegrityError.
+    # Wrap in a nested savepoint so the outer transaction is not poisoned.
+    savepoint = await async_session.begin_nested()
+    try:
         await _insert_user_message(
             async_session, msg_project, msg_users.a, key, "hash-msg-2",
         )
+        raise AssertionError(
+            "Expected IntegrityError for duplicate idempotency key"
+        )
+    except IntegrityError:
+        await savepoint.rollback()
 
-    # Rollback the failed attempt so the session is still usable
-    await async_session.rollback()
-    # Start a new transaction for the next insert
-    async with async_session.bind.begin() as conn:
-        pass  # dummy to recover session state – we need a new transaction
-    # Actually, the fixture wraps in a transaction, so after rollback we need
-    # to re-begin. Let's use a simpler approach: different session.
-    # For now, just proceed — the async_session fixture auto-rolls back.
-
-
-@pytest.mark.asyncio
-async def test_message_key_scoped_to_user(
-    async_session: AsyncSession, msg_project, msg_users,
-) -> None:
-    """Same key, different user, same project — both succeed."""
-    key = uuid4()
-    first_id = await _insert_user_message(
-        async_session, msg_project, msg_users.a, key, "hash-u1",
-    )
-    # Different user, same key, same project — must be allowed
+    # Different user, same key, same project — must be allowed.
     second_id = await _insert_user_message(
         async_session, msg_project, msg_users.b, key, "hash-u2",
     )
@@ -1384,19 +1376,21 @@ async def test_non_sealed_does_not_require_baseline(
 async def test_queue_ordering_by_created_at_and_id(
     async_session: AsyncSession, msg_project, msg_users,
 ) -> None:
-    """Queue messages are ordered by (created_at, id), providing stable
-    ordering.  Same-transaction ``now()`` may produce equal timestamps
-    so the test only verifies the query pattern and index coverage."""
+    """Queue messages are ordered by (created_at, id) with ``id`` providing
+    deterministic tie-breaking when ``created_at`` values are equal."""
+    from uuid import UUID
+
     now = datetime.now(UTC)
     key_a, key_b = uuid4(), uuid4()
 
-    # Insert with explicit timestamps to guarantee ordering
-    msg_id_a = uuid4()
-    msg_id_b = uuid4()
-    t1 = now
-    t2 = datetime(now.year, now.month, now.day, now.hour, now.minute,
-                  now.second, now.microsecond + 1000, tzinfo=UTC)
+    # Deterministic ordered UUIDs — a < b in UUID byte ordering
+    msg_id_a = UUID("00000000-0000-0000-0000-000000000001")
+    msg_id_b = UUID("00000000-0000-0000-0000-000000000002")
 
+    # Insert in REVERSE order (b first, a second) with the SAME timestamp.
+    # If created_at alone determined ordering, b would appear first.
+    # With (created_at, id) ordering, a must sort before b because
+    # timestamps are equal and UUID(id_a) < UUID(id_b).
     await async_session.execute(
         text(
             """
@@ -1411,8 +1405,8 @@ async def test_queue_ordering_by_created_at_and_id(
             """
         ),
         {
-            "id": msg_id_a, "proj": msg_project, "uid": msg_users.a,
-            "key": key_a, "hash": "hash-qa", "ts": t1,
+            "id": msg_id_b, "proj": msg_project, "uid": msg_users.a,
+            "key": key_b, "hash": "hash-qb", "ts": now,
         },
     )
     await async_session.execute(
@@ -1429,8 +1423,8 @@ async def test_queue_ordering_by_created_at_and_id(
             """
         ),
         {
-            "id": msg_id_b, "proj": msg_project, "uid": msg_users.a,
-            "key": key_b, "hash": "hash-qb", "ts": t2,
+            "id": msg_id_a, "proj": msg_project, "uid": msg_users.a,
+            "key": key_a, "hash": "hash-qa", "ts": now,
         },
     )
     await async_session.flush()
@@ -1448,16 +1442,15 @@ async def test_queue_ordering_by_created_at_and_id(
         {"proj": msg_project},
     )
     ordered = [row[0] for row in result.all()]
-    # Both messages must be present
+    assert len(ordered) == 2
     assert msg_id_a in ordered
     assert msg_id_b in ordered
-    # Earlier timestamp must sort first
-    idx_a = ordered.index(msg_id_a)
-    idx_b = ordered.index(msg_id_b)
-    assert idx_a < idx_b, (
-        f"Queue ordering: message with earlier created_at must sort first; "
-        f"got a at {idx_a}, b at {idx_b}"
+    # With equal timestamps, id tie-breaking must sort a before b
+    assert ordered[0] == msg_id_a, (
+        f"Queue ordering: with equal created_at, id tie-breaking must sort "
+        f"lower UUID first; got {ordered[0]}, expected {msg_id_a}"
     )
+    assert ordered[1] == msg_id_b
 
 
 # ===================================================================

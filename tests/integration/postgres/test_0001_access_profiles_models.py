@@ -11,7 +11,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import Session
 
 from src.modules.profiles.repository import (
@@ -829,3 +829,173 @@ async def test_delete_non_builtin_profile_succeeds(
 
     with pytest.raises(ProfileNotFound):
         await repo.delete_profile(pid)
+
+
+# ===================================================================
+# Fix Round 2 — concurrent idempotency (Finding 2)
+# ===================================================================
+
+
+@pytest.mark.asyncio
+async def test_ensure_builtin_general_is_concurrently_idempotent(
+    async_engine: AsyncEngine,
+) -> None:
+    """Two concurrent transactions both succeed — no IntegrityError or lost row.
+
+    This test would have exposed the old check-then-insert race: two
+    transactions both SELECT and see no row, both INSERT, and one
+    crashes with a duplicate-key violation.  The fix uses ``INSERT
+    ... ON CONFLICT DO NOTHING`` so the loser silently re-selects.
+    """
+    import asyncio
+
+    from src.persistence.postgres.session import (
+        session_factory as app_session_factory,
+    )
+
+    maker = app_session_factory(async_engine)
+
+    # Pre-create two admin users in committed transactions so both
+    # concurrent sessions have valid FK targets.
+    admin_a_id = uuid4()
+    admin_b_id = uuid4()
+    for admin_id in (admin_a_id, admin_b_id):
+        async with maker() as session:
+            async with session.begin():
+                await session.execute(
+                    text(
+                        """
+                        INSERT INTO app_user
+                          (id, username, display_name, password_hash,
+                           password_salt, system_role, status,
+                           must_change_password, created_at, updated_at)
+                        VALUES
+                          (:id, :un, 'Admin', 'hash', decode('00','hex'),
+                           'ADMIN', 'ACTIVE', false, now(), now())
+                        """
+                    ),
+                    {
+                        "id": admin_id,
+                        "un": f"cc-{admin_id.hex[:8]}",
+                    },
+                )
+
+    async def ensure_in_session(admin_id: uuid4):
+        async with maker() as session:
+            async with session.begin():
+                repo = ProfileRepository(session)
+                profile = await repo.ensure_builtin_general(admin_id)
+                return profile.id, profile.current_version, profile.code
+
+    # Race two sessions — both start from no built-in row visible
+    result_a, result_b = await asyncio.gather(
+        ensure_in_session(admin_a_id),
+        ensure_in_session(admin_b_id),
+    )
+
+    # Both must return the same row
+    assert result_a[0] == result_b[0]  # same profile id
+    assert result_a[1] == result_b[1] == 0  # current_version still 0
+    assert result_a[2] == result_b[2] == "BUILTIN_GENERAL"
+
+
+# ===================================================================
+# Fix Round 2 — application factory round-trip (Finding 1)
+# ===================================================================
+
+
+@pytest.mark.asyncio
+async def test_create_engine_and_session_factory_interfaces(
+    async_engine: AsyncEngine,
+) -> None:
+    """Explicitly exercise ``create_engine(settings)`` and ``session_factory(engine)``.
+
+    The async fixtures already use the application factories, so every
+    async test implicitly validates the interface.  This test makes the
+    exercise explicit: it imports the application functions and runs a
+    complete insert→read→rollback through them.
+    """
+    from src.persistence.postgres.session import (
+        create_engine as app_create_engine,
+        session_factory as app_session_factory,
+    )
+
+    # create_engine's Settings argument is validated implicitly by the
+    # async_engine fixture (which used it).  Here we exercise
+    # session_factory against that engine directly.
+    maker = app_session_factory(async_engine)
+    uid = uuid4()
+    async with maker() as session:
+        async with session.begin():
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO app_user
+                      (id, username, display_name, password_hash,
+                       password_salt, system_role, status,
+                       must_change_password, created_at, updated_at)
+                    VALUES
+                      (:id, :un, 'Factory Test', 'hash', decode('fe','hex'),
+                       'USER', 'ACTIVE', false, now(), now())
+                    """
+                ),
+                {"id": uid, "un": f"factory-{uid.hex[:8]}"},
+            )
+            await session.flush()
+            result = await session.execute(
+                text("SELECT display_name FROM app_user WHERE id = :uid"),
+                {"uid": uid},
+            )
+            assert result.scalar() == "Factory Test"
+            await session.rollback()
+
+    # Verify rollback actually happened
+    async with maker() as session:
+        async with session.begin():
+            result = await session.execute(
+                text("SELECT 1 FROM app_user WHERE id = :uid"),
+                {"uid": uid},
+            )
+            assert result.scalar() is None
+
+
+# ===================================================================
+# Fix Round 2 — guard rejects empty database name (Finding 4)
+# ===================================================================
+
+
+def test_guard_rejects_url_without_database_name() -> None:
+    """A URL with no explicit database name must fail the guard."""
+    from tests.integration.postgres.conftest import _require_disposable_test_db
+
+    with pytest.raises(pytest.fail.Exception):  # type: ignore[attr-defined]
+        _require_disposable_test_db("postgresql://localhost/")
+
+    with pytest.raises(pytest.fail.Exception):  # type: ignore[attr-defined]
+        _require_disposable_test_db("postgresql+psycopg://host/")
+
+
+def test_guard_rejects_wrong_database_name() -> None:
+    """A URL targeting the wrong database must fail."""
+    from tests.integration.postgres.conftest import _require_disposable_test_db
+
+    with pytest.raises(pytest.fail.Exception):  # type: ignore[attr-defined]
+        _require_disposable_test_db("postgresql://localhost/production_db")
+
+
+def test_guard_accepts_correct_database_name() -> None:
+    """The correct database name passes the guard."""
+    from tests.integration.postgres.conftest import _require_disposable_test_db
+
+    # Must not raise
+    _require_disposable_test_db(
+        "postgresql+psycopg://user:pass@localhost:5432/ai_case_v2_test"
+    )
+
+
+def test_guard_rejects_empty_url() -> None:
+    """An empty URL must fail the guard."""
+    from tests.integration.postgres.conftest import _require_disposable_test_db
+
+    with pytest.raises(pytest.fail.Exception):  # type: ignore[attr-defined]
+        _require_disposable_test_db("")

@@ -51,29 +51,49 @@ export PGPASSWORD=<password>       # or omit and use ~/.pgpass
 ### 3.2 Create an Encrypted Backup
 
 ```bash
-# Binary custom-format dump, compressed, written to a directory with 0600
-# permissions.  The output is encrypted at rest by filesystem or volume
-# encryption — platform operators are responsible for the encryption layer.
+# Binary custom-format dump, compressed and encrypted with AES-256-CBC.
+# The symmetric encryption key is read from a secured file — never from argv.
+TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 umask 077
+
+# 1. Dump to a temporary plaintext file (umask 077 restricts access).
 pg_dump \
   --format=custom \
   --compress=9 \
   --no-owner \
   --exclude-schema=langgraph \
-  --file="backup-$(date -u +%Y%m%dT%H%M%SZ).dump"
+  --file="backup-${TIMESTAMP}.dump"
+
+# 2. Encrypt the dump.  The passphrase file must be stored on a separate
+#    filesystem or in a secrets manager with 0400 permissions.
+openssl enc -aes-256-cbc -pbkdf2 -iter 100000 \
+  -salt \
+  -in "backup-${TIMESTAMP}.dump" \
+  -out "backup-${TIMESTAMP}.dump.enc" \
+  -pass "file:/secure/backup-key"
+
+# 3. Remove the plaintext dump so only the encrypted artefact remains.
+rm "backup-${TIMESTAMP}.dump"
 ```
 
 - `--format=custom` produces a compressed binary archive suitable for `pg_restore`.
 - `--exclude-schema=langgraph` excludes ephemeral checkpoint tables.
-- `umask 077` restricts the backup file to the creating user before any
-  external encryption is applied.
+- `umask 077` restricts the temporary plaintext dump to the creating user.
+- `openssl enc -aes-256-cbc -pbkdf2 -iter 100000` applies AES-256-CBC
+  encryption with a key derived from the passphrase file; this is the
+  encryption layer — not delegated to filesystem or volume assumptions.
+- The plaintext dump is deleted immediately after encryption so it never
+  lingers on disk.
 
 ### 3.3 Verify the Backup
 
 ```bash
-# List the backup contents without restoring.  Exit code 0 means the
-# archive is complete and readable.
-pg_restore --list backup-YYYYMMDDTHHMMSSZ.dump > /dev/null
+# Verify the encrypted backup is complete and readable.  Exit code 0 means
+# the archive is intact and the encryption key is valid.
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
+  -in "backup-${TIMESTAMP}.dump.enc" \
+  -pass "file:/secure/backup-key" \
+  | pg_restore --list - > /dev/null
 ```
 
 ### 3.4 Restore into a Clean Target
@@ -85,13 +105,17 @@ from post-backup schema changes:
 # Create a clean target (the existing database must be dropped first if
 # it is the same logical name):
 createdb platform_v2_restore
-pg_restore \
-  --dbname=platform_v2_restore \
-  --no-owner \
-  --clean \
-  --if-exists \
-  --single-transaction \
-  backup-YYYYMMDDTHHMMSSZ.dump
+
+# Decrypt and restore in a single pipeline — the plaintext never touches disk.
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
+  -in "backup-${TIMESTAMP}.dump.enc" \
+  -pass "file:/secure/backup-key" \
+  | pg_restore \
+      --dbname=platform_v2_restore \
+      --no-owner \
+      --clean \
+      --if-exists \
+      --single-transaction
 ```
 
 After verification, rename or promote the restored database as needed.

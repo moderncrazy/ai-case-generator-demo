@@ -17,15 +17,14 @@ import pytest_asyncio
 from alembic.command import downgrade, upgrade
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine, text
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.bootstrap.settings import Settings
+from src.persistence.postgres.session import (
+    create_engine as app_create_engine,
+    session_factory as app_session_factory,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -39,11 +38,10 @@ def _require_disposable_test_db(url: str) -> None:
         pytest.fail("TEST_DATABASE_URL environment variable is not set")
     parsed = urlparse(url)
     dbname = parsed.path.lstrip("/")
-    # Empty path can happen when the URL is the default "postgresql:///" etc.
-    if dbname and dbname != "ai_case_v2_test":
+    if dbname != "ai_case_v2_test":
         pytest.fail(
             f"TEST_DATABASE_URL must target 'ai_case_v2_test', "
-            f"got '{dbname}'"
+            f"got {dbname!r}"
         )
 
 
@@ -117,12 +115,8 @@ def _settings_for_test(test_database_url: str) -> Settings:
 async def async_engine(
     _settings_for_test: Settings, _run_migrations: None
 ) -> AsyncGenerator[AsyncEngine, None]:
-    """Real ``create_engine`` async engine bound to the test database."""
-    eng = create_async_engine(
-        _settings_for_test.database_url.get_secret_value(),
-        pool_size=2,
-        max_overflow=2,
-    )
+    """Application ``create_engine(settings)`` async engine bound to the test database."""
+    eng = app_create_engine(_settings_for_test)
     yield eng
     await eng.dispose()
 
@@ -131,10 +125,8 @@ async def async_engine(
 async def async_session(
     async_engine: AsyncEngine,
 ) -> AsyncGenerator[AsyncSession, None]:
-    """Real ``session_factory`` session for a single test transaction."""
-    maker = async_sessionmaker(
-        async_engine, class_=AsyncSession, expire_on_commit=False
-    )
+    """Application ``session_factory(engine)`` session for a single test transaction."""
+    maker = app_session_factory(async_engine)
     async with maker() as session:
         async with session.begin():
             yield session

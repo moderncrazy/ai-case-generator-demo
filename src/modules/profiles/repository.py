@@ -8,7 +8,7 @@ versions have no update or delete API at this repository boundary.
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.profiles.models import (
@@ -75,6 +75,10 @@ class ProfileRepository:
         If the row does not exist it is created with ``current_version = 0``.
         The initial published content and version belong to the later Profile
         feature — Task 3 only guarantees the row is present.
+
+        Concurrent callers are safe: the INSERT uses ``ON CONFLICT DO
+        NOTHING`` against the partial unique index so that only one
+        transaction creates the row and the other(s) re-select the winner.
         """
         stmt = select(DomainProfile).where(
             DomainProfile.is_builtin_general == True  # noqa: E712
@@ -85,21 +89,39 @@ class ProfileRepository:
             return existing
 
         now = datetime.now(UTC)
-        profile = DomainProfile(
-            id=uuid.uuid4(),
-            code="BUILTIN_GENERAL",
-            name="Built-in General",
-            description="System built-in general-purpose domain profile",
-            status="ACTIVE",
-            is_builtin_general=True,
-            current_version=0,
-            created_by_user_id=created_by_user_id,
-            created_at=now,
-            updated_at=now,
+        profile_id = uuid.uuid4()
+        await self._session.execute(
+            text(
+                """
+                INSERT INTO domain_profile
+                  (id, code, name, description, status, is_builtin_general,
+                   current_version, created_by_user_id, created_at, updated_at)
+                VALUES
+                  (:id, :code, :name, :desc, :status, :is_builtin_general,
+                   :current_version, :created_by_user_id, :created_at, :updated_at)
+                ON CONFLICT (is_builtin_general)
+                  WHERE is_builtin_general = true
+                DO NOTHING
+                """
+            ),
+            {
+                "id": profile_id,
+                "code": "BUILTIN_GENERAL",
+                "name": "Built-in General",
+                "desc": "System built-in general-purpose domain profile",
+                "status": "ACTIVE",
+                "is_builtin_general": True,
+                "current_version": 0,
+                "created_by_user_id": created_by_user_id,
+                "created_at": now,
+                "updated_at": now,
+            },
         )
-        self._session.add(profile)
         await self._session.flush()
-        return profile
+
+        # Re-select the winner — our insert or the concurrent transaction's.
+        result = await self._session.execute(stmt)
+        return result.scalar_one()
 
     # ------------------------------------------------------------------
     # publication

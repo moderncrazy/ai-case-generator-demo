@@ -165,6 +165,54 @@ async def test_lifecycle_start_and_stop_are_idempotent() -> None:
     assert events == ["open:a", "close:a"]
 
 
+class _FailingOpenResource:
+    """A resource whose ``open()`` always fails."""
+
+    async def open(self) -> None:
+        raise RuntimeError("open failed")
+
+    async def close(self) -> None:
+        pass
+
+
+class _FailingCloseResource:
+    """A resource that opens successfully but fails on close."""
+
+    def __init__(self, events: list[str]) -> None:
+        self._events = events
+
+    async def open(self) -> None:
+        self._events.append("open:failing-close")
+
+    async def close(self) -> None:
+        self._events.append("close:failing-close")
+        raise RuntimeError("close failed")
+
+
+@pytest.mark.asyncio
+async def test_start_preserves_original_failure_when_cleanup_fails() -> None:
+    """A partial-open failure must not be masked by a cleanup error.
+
+    ``start()`` opens ``a`` successfully, then ``b`` fails to open.
+    During cleanup ``a.close()`` also fails; the original ``open failed``
+    error must propagate with the cleanup failure retained as a note.
+    """
+    events: list[str] = []
+    lifecycle = ManagedLifecycle(
+        {
+            "a": _FailingCloseResource(events),
+            "b": _FailingOpenResource(),
+        }
+    )
+    with pytest.raises(RuntimeError, match="open failed") as exc_info:
+        await lifecycle.start()
+
+    notes = getattr(exc_info.value, "__notes__", [])
+    assert any("cleanup after partial startup failed" in note for note in notes)
+    assert any("close failed" in note for note in notes)
+    assert events == ["open:failing-close", "close:failing-close"]
+
+
 def test_worker_and_scheduler_modules_expose_dash_m_entrypoints() -> None:
     import src.bootstrap.scheduler as scheduler
     import src.bootstrap.worker as worker

@@ -3,9 +3,11 @@
 Phase 1 exposes exactly two endpoints: ``GET /health/live`` and
 ``GET /health/ready``. Liveness never touches external services;
 readiness reports PostgreSQL and Redis state without exposing URLs,
-hosts, ports, or credentials.
+hosts, ports, or credentials. Default FastAPI routes (OpenAPI, docs,
+ReDoc) are disabled.
 """
 
+import asyncio
 import os
 
 import httpx
@@ -51,10 +53,28 @@ async def api_client() -> httpx.AsyncClient:
 
 
 @pytest.mark.asyncio
-async def test_liveness_does_not_require_dependencies(api_client) -> None:
-    response = await api_client.get("/health/live")
-    assert response.status_code == 200
-    assert response.json() == {"status": "alive"}
+async def test_liveness_does_not_require_dependencies() -> None:
+    """Liveness answers 200 even when every dependency is down."""
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    async def _down() -> bool:
+        return False
+
+    app.state.health_probes = {"postgres": _down, "redis": _down}
+    app.include_router(health_router)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test"
+    ) as client:
+        live = await client.get("/health/live")
+        ready = await client.get("/health/ready")
+    assert live.status_code == 200
+    assert live.json() == {"status": "alive"}
+    assert ready.status_code == 503
+    assert ready.json()["postgres"] == "unavailable"
 
 
 @pytest.mark.asyncio
@@ -99,9 +119,89 @@ async def test_readiness_returns_503_when_dependency_unavailable() -> None:
     assert body["redis"] == "unavailable"
 
 
-def test_api_app_exposes_only_health_routes() -> None:
-    paths = set(default_app.openapi()["paths"])
-    assert "/health/live" in paths
-    assert "/health/ready" in paths
-    assert not any(p.startswith("/api/") for p in paths)
-    assert not any(p.startswith("/projects") for p in paths)
+@pytest.mark.asyncio
+async def test_readiness_bounds_a_stalled_probe() -> None:
+    """A never-returning probe becomes ``unavailable`` instead of hanging."""
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    async def _never() -> bool:
+        await asyncio.Event().wait()
+        return True
+
+    async def _down() -> bool:
+        return False
+
+    app.state.health_probes = {"postgres": _never, "redis": _down}
+    app.state.probe_timeout_seconds = 0.1
+    app.include_router(health_router)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test"
+    ) as client:
+        # Bound the request from the test side so an unbounded regression
+        # fails with a timeout instead of hanging the suite.
+        response = await asyncio.wait_for(client.get("/health/ready"), timeout=2.0)
+    assert response.status_code == 503
+    body = response.json()
+    assert body["postgres"] == "unavailable"
+    assert body["redis"] == "unavailable"
+    assert set(body) == {"status", "postgres", "redis"}
+
+
+def _registered_paths(routes: object) -> set[str]:
+    """Collect served route paths, recursing through included routers.
+
+    FastAPI stores ``include_router`` results as ``_IncludedRouter``
+    wrappers (``original_router.routes``) rather than flattening them
+    into ``app.routes``, so the walk descends any route exposing a
+    wrapped ``.original_router`` before falling back to ``.path``.
+    """
+
+    paths: set[str] = set()
+    for route in routes:  # type: ignore[union-attr]
+        subroutes = getattr(getattr(route, "original_router", None), "routes", None)
+        if subroutes is not None:
+            paths |= _registered_paths(subroutes)
+            continue
+        path = getattr(route, "path", None)
+        if path is not None:
+            paths.add(path)
+    return paths
+
+
+@pytest.mark.asyncio
+async def test_api_app_exposes_only_health_routes() -> None:
+    """The V2 app serves exactly the two health routes.
+
+    Default FastAPI routes (``/openapi.json``, ``/docs``,
+    ``/docs/oauth2-redirect``, ``/redoc``) are disabled in Phase 1, and
+    no business routes exist yet. The registered-route walk and the HTTP
+    probes below agree: only the two health paths are served.
+    """
+    assert _registered_paths(default_app.routes) == {"/health/live", "/health/ready"}
+
+    transport = httpx.ASGITransport(app=default_app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test"
+    ) as client:
+        live = await client.get("/health/live")
+        ready = await client.get("/health/ready")
+        forbidden = {
+            "/openapi.json",
+            "/docs",
+            "/docs/oauth2-redirect",
+            "/redoc",
+            "/api/projects",
+            "/projects",
+            "/api/",
+            "/unknown",
+        }
+        forbidden_responses = {path: await client.get(path) for path in forbidden}
+
+    assert live.status_code == 200
+    assert ready.status_code in (200, 503)  # served, never 404
+    for path, response in forbidden_responses.items():
+        assert response.status_code == 404, path

@@ -87,7 +87,15 @@ def build_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await lifecycle.stop()
 
-    app = FastAPI(lifespan=lifespan, title="Platform V2 API")
+    # Phase 1 exposes only the two health routes: the default OpenAPI,
+    # Swagger docs, ReDoc, and OAuth2 redirect routes are disabled.
+    app = FastAPI(
+        lifespan=lifespan,
+        title="Platform V2 API",
+        openapi_url=None,
+        docs_url=None,
+        redoc_url=None,
+    )
     app.include_router(health_router)
     return app
 

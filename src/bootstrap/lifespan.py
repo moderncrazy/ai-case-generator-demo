@@ -45,8 +45,15 @@ class ManagedLifecycle:
             for name, resource in self._resources.items():
                 await resource.open()
                 self._opened.append(name)
-        except BaseException:
-            await self.stop()
+        except BaseException as startup_error:
+            try:
+                await self.stop()
+            except BaseException as cleanup_error:
+                # A cleanup failure during partial startup must not mask
+                # the original open failure; retain it as context.
+                startup_error.add_note(
+                    f"cleanup after partial startup failed: {cleanup_error!r}"
+                )
             raise
 
     async def stop(self) -> None:

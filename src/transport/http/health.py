@@ -9,10 +9,14 @@ The readiness payload reports dependency state only (``ready`` /
 ``unavailable``); it never includes URLs, hosts, ports, or credentials.
 Probes are wired by the API lifespan through ``app.state.health_probes``,
 a mapping of dependency name to an async ``Callable[[], Awaitable[bool]]``.
+Each probe runs under a deadline so a stalled dependency cannot hang the
+readiness endpoint; a timeout becomes the same secret-safe
+``unavailable`` state.
 """
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 
 from fastapi import APIRouter, Request
@@ -22,11 +26,30 @@ router = APIRouter(tags=["health"])
 
 DependencyProbe = Callable[[], Awaitable[bool]]
 
+# Bound each readiness probe; tests may override the per-probe deadline
+# via ``app.state.probe_timeout_seconds``.
+PROBE_TIMEOUT_SECONDS = 1.0
+
 
 @router.get("/health/live")
 async def liveness() -> dict[str, str]:
     """Report process liveness without touching any external service."""
     return {"status": "alive"}
+
+
+async def _run_probe(
+    name: str, probe: DependencyProbe, timeout: float
+) -> tuple[str, str]:
+    """Run one dependency probe under a deadline.
+
+    Returns the dependency state as a secret-safe string: ``ready`` on
+    success, ``unavailable`` on failure, exception, or timeout.
+    """
+    try:
+        ready = bool(await asyncio.wait_for(probe(), timeout=timeout))
+        return name, "ready" if ready else "unavailable"
+    except Exception:
+        return name, "unavailable"
 
 
 @router.get("/health/ready")
@@ -35,16 +58,15 @@ async def readiness(request: Request) -> JSONResponse:
     probes: Mapping[str, DependencyProbe] = getattr(
         request.app.state, "health_probes", {}
     )
-    states: dict[str, str] = {}
-    all_ready = True
-    for name, probe in probes.items():
-        try:
-            ready = bool(await probe())
-        except Exception:
-            ready = False
-        states[name] = "ready" if ready else "unavailable"
-        all_ready = all_ready and ready
-
+    timeout: float = getattr(
+        request.app.state, "probe_timeout_seconds", PROBE_TIMEOUT_SECONDS
+    )
+    states: dict[str, str] = dict(
+        await asyncio.gather(
+            *(_run_probe(name, probe, timeout) for name, probe in probes.items())
+        )
+    )
+    all_ready = all(state == "ready" for state in states.values())
     return JSONResponse(
         content={"status": "ready" if all_ready else "degraded", **states},
         status_code=200 if all_ready else 503,

@@ -1,16 +1,9 @@
 """Integration tests for migration 0001 — access, profile, and model tables.
 
-These tests verify the schema constraints defined in database design 1.1:
-- app_user: case-insensitive username uniqueness, non-null salt, system_role/status checks
-- login_log: result check, foreign key cascade
-- domain_profile: builtin-general uniqueness, code uniqueness, status check
-- domain_profile_draft: one draft per profile, optimistic lock
-- domain_profile_version: unique (profile_id, version), version>0, content_hash uniqueness
-- profile_migration: unique (profile_id, from_version, to_version), adjacent version check
-- model_profile: unique code, one active default per purpose, status check
-
-Uses synchronous SQLAlchemy sessions so that constraint verification does
-not require the ``greenlet`` library at the integration-test layer.
+Covers:
+- DDL constraints (sync fixtures)
+- Real async engine/session transaction (Finding 1)
+- Profile repository transactional invariants (Finding 2)
 """
 
 from uuid import uuid4
@@ -18,16 +11,24 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from src.modules.profiles.repository import (
+    BuiltinProfileCannotBeDeleted,
+    BuiltinProfileCannotBeDisabled,
+    ProfileNotFound,
+    ProfileRepository,
+    ProfileVersionNotSequential,
+)
 
-# ---------------------------------------------------------------------------
-# app_user
-# ---------------------------------------------------------------------------
+
+# ===================================================================
+# DDL constraint tests (sync)
+# ===================================================================
 
 
 def test_username_case_insensitive_unique(migrated_db: Session) -> None:
-    """Inserting 'Admin' then 'admin' must violate the lower(username) unique index."""
     migrated_db.execute(
         text(
             """
@@ -41,7 +42,6 @@ def test_username_case_insensitive_unique(migrated_db: Session) -> None:
         ),
         {"id": uuid4()},
     )
-
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -59,7 +59,6 @@ def test_username_case_insensitive_unique(migrated_db: Session) -> None:
 
 
 def test_password_salt_not_null(migrated_db: Session) -> None:
-    """Every user row must carry its own non-null salt."""
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -77,7 +76,6 @@ def test_password_salt_not_null(migrated_db: Session) -> None:
 
 
 def test_system_role_check_rejects_bad_value(migrated_db: Session) -> None:
-    """system_role must be 'ADMIN' or 'USER'."""
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -95,7 +93,6 @@ def test_system_role_check_rejects_bad_value(migrated_db: Session) -> None:
 
 
 def test_status_check_rejects_bad_value(migrated_db: Session) -> None:
-    """status must be 'ACTIVE' or 'DISABLED'."""
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -112,15 +109,7 @@ def test_status_check_rejects_bad_value(migrated_db: Session) -> None:
         )
 
 
-# ---------------------------------------------------------------------------
-# login_log
-# ---------------------------------------------------------------------------
-
-
-def test_login_log_result_check(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """result must be 'SUCCESS' or 'FAILED'."""
+def test_login_log_result_check(migrated_db: Session, migrated_db_user: str) -> None:
     migrated_db.execute(
         text(
             """
@@ -132,7 +121,6 @@ def test_login_log_result_check(
         ),
         {"id": uuid4(), "uid": migrated_db_user},
     )
-
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -147,15 +135,7 @@ def test_login_log_result_check(
         )
 
 
-# ---------------------------------------------------------------------------
-# domain_profile
-# ---------------------------------------------------------------------------
-
-
-def test_domain_profile_code_unique(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """profile code must be unique."""
+def test_domain_profile_code_unique(migrated_db: Session, migrated_db_user: str) -> None:
     migrated_db.execute(
         text(
             """
@@ -166,7 +146,6 @@ def test_domain_profile_code_unique(
         ),
         {"id": uuid4(), "uid": migrated_db_user},
     )
-
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -180,10 +159,7 @@ def test_domain_profile_code_unique(
         )
 
 
-def test_only_one_builtin_general_profile(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """Only one domain_profile may have is_builtin_general=true."""
+def test_only_one_builtin_general_profile(migrated_db: Session, migrated_db_user: str) -> None:
     migrated_db.execute(
         text(
             """
@@ -196,7 +172,6 @@ def test_only_one_builtin_general_profile(
         ),
         {"id": uuid4(), "uid": migrated_db_user},
     )
-
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -212,10 +187,7 @@ def test_only_one_builtin_general_profile(
         )
 
 
-def test_domain_profile_status_check(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """status must be 'ACTIVE' or 'INACTIVE'."""
+def test_domain_profile_status_check(migrated_db: Session, migrated_db_user: str) -> None:
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -229,15 +201,7 @@ def test_domain_profile_status_check(
         )
 
 
-# ---------------------------------------------------------------------------
-# domain_profile_draft
-# ---------------------------------------------------------------------------
-
-
-def test_one_draft_per_profile(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """Each profile can have at most one current draft (UNIQUE profile_id)."""
+def test_one_draft_per_profile(migrated_db: Session, migrated_db_user: str) -> None:
     profile_id = uuid4()
     migrated_db.execute(
         text(
@@ -249,7 +213,6 @@ def test_one_draft_per_profile(
         ),
         {"id": profile_id, "uid": migrated_db_user},
     )
-
     migrated_db.execute(
         text(
             """
@@ -261,7 +224,6 @@ def test_one_draft_per_profile(
         ),
         {"id": uuid4(), "pid": profile_id, "uid": migrated_db_user},
     )
-
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -276,15 +238,7 @@ def test_one_draft_per_profile(
         )
 
 
-# ---------------------------------------------------------------------------
-# domain_profile_version
-# ---------------------------------------------------------------------------
-
-
-def test_profile_version_unique_per_profile(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """UNIQUE(profile_id, version) — no duplicate version numbers per profile."""
+def test_profile_version_unique_per_profile(migrated_db: Session, migrated_db_user: str) -> None:
     profile_id = uuid4()
     migrated_db.execute(
         text(
@@ -296,7 +250,6 @@ def test_profile_version_unique_per_profile(
         ),
         {"id": profile_id, "uid": migrated_db_user},
     )
-
     migrated_db.execute(
         text(
             """
@@ -308,7 +261,6 @@ def test_profile_version_unique_per_profile(
         ),
         {"id": uuid4(), "pid": profile_id, "uid": migrated_db_user},
     )
-
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -323,10 +275,7 @@ def test_profile_version_unique_per_profile(
         )
 
 
-def test_profile_version_must_be_positive(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """version CHECK > 0 — version 0 must be rejected."""
+def test_profile_version_must_be_positive(migrated_db: Session, migrated_db_user: str) -> None:
     profile_id = uuid4()
     migrated_db.execute(
         text(
@@ -338,7 +287,6 @@ def test_profile_version_must_be_positive(
         ),
         {"id": profile_id, "uid": migrated_db_user},
     )
-
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -353,10 +301,7 @@ def test_profile_version_must_be_positive(
         )
 
 
-def test_profile_version_content_hash_unique(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """UNIQUE(profile_id, content_hash) — same content hash in same profile is duplicate."""
+def test_profile_version_content_hash_unique(migrated_db: Session, migrated_db_user: str) -> None:
     profile_id = uuid4()
     migrated_db.execute(
         text(
@@ -368,7 +313,6 @@ def test_profile_version_content_hash_unique(
         ),
         {"id": profile_id, "uid": migrated_db_user},
     )
-
     migrated_db.execute(
         text(
             """
@@ -380,7 +324,6 @@ def test_profile_version_content_hash_unique(
         ),
         {"id": uuid4(), "pid": profile_id, "uid": migrated_db_user},
     )
-
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -395,15 +338,7 @@ def test_profile_version_content_hash_unique(
         )
 
 
-# ---------------------------------------------------------------------------
-# profile_migration
-# ---------------------------------------------------------------------------
-
-
-def test_migration_adjacent_version_check(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """to_version MUST equal from_version + 1 (adjacent migration only)."""
+def test_migration_adjacent_version_check(migrated_db: Session, migrated_db_user: str) -> None:
     profile_id = uuid4()
     migrated_db.execute(
         text(
@@ -415,8 +350,6 @@ def test_migration_adjacent_version_check(
         ),
         {"id": profile_id, "uid": migrated_db_user},
     )
-
-    # Valid adjacent: 1 -> 2
     migrated_db.execute(
         text(
             """
@@ -428,8 +361,6 @@ def test_migration_adjacent_version_check(
         ),
         {"id": uuid4(), "pid": profile_id, "uid": migrated_db_user},
     )
-
-    # Invalid skip: 2 -> 4 (must be 3)
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -444,10 +375,7 @@ def test_migration_adjacent_version_check(
         )
 
 
-def test_migration_unique_from_to(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """UNIQUE(profile_id, from_version, to_version) — no duplicate migration edges."""
+def test_migration_unique_from_to(migrated_db: Session, migrated_db_user: str) -> None:
     profile_id = uuid4()
     migrated_db.execute(
         text(
@@ -459,7 +387,6 @@ def test_migration_unique_from_to(
         ),
         {"id": profile_id, "uid": migrated_db_user},
     )
-
     migrated_db.execute(
         text(
             """
@@ -471,7 +398,6 @@ def test_migration_unique_from_to(
         ),
         {"id": uuid4(), "pid": profile_id, "uid": migrated_db_user},
     )
-
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -486,15 +412,7 @@ def test_migration_unique_from_to(
         )
 
 
-# ---------------------------------------------------------------------------
-# model_profile
-# ---------------------------------------------------------------------------
-
-
-def test_model_profile_code_unique(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """model_profile code must be unique."""
+def test_model_profile_code_unique(migrated_db: Session, migrated_db_user: str) -> None:
     migrated_db.execute(
         text(
             """
@@ -509,7 +427,6 @@ def test_model_profile_code_unique(
         ),
         {"id": uuid4(), "uid": migrated_db_user},
     )
-
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -527,11 +444,7 @@ def test_model_profile_code_unique(
         )
 
 
-def test_one_active_default_per_purpose(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """At most one ACTIVE model_profile with is_default=true per purpose."""
-    # First default for INTENT — succeeds
+def test_one_active_default_per_purpose(migrated_db: Session, migrated_db_user: str) -> None:
     migrated_db.execute(
         text(
             """
@@ -546,8 +459,6 @@ def test_one_active_default_per_purpose(
         ),
         {"id": uuid4(), "uid": migrated_db_user},
     )
-
-    # Second default for INTENT — must be rejected
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -568,7 +479,6 @@ def test_one_active_default_per_purpose(
 def test_default_for_different_purposes_allowed(
     migrated_db: Session, migrated_db_user: str,
 ) -> None:
-    """Different purposes can each have their own active default."""
     migrated_db.execute(
         text(
             """
@@ -583,8 +493,6 @@ def test_default_for_different_purposes_allowed(
         ),
         {"id": uuid4(), "uid": migrated_db_user},
     )
-
-    # Different purpose — should succeed
     migrated_db.execute(
         text(
             """
@@ -601,10 +509,7 @@ def test_default_for_different_purposes_allowed(
     )
 
 
-def test_model_profile_status_check(
-    migrated_db: Session, migrated_db_user: str
-) -> None:
-    """model_profile status must be 'ACTIVE' or 'INACTIVE'."""
+def test_model_profile_status_check(migrated_db: Session, migrated_db_user: str) -> None:
     with pytest.raises(IntegrityError):
         migrated_db.execute(
             text(
@@ -622,26 +527,305 @@ def test_model_profile_status_check(
         )
 
 
-# ---------------------------------------------------------------------------
-# Shared fixture
-# ---------------------------------------------------------------------------
+# ===================================================================
+# Finding 1 — real async engine/session transaction evidence
+# ===================================================================
 
 
-@pytest.fixture
-def migrated_db_user(migrated_db: Session) -> str:
-    """Insert a single user and return its UUID for FK references in other tests."""
+@pytest.mark.asyncio
+async def test_async_engine_and_session_execute_real_query(
+    async_session: AsyncSession,
+) -> None:
+    """``create_engine`` + ``session_factory`` round-trip with a real query."""
+    result = await async_session.execute(text("SELECT 1 AS one"))
+    row = result.one()
+    assert row.one == 1
+
+
+@pytest.mark.asyncio
+async def test_async_session_can_insert_and_rollback(
+    async_session: AsyncSession,
+) -> None:
+    """Insert through the async session, verify it reads back, rollback."""
     uid = uuid4()
-    migrated_db.execute(
+    await async_session.execute(
         text(
             """
             INSERT INTO app_user
               (id, username, display_name, password_hash, password_salt,
                system_role, status, must_change_password, created_at, updated_at)
             VALUES
-              (:id, :un, 'Fixture User', 'hash', decode('aa','hex'),
+              (:id, :un, 'Async Test', 'hash', decode('ff','hex'),
+               'USER', 'ACTIVE', false, now(), now())
+            """
+        ),
+        {"id": uid, "un": f"async-{uid.hex[:8]}"},
+    )
+    # Flush so we can read back within the same transaction
+    await async_session.flush()
+    result = await async_session.execute(
+        text("SELECT display_name FROM app_user WHERE id = :uid"),
+        {"uid": uid},
+    )
+    assert result.scalar() == "Async Test"
+    # Transaction is rolled back by the fixture
+
+
+# ===================================================================
+# Finding 2 — profile repository transactional invariants
+# ===================================================================
+
+
+@pytest.mark.asyncio
+async def test_ensure_builtin_general_is_idempotent(
+    async_session: AsyncSession,
+    migrated_db_user: str,
+) -> None:
+    """Two calls return the same built-in row."""
+    admin_id = uuid4()
+    # Insert the admin user for FK
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO app_user
+              (id, username, display_name, password_hash, password_salt,
+               system_role, status, must_change_password, created_at, updated_at)
+            VALUES
+              (:id, :un, 'Admin', 'hash', decode('ee','hex'),
                'ADMIN', 'ACTIVE', false, now(), now())
             """
         ),
-        {"id": uid, "un": f"fixture-{uid.hex[:8]}"},
+        {"id": admin_id, "un": f"repo-admin-{admin_id.hex[:8]}"},
     )
-    return str(uid)
+    await async_session.flush()
+
+    repo = ProfileRepository(async_session)
+    first = await repo.ensure_builtin_general(admin_id)
+    second = await repo.ensure_builtin_general(admin_id)
+
+    assert first.id == second.id
+    assert first.is_builtin_general is True
+    assert first.code == "BUILTIN_GENERAL"
+    assert first.status == "ACTIVE"
+    assert first.current_version == 0
+
+
+@pytest.mark.asyncio
+async def test_publish_version_advances_current_version_monotonically(
+    async_session: AsyncSession,
+) -> None:
+    """Publishing version N updates current_version to N under row lock."""
+    admin_id = uuid4()
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO app_user
+              (id, username, display_name, password_hash, password_salt,
+               system_role, status, must_change_password, created_at, updated_at)
+            VALUES
+              (:id, :un, 'Publisher', 'hash', decode('dd','hex'),
+               'ADMIN', 'ACTIVE', false, now(), now())
+            """
+        ),
+        {"id": admin_id, "un": f"pub-{admin_id.hex[:8]}"},
+    )
+    await async_session.flush()
+
+    repo = ProfileRepository(async_session)
+    profile = await repo.ensure_builtin_general(admin_id)
+
+    # First publication: version 1
+    v1 = await repo.publish_version(
+        profile.id, 1, {"key": "v1"}, "hash-v1",
+        {"ok": True}, admin_id,
+    )
+    assert v1.version == 1
+
+    # Second publication: version 2
+    v2 = await repo.publish_version(
+        profile.id, 2, {"key": "v2"}, "hash-v2",
+        {"ok": True}, admin_id,
+    )
+    assert v2.version == 2
+
+    # Verify current_version advanced
+    from sqlalchemy import select as sa_select
+    from src.modules.profiles.models import DomainProfile
+    result = await async_session.execute(
+        sa_select(DomainProfile).where(DomainProfile.id == profile.id)
+    )
+    refreshed = result.scalar_one()
+    assert refreshed.current_version == 2
+
+
+@pytest.mark.asyncio
+async def test_publish_version_rejects_non_sequential(
+    async_session: AsyncSession,
+) -> None:
+    """Version must be exactly current_version + 1."""
+    admin_id = uuid4()
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO app_user
+              (id, username, display_name, password_hash, password_salt,
+               system_role, status, must_change_password, created_at, updated_at)
+            VALUES
+              (:id, :un, 'Seq Admin', 'hash', decode('cc','hex'),
+               'ADMIN', 'ACTIVE', false, now(), now())
+            """
+        ),
+        {"id": admin_id, "un": f"seq-{admin_id.hex[:8]}"},
+    )
+    await async_session.flush()
+
+    repo = ProfileRepository(async_session)
+    profile = await repo.ensure_builtin_general(admin_id)
+
+    # Publish version 1
+    await repo.publish_version(
+        profile.id, 1, {"a": 1}, "h1", {"ok": True}, admin_id,
+    )
+
+    # Try to publish version 3 — must fail (current_version = 1, expected 2)
+    with pytest.raises(ProfileVersionNotSequential, match="Expected version 2"):
+        await repo.publish_version(
+            profile.id, 3, {"a": 3}, "h3", {"ok": True}, admin_id,
+        )
+
+
+@pytest.mark.asyncio
+async def test_builtin_profile_cannot_be_disabled(
+    async_session: AsyncSession,
+) -> None:
+    """Setting built-in general Profile to INACTIVE raises domain error."""
+    admin_id = uuid4()
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO app_user
+              (id, username, display_name, password_hash, password_salt,
+               system_role, status, must_change_password, created_at, updated_at)
+            VALUES
+              (:id, :un, 'Disable Admin', 'hash', decode('bb','hex'),
+               'ADMIN', 'ACTIVE', false, now(), now())
+            """
+        ),
+        {"id": admin_id, "un": f"dis-{admin_id.hex[:8]}"},
+    )
+    await async_session.flush()
+
+    repo = ProfileRepository(async_session)
+    builtin = await repo.ensure_builtin_general(admin_id)
+
+    with pytest.raises(BuiltinProfileCannotBeDisabled):
+        await repo.set_status(builtin.id, "INACTIVE", admin_id)
+
+
+@pytest.mark.asyncio
+async def test_non_builtin_profile_can_be_disabled(
+    async_session: AsyncSession,
+) -> None:
+    """A regular Profile can be disabled."""
+    admin_id = uuid4()
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO app_user
+              (id, username, display_name, password_hash, password_salt,
+               system_role, status, must_change_password, created_at, updated_at)
+            VALUES
+              (:id, :un, 'Reg Admin', 'hash', decode('aa','hex'),
+               'ADMIN', 'ACTIVE', false, now(), now())
+            """
+        ),
+        {"id": admin_id, "un": f"reg-{admin_id.hex[:8]}"},
+    )
+    await async_session.flush()
+
+    # Direct insert of a non-builtin profile
+    pid = uuid4()
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO domain_profile
+              (id, code, name, status, created_by_user_id, created_at, updated_at)
+            VALUES (:id, 'regular', 'Regular', 'ACTIVE', :uid, now(), now())
+            """
+        ),
+        {"id": pid, "uid": admin_id},
+    )
+    await async_session.flush()
+
+    repo = ProfileRepository(async_session)
+    updated = await repo.set_status(pid, "INACTIVE", admin_id)
+    assert updated.status == "INACTIVE"
+
+
+@pytest.mark.asyncio
+async def test_builtin_profile_cannot_be_deleted(
+    async_session: AsyncSession,
+) -> None:
+    """Deleting the built-in general Profile raises domain error."""
+    admin_id = uuid4()
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO app_user
+              (id, username, display_name, password_hash, password_salt,
+               system_role, status, must_change_password, created_at, updated_at)
+            VALUES
+              (:id, :un, 'Delete Admin', 'hash', decode('99','hex'),
+               'ADMIN', 'ACTIVE', false, now(), now())
+            """
+        ),
+        {"id": admin_id, "un": f"del-{admin_id.hex[:8]}"},
+    )
+    await async_session.flush()
+
+    repo = ProfileRepository(async_session)
+    builtin = await repo.ensure_builtin_general(admin_id)
+
+    with pytest.raises(BuiltinProfileCannotBeDeleted):
+        await repo.delete_profile(builtin.id)
+
+
+@pytest.mark.asyncio
+async def test_delete_non_builtin_profile_succeeds(
+    async_session: AsyncSession,
+) -> None:
+    """A regular Profile can be deleted."""
+    admin_id = uuid4()
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO app_user
+              (id, username, display_name, password_hash, password_salt,
+               system_role, status, must_change_password, created_at, updated_at)
+            VALUES
+              (:id, :un, 'DelReg Admin', 'hash', decode('88','hex'),
+               'ADMIN', 'ACTIVE', false, now(), now())
+            """
+        ),
+        {"id": admin_id, "un": f"delreg-{admin_id.hex[:8]}"},
+    )
+    await async_session.flush()
+
+    pid = uuid4()
+    await async_session.execute(
+        text(
+            """
+            INSERT INTO domain_profile
+              (id, code, name, status, created_by_user_id, created_at, updated_at)
+            VALUES (:id, 'to-delete', 'Delete Me', 'ACTIVE', :uid, now(), now())
+            """
+        ),
+        {"id": pid, "uid": admin_id},
+    )
+    await async_session.flush()
+
+    repo = ProfileRepository(async_session)
+    await repo.delete_profile(pid)
+
+    with pytest.raises(ProfileNotFound):
+        await repo.delete_profile(pid)

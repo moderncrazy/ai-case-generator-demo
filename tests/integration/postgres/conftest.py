@@ -1,25 +1,61 @@
 """Integration test fixtures for PostgreSQL schema verification.
 
-Uses a synchronous engine so that ``greenlet`` is not required for
-constraint-level integration tests.  The application-layer async engine
-in ``src.persistence.postgres`` remains the canonical runtime path.
+The ``migrated_db`` sync fixture supports constraint-level DDL tests.
+The ``async_session`` fixture provides a real ``create_async_engine`` /
+``session_factory`` round-trip for runtime-path verification.
+
+Mutation tests require ``TEST_DATABASE_URL`` to target the disposable
+database ``ai_case_v2_test`` — production data is never touched.
 """
 
 import os
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
+from urllib.parse import urlparse
 
 import pytest
+import pytest_asyncio
 from alembic.command import downgrade, upgrade
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine, text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import Session, sessionmaker
+
+from src.bootstrap.settings import Settings
+
+
+# ---------------------------------------------------------------------------
+# guards
+# ---------------------------------------------------------------------------
+
+
+def _require_disposable_test_db(url: str) -> None:
+    """Fail fast if the URL does not target the disposable test database."""
+    if not url:
+        pytest.fail("TEST_DATABASE_URL environment variable is not set")
+    parsed = urlparse(url)
+    dbname = parsed.path.lstrip("/")
+    # Empty path can happen when the URL is the default "postgresql:///" etc.
+    if dbname and dbname != "ai_case_v2_test":
+        pytest.fail(
+            f"TEST_DATABASE_URL must target 'ai_case_v2_test', "
+            f"got '{dbname}'"
+        )
+
+
+# ---------------------------------------------------------------------------
+# session-scoped resources
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session")
 def test_database_url() -> str:
-    url = os.environ.get("TEST_DATABASE_URL")
-    if not url:
-        pytest.fail("TEST_DATABASE_URL environment variable is not set")
+    url = os.environ.get("TEST_DATABASE_URL", "")
+    _require_disposable_test_db(url)
     return url
 
 
@@ -36,8 +72,13 @@ def _run_migrations(alembic_config: Config) -> None:
     upgrade(alembic_config, "head")
 
 
+# ---------------------------------------------------------------------------
+# sync fixtures — constraint DDL tests
+# ---------------------------------------------------------------------------
+
+
 @pytest.fixture(scope="session")
-def engine(test_database_url: str, _run_migrations: None) -> Engine:
+def sync_engine(test_database_url: str, _run_migrations: None) -> Generator[Engine, None, None]:
     """Session-scoped sync engine bound to the migrated test database."""
     eng = create_engine(test_database_url)
     yield eng
@@ -45,13 +86,9 @@ def engine(test_database_url: str, _run_migrations: None) -> Engine:
 
 
 @pytest.fixture
-def migrated_db(engine: Engine) -> Generator[Session, None, None]:
-    """Provide a session connected to the migrated test database.
-
-    Each test runs inside a transaction that is rolled back, so test
-    functions are isolated from each other.
-    """
-    SessionLocal = sessionmaker(bind=engine)
+def migrated_db(sync_engine: Engine) -> Generator[Session, None, None]:
+    """Provide a sync session with per-test transaction rollback."""
+    SessionLocal = sessionmaker(bind=sync_engine)
     session = SessionLocal()
     session.begin()
     try:
@@ -59,3 +96,73 @@ def migrated_db(engine: Engine) -> Generator[Session, None, None]:
     finally:
         session.rollback()
         session.close()
+
+
+# ---------------------------------------------------------------------------
+# async fixtures — runtime-path verification
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def _settings_for_test(test_database_url: str) -> Settings:
+    """Settings wired to the disposable test database."""
+    return Settings(
+        database_url=test_database_url,
+        environment="local",
+        process_role="api",
+    )
+
+
+@pytest_asyncio.fixture
+async def async_engine(
+    _settings_for_test: Settings, _run_migrations: None
+) -> AsyncGenerator[AsyncEngine, None]:
+    """Real ``create_engine`` async engine bound to the test database."""
+    eng = create_async_engine(
+        _settings_for_test.database_url.get_secret_value(),
+        pool_size=2,
+        max_overflow=2,
+    )
+    yield eng
+    await eng.dispose()
+
+
+@pytest_asyncio.fixture
+async def async_session(
+    async_engine: AsyncEngine,
+) -> AsyncGenerator[AsyncSession, None]:
+    """Real ``session_factory`` session for a single test transaction."""
+    maker = async_sessionmaker(
+        async_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with maker() as session:
+        async with session.begin():
+            yield session
+            await session.rollback()
+
+
+# ---------------------------------------------------------------------------
+# shared helper fixture (sync)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def migrated_db_user(migrated_db: Session) -> str:
+    """Insert a single user and return its UUID string for FK references."""
+    from uuid import uuid4
+
+    uid = uuid4()
+    migrated_db.execute(
+        text(
+            """
+            INSERT INTO app_user
+              (id, username, display_name, password_hash, password_salt,
+               system_role, status, must_change_password, created_at, updated_at)
+            VALUES
+              (:id, :un, 'Fixture User', 'hash', decode('aa','hex'),
+               'ADMIN', 'ACTIVE', false, now(), now())
+            """
+        ),
+        {"id": uid, "un": f"fixture-{uid.hex[:8]}"},
+    )
+    return str(uid)

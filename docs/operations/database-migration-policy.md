@@ -5,20 +5,21 @@
 | 文档状态 | `APPROVED` |
 | 生效日期 | 2026-08-06 |
 | 适用范围 | Platform V2 PostgreSQL business schema |
-| 工具 | Alembic 1.18.x (async, `postgresql+psycopg://`) |
+| 工具 | Alembic 1.18.x (`postgresql+psycopg://`) |
 
 ## 1. Policy Summary
 
 Production migration recovery is **forward-only**. After a failed release,
 operators restore the pre-migration database backup or fix forward with a
-corrective migration. Alembic `downgrade` is a development and CI verification
-aid — it must never be used as a production rollback mechanism.
+corrective migration. Alembic `downgrade` is a development and CI
+verification aid — it must never be used as a production rollback mechanism.
 
 ## 2. Fresh Install
 
 ```bash
-# From a clean checkout against an empty PostgreSQL database:
-export PLATFORM_DATABASE_URL="postgresql+psycopg://user:pass@host:5432/platform_v2"
+# From a clean checkout against an empty PostgreSQL database.
+# Credentials are supplied via PGPASSWORD or ~/.pgpass, never on the command line.
+export PGPASSWORD="<password>"
 alembic upgrade head
 ```
 
@@ -29,38 +30,101 @@ Model Profiles are inserted by the application bootstrap process.
 
 ## 3. Pre-Deployment Backup
 
-Before every production migration, take a logical backup of the target
-database:
+### 3.1 Credential Handling
+
+All backup and restore tools use **libpq environment variables** or
+**`~/.pgpass`**. The SQLAlchemy DSN (`postgresql+psycopg://`) is a
+SQLAlchemy-only scheme that `pg_dump` and `psql` do not understand.
+Passwords must never appear in `argv` where they are visible to `ps`, audit
+logs, and process inspection tools.
+
+Set credentials in the environment:
 
 ```bash
-pg_dump --no-owner --clean --if-exists \
+export PGHOST=<host>
+export PGPORT=<port>
+export PGDATABASE=<dbname>
+export PGUSER=<user>
+export PGPASSWORD=<password>       # or omit and use ~/.pgpass
+```
+
+### 3.2 Create an Encrypted Backup
+
+```bash
+# Binary custom-format dump, compressed, written to a directory with 0600
+# permissions.  The output is encrypted at rest by filesystem or volume
+# encryption — platform operators are responsible for the encryption layer.
+umask 077
+pg_dump \
+  --format=custom \
+  --compress=9 \
+  --no-owner \
   --exclude-schema=langgraph \
-  "$PLATFORM_DATABASE_URL" > backup-$(date -u +%Y%m%dT%H%M%SZ).sql
+  --file="backup-$(date -u +%Y%m%dT%H%M%SZ).dump"
 ```
 
-The `langgraph` schema is excluded because its checkpoint tables are
-ephemeral and are owned by the official LangGraph PostgreSQL checkpointer,
-whose internal migration is handled separately (see Section 7).
+- `--format=custom` produces a compressed binary archive suitable for `pg_restore`.
+- `--exclude-schema=langgraph` excludes ephemeral checkpoint tables.
+- `umask 077` restricts the backup file to the creating user before any
+  external encryption is applied.
 
-**Restore from backup (if needed):**
+### 3.3 Verify the Backup
 
 ```bash
-psql "$PLATFORM_DATABASE_URL" < backup-YYYYMMDDTHHMMSSZ.sql
+# List the backup contents without restoring.  Exit code 0 means the
+# archive is complete and readable.
+pg_restore --list backup-YYYYMMDDTHHMMSSZ.dump > /dev/null
 ```
+
+### 3.4 Restore into a Clean Target
+
+Always restore into a **fresh, empty database** to avoid object conflicts
+from post-backup schema changes:
+
+```bash
+# Create a clean target (the existing database must be dropped first if
+# it is the same logical name):
+createdb platform_v2_restore
+pg_restore \
+  --dbname=platform_v2_restore \
+  --no-owner \
+  --clean \
+  --if-exists \
+  --single-transaction \
+  backup-YYYYMMDDTHHMMSSZ.dump
+```
+
+After verification, rename or promote the restored database as needed.
 
 ## 4. Upgrade Verification
 
-After `alembic upgrade head` succeeds in production, run the focused
-integration test suite against the migrated database to verify that every
-constraint, index, and foreign key is in place:
+### 4.1 Read-Only Production Verification
+
+After `alembic upgrade head` succeeds in production, run a **read-only**
+schema inspection to verify that every table, constraint, and index exists:
 
 ```bash
-PLATFORM_DATABASE_URL="<production-url>" \
-  pytest tests/integration/postgres -v
+# Read-only introspection — no data mutation.
+alembic check
 ```
 
-Do not proceed with the release if any constraint test fails. A passing
-suite confirms that the live schema matches the expected design.
+The `alembic check` command compares the live schema against the declared
+SQLAlchemy `Base.metadata`. A non-zero exit indicates a mismatch; do not
+proceed with the release.
+
+### 4.2 Mutation-Based Constraint Verification (Disposable Clone Only)
+
+The full constraint test suite must **only** run against a disposable clone
+using `TEST_DATABASE_URL`:
+
+```bash
+# TEST_DATABASE_URL must target the dedicated disposable database.
+pytest tests/integration/postgres -v
+```
+
+The conftest guards enforce that `TEST_DATABASE_URL` targets the dedicated
+`ai_case_v2_test` database — production data is never touched by mutation
+tests.
 
 ## 5. Application Rollback Compatibility Boundary
 
@@ -154,7 +218,12 @@ production downgrade.**
 
 ## 9. Disposable-Database Test Fixtures
 
-Integration tests use `TEST_DATABASE_URL` to create ephemeral PostgreSQL
-databases. The test conftest runs `alembic upgrade head` on a fresh
-database and uses transaction rollback for test isolation. No production
-data is touched.
+Integration tests require `TEST_DATABASE_URL` to target the dedicated
+disposable database `ai_case_v2_test`. The conftest enforces this at
+collection time — any other target database causes immediate test failure.
+
+- Migrations run once per session via `alembic upgrade head`.
+- Tests use transaction rollback for isolation.
+- No production data is ever touched.
+- Async and sync fixtures are both available; the async path exercises the
+  real `create_engine` / `session_factory` runtime stack.

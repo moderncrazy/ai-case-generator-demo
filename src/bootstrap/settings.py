@@ -1,6 +1,7 @@
 """Platform V2 runtime settings."""
 
 from enum import StrEnum
+from urllib.parse import urlparse, urlunparse
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -51,14 +52,25 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _default_checkpoint_database_url(self) -> "Settings":
-        """Fall back to ``database_url`` when no dedicated checkpoint URL is set.
+        """Fall back to a **libpq-normalised** URL only in non-production.
 
-        This keeps local and test configurations simple — both business
-        and checkpoint schemas coexist in the same PostgreSQL instance,
-        isolated by ``search_path``.
+        SQLAlchemy's ``database_url`` uses the ``postgresql+psycopg://``
+        scheme, but psycopg's ``AsyncConnectionPool`` needs a raw
+        libpq-compatible URL (``postgresql://``).  The driver prefix is
+        stripped so the fallback never leaks a SQLAlchemy-only scheme into
+        the checkpointer.
+
+        Production **must** supply an explicit ``checkpoint_database_url``
+        — this validator skips production entirely.
         """
+        if self.environment is Environment.PRODUCTION:
+            return self
         if self.checkpoint_database_url is None and self.database_url is not None:
-            self.checkpoint_database_url = self.database_url
+            raw = self.database_url.get_secret_value()
+            parsed = urlparse(raw)
+            scheme = parsed.scheme.split("+")[0] if "+" in parsed.scheme else parsed.scheme
+            normalized = urlunparse((scheme,) + parsed[1:])
+            self.checkpoint_database_url = SecretStr(normalized)
         return self
 
     @model_validator(mode="after")

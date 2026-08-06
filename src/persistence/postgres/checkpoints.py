@@ -46,11 +46,17 @@ class CheckpointStore:
     async def open(self) -> None:
         """Open the dedicated psycopg connection pool.
 
+        Idempotent — subsequent calls are no-ops so callers can safely
+        invoke ``open()`` in every process initialiser without tracking
+        whether it was already called.
+
         Connections are configured with ``autocommit=True``,
         ``row_factory=dict_row``, and ``search_path=langgraph`` so that
         the official saver's internal tables are isolated from business
         tables.
         """
+        if self._pool is not None:
+            return
         url = self._settings.checkpoint_database_url.get_secret_value()  # type: ignore[union-attr]
         self._pool = AsyncConnectionPool[AsyncConnection[DictRow]](
             conninfo=url,

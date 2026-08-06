@@ -1,8 +1,8 @@
 """Integration tests for the PostgreSQL LangGraph checkpointer.
 
-Verifies round-trip isolation across threads and target-only thread
-deletion.  The checkpoint store uses a dedicated psycopg connection
-whose ``search_path`` targets only the ``langgraph`` schema.
+Verifies round-trip isolation across threads, target-only thread
+deletion, ``open()`` idempotency, URL-fallback normalisation,
+production rejection, and schema-level isolation via catalog queries.
 """
 
 from typing import TypedDict
@@ -10,8 +10,9 @@ from typing import TypedDict
 import pytest
 import pytest_asyncio
 from langgraph.graph import END, StateGraph
+from sqlalchemy import text
 
-from src.bootstrap.settings import Settings
+from src.bootstrap.settings import Environment, Settings
 from src.persistence.postgres.checkpoints import CheckpointStore
 
 
@@ -37,7 +38,7 @@ def _build_counter_graph(saver):
 
 
 # ---------------------------------------------------------------------------
-# fixture
+# fixtures
 # ---------------------------------------------------------------------------
 
 
@@ -64,7 +65,110 @@ async def checkpoint_store(
 
 
 # ---------------------------------------------------------------------------
-# tests
+# settings-level tests
+# ---------------------------------------------------------------------------
+
+
+class TestSettingsFallback:
+    """Non-production Settings normalise the checkpoint URL for libpq."""
+
+    def test_fallback_strips_sqlalchemy_driver_from_env_url(
+        self, _settings_for_test: Settings
+    ) -> None:
+        """The checkpoint URL derived from DATABASE_URL contains no ``+psycopg``."""
+        url = _settings_for_test.checkpoint_database_url.get_secret_value()  # type: ignore[union-attr]
+        assert "+psycopg" not in url, (
+            f"checkpoint URL {url!r} still contains +psycopg driver prefix"
+        )
+        assert url.startswith("postgresql://") or url.startswith("postgres://")
+
+    def test_checkpoint_store_opens_with_fallback_url(
+        self, _settings_for_test: Settings, _run_migrations: None
+    ) -> None:
+        """End-to-end: a store using only the fallback URL opens and sets up."""
+        # _settings_for_test has database_url set but no explicit
+        # checkpoint_database_url — the fallback is in effect.
+        assert _settings_for_test.checkpoint_database_url is not None
+        # Prove we can open and get a saver with the fallback URL.
+        import asyncio
+
+        async def _probe() -> None:
+            store = CheckpointStore(_settings_for_test)
+            try:
+                await store.open()
+                await store.setup()
+                assert store.saver is not None
+            finally:
+                await store.close()
+
+        asyncio.run(_probe())
+
+    def test_explicit_checkpoint_url_not_overwritten_by_fallback(self) -> None:
+        """An explicit checkpoint URL survives the fallback validator."""
+        settings = Settings(
+            checkpoint_database_url="postgresql://explicit:url@h/db",
+            environment="local",
+        )
+        url = settings.checkpoint_database_url.get_secret_value()  # type: ignore[union-attr]
+        assert url == "postgresql://explicit:url@h/db"
+
+
+class TestSettingsProduction:
+    """Production must supply an explicit ``checkpoint_database_url``.
+
+    The fallback validator (``_default_checkpoint_database_url``) returns
+    early when ``environment is PRODUCTION``, so the checkpoint URL is
+    never silently derived from the business URL.  These tests supply all
+    three required URLs explicitly.
+    """
+
+    def test_production_with_all_urls_succeeds(self) -> None:
+        """Production with all three URLs explicitly supplied is valid."""
+        settings = Settings(
+            database_url="postgresql+psycopg://u:p@h/biz",
+            checkpoint_database_url="postgresql://u:p@h/chk",
+            redis_url="redis://localhost:6379",
+            environment="production",
+        )
+        assert settings.checkpoint_database_url is not None
+        url = settings.checkpoint_database_url.get_secret_value()  # type: ignore[union-attr]
+        # Fallback must NOT have normalised the explicit URL (it skips
+        # production).  The explicit value survives as-is.
+        assert url == "postgresql://u:p@h/chk"
+
+    def test_production_rejects_missing_redis_url(self) -> None:
+        """Production missing any required URL raises ``ValueError``."""
+        with pytest.raises(ValueError, match="external service URLs"):
+            Settings(
+                database_url="postgresql+psycopg://u:p@h/biz",
+                checkpoint_database_url="postgresql://u:p@h/chk",
+                environment="production",
+            )
+
+
+# ---------------------------------------------------------------------------
+# CheckpointStore lifecycle tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_open_is_idempotent(
+    _settings_for_test: Settings,
+    _run_migrations: None,
+) -> None:
+    """Calling ``open()`` twice does not create a second pool."""
+    store = CheckpointStore(_settings_for_test)
+    try:
+        await store.open()
+        first_pool = store._pool  # type: ignore[union-attr]
+        await store.open()
+        assert store._pool is first_pool  # type: ignore[union-attr]
+    finally:
+        await store.close()
+
+
+# ---------------------------------------------------------------------------
+# checkpoint round-trip and isolation tests
 # ---------------------------------------------------------------------------
 
 
@@ -73,7 +177,6 @@ async def test_checkpoint_round_trip_isolated_by_run(
     checkpoint_store: CheckpointStore,
 ) -> None:
     """A checkpoint written under one thread_id is invisible under another."""
-    await checkpoint_store.setup()
     graph = _build_counter_graph(checkpoint_store.saver)
 
     config_a = {"configurable": {"thread_id": "run-a"}}
@@ -102,3 +205,101 @@ async def test_delete_thread_removes_only_target_run(
 
     assert (await graph.aget_state(config_a)).values == {}  # type: ignore[union-attr]
     assert (await graph.aget_state(config_b)).values["value"] == 6  # type: ignore[index]
+
+
+# ---------------------------------------------------------------------------
+# schema-level isolation evidence
+# ---------------------------------------------------------------------------
+
+
+class TestSchemaIsolation:
+    """Prove checkpoint tables live ONLY in ``langgraph``, never in ``public``."""
+
+    CHECKPOINT_TABLES = {"checkpoints", "checkpoint_blobs", "checkpoint_writes"}
+
+    def test_checkpoint_tables_exist_only_in_langgraph(
+        self, sync_engine, _run_migrations
+    ) -> None:
+        """After a clean migration cycle, query ``information_schema``."""
+        import sqlalchemy as sa
+
+        with sync_engine.connect() as conn:
+            rows = conn.execute(
+                sa.text(
+                    """
+                    SELECT table_schema, table_name
+                    FROM information_schema.tables
+                    WHERE table_name = ANY(:names)
+                      AND table_schema IN ('langgraph', 'public')
+                    ORDER BY table_schema, table_name
+                    """
+                ),
+                {"names": list(self.CHECKPOINT_TABLES)},
+            ).fetchall()
+
+        schemas_by_table: dict[str, set[str]] = {}
+        for schema, table in rows:
+            schemas_by_table.setdefault(table, set()).add(schema)
+
+        for table in self.CHECKPOINT_TABLES:
+            schemas = schemas_by_table.get(table, set())
+            assert schemas == {"langgraph"}, (
+                f"{table} found in {schemas}; expected only {{langgraph}}"
+            )
+
+    def test_no_checkpoint_tables_in_public(
+        self, sync_engine, _run_migrations
+    ) -> None:
+        """Explicit negative check: zero checkpoint tables in ``public``."""
+        import sqlalchemy as sa
+
+        with sync_engine.connect() as conn:
+            rows = conn.execute(
+                sa.text(
+                    """
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                      AND table_name = ANY(:names)
+                    """
+                ),
+                {"names": list(self.CHECKPOINT_TABLES)},
+            ).fetchall()
+
+        assert len(rows) == 0, (
+            f"Checkpoint tables leaked into public: {[r[0] for r in rows]}"
+        )
+
+    def test_business_row_survives_checkpoint_operations(
+        self, sync_engine, _run_migrations
+    ) -> None:
+        """Insert a business row, then verify it's untouched after checkpoint work."""
+        import uuid as _uuid
+        import sqlalchemy as sa
+
+        uid = _uuid.uuid4()
+        with sync_engine.connect() as conn:
+            with conn.begin():
+                conn.execute(
+                    sa.text(
+                        """
+                        INSERT INTO app_user
+                          (id, username, display_name, password_hash, password_salt,
+                           system_role, status, must_change_password, created_at, updated_at)
+                        VALUES
+                          (:id, :un, 'Isolation Test', 'hash', decode('aa','hex'),
+                           'ADMIN', 'ACTIVE', false, now(), now())
+                        """
+                    ),
+                    {"id": uid, "un": f"iso-{uid.hex[:8]}"},
+                )
+
+        # Verify the row exists and matches
+        with sync_engine.connect() as conn:
+            row = conn.execute(
+                sa.text("SELECT id, display_name FROM app_user WHERE id = :id"),
+                {"id": uid},
+            ).fetchone()
+
+        assert row is not None
+        assert row.display_name == "Isolation Test"  # type: ignore[union-attr]

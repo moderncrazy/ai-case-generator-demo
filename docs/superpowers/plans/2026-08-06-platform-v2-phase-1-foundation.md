@@ -128,12 +128,14 @@ executor:
 - Create: `tests/unit/shared/test_clock.py`
 - Create: `tests/unit/shared/test_problems.py`
 - Create: `tests/unit/bootstrap/test_settings.py`
+- Modify: `pyproject.toml`
 
 **Interfaces:**
 - Produces: `new_uuid() -> UUID`.
 - Produces: `Clock.now() -> datetime` and `SystemClock`.
 - Produces: `Problem(code, status, title, detail, retryable, context)`.
 - Produces: `Settings` with `database_url`, `checkpoint_database_url`, `redis_url`, process role, pool limits, and environment.
+- Produces one central pytest import-path configuration in `pyproject.toml`; Task 2 tests must not mutate `sys.path` locally. Task 9 may later extend the same file with process-entrypoint configuration because the Tasks are sequential.
 
 - [ ] **Step 1: Write failing shared-kernel tests**
 
@@ -192,6 +194,8 @@ class Problem(BaseModel):
 
 `Settings` must reject missing production URLs and must not define SQLite defaults. Secret values use `SecretStr` and have redacted repr.
 
+Configure pytest centrally with `[tool.pytest.ini_options]` and `pythonpath = ["."]`. Remove any test-local repository-root insertion from all Task 2 test modules.
+
 - [ ] **Step 4: Run focused tests**
 
 Run: `pytest tests/unit/shared tests/unit/bootstrap/test_settings.py -v`
@@ -201,7 +205,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/shared src/bootstrap/settings.py tests/unit/shared tests/unit/bootstrap/test_settings.py
+git add pyproject.toml src/shared src/bootstrap/settings.py tests/unit/shared tests/unit/bootstrap/test_settings.py
 git commit -m "feat: add v2 shared runtime contracts"
 ```
 

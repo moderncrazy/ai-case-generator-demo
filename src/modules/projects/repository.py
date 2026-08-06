@@ -5,15 +5,14 @@ last-owner enforcement, and row-locked project access for mutating
 operations.
 """
 
-import hashlib
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.profiles.models import DomainProfile
+from src.modules.profiles.models import DomainProfile, DomainProfileVersion
 from src.modules.projects.models import Project, ProjectMember
 
 
@@ -39,17 +38,6 @@ class LastOwnerCannotBeRemoved(ProjectDomainError):
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _compute_profile_hash(profile: DomainProfile) -> str:
-    """Produce a deterministic 64-char hex SHA-256 hash for the profile binding."""
-    raw = f"profile:{profile.id}:v{profile.current_version}".encode()
-    return hashlib.sha256(raw).hexdigest()
-
-
-# ---------------------------------------------------------------------------
 # Repository
 # ---------------------------------------------------------------------------
 
@@ -64,6 +52,40 @@ class ProjectRepository:
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    # ------------------------------------------------------------------
+    # internal helpers
+    # ------------------------------------------------------------------
+
+    async def _resolve_profile_hash(
+        self,
+        profile: DomainProfile,
+    ) -> tuple[int, str]:
+        """Return ``(version, content_hash)`` from the current published version.
+
+        Queries ``domain_profile_version`` for the row matching
+        *profile.current_version*.  Rejects profiles that have no
+        published version (``current_version == 0``) or whose published
+        version row is missing.
+        """
+        if profile.current_version == 0:
+            raise ValueError(
+                f"Profile {profile.id} has no published version "
+                f"(current_version is 0)"
+            )
+
+        stmt = select(DomainProfileVersion.content_hash).where(
+            DomainProfileVersion.profile_id == profile.id,
+            DomainProfileVersion.version == profile.current_version,
+        )
+        result = await self._session.execute(stmt)
+        content_hash: str | None = result.scalar_one_or_none()
+        if content_hash is None:
+            raise ValueError(
+                f"Published version {profile.current_version} for profile "
+                f"{profile.id} not found in domain_profile_version"
+            )
+        return profile.current_version, content_hash
 
     # ------------------------------------------------------------------
     # project access
@@ -118,39 +140,83 @@ class ProjectRepository:
           ``CreationIdempotencyConflict``.
         * Different creator, same key → a new project (key scoped to creator).
 
-        The project is bound to *profile* at its current version.  A
-        deterministic ``profile_hash`` is computed from the profile identity.
+        The stored ``profile_hash`` is the actual ``content_hash`` from the
+        published ``domain_profile_version`` row, resolved transactionally.
+
+        Creator membership is inserted atomically — after a successful
+        insert the project always has at least one OWNER.
         """
-        # Check for existing
+        # Resolve the published profile version's content hash
+        profile_version, profile_hash = await self._resolve_profile_hash(profile)
+
+        now = datetime.now(UTC)
+        project_id = uuid.uuid4()
+
+        # Atomic INSERT … ON CONFLICT DO NOTHING — no check-then-act window
+        insert_stmt = (
+            pg_insert(Project)
+            .values(
+                id=project_id,
+                creation_idempotency_key=creation_idempotency_key,
+                creation_request_hash=creation_request_hash,
+                name=name,
+                status="ACTIVE",
+                revision=0,
+                profile_id=profile.id,
+                profile_version=profile_version,
+                profile_hash=profile_hash,
+                profile_migration_status="CURRENT",
+                created_by_user_id=created_by_user_id,
+                created_at=now,
+                updated_at=now,
+            )
+            .on_conflict_do_nothing(
+                index_elements=[
+                    "created_by_user_id",
+                    "creation_idempotency_key",
+                ]
+            )
+            .returning(Project.id)
+        )
+        result = await self._session.execute(insert_stmt)
+        inserted_id: uuid.UUID | None = result.scalar_one_or_none()
+
+        if inserted_id is not None:
+            # Insert succeeded — create the creator OWNER membership
+            member_stmt = pg_insert(ProjectMember).values(
+                id=uuid.uuid4(),
+                project_id=inserted_id,
+                user_id=created_by_user_id,
+                role="OWNER",
+                created_by_user_id=created_by_user_id,
+                created_at=now,
+                updated_at=now,
+            )
+            await self._session.execute(member_stmt)
+            await self._session.flush()
+
+            # Re-fetch to return a fully-populated ORM instance
+            project = await self._session.get(Project, inserted_id)
+            if project is None:  # pragma: no cover — defensive
+                raise ProjectNotFound(
+                    f"Project {inserted_id} disappeared after insert"
+                )
+            return project
+
+        # Conflict — row already exists.  Compare hashes.
         existing = await self.find_by_creation_key(
             created_by_user_id, creation_idempotency_key
         )
-        if existing is not None:
-            if existing.creation_request_hash == creation_request_hash:
-                return existing
-            raise CreationIdempotencyConflict(
-                f"Creation key {creation_idempotency_key} already used by "
-                f"user {created_by_user_id} with a different request hash"
-            )
+        if (
+            existing is not None
+            and existing.creation_request_hash == creation_request_hash
+        ):
+            return existing
 
-        now = datetime.now(UTC)
-        project = Project(
-            id=uuid.uuid4(),
-            creation_idempotency_key=creation_idempotency_key,
-            creation_request_hash=creation_request_hash,
-            name=name,
-            status="ACTIVE",
-            profile_id=profile.id,
-            profile_version=profile.current_version,
-            profile_hash=_compute_profile_hash(profile),
-            profile_migration_status="CURRENT",
-            created_by_user_id=created_by_user_id,
-            created_at=now,
-            updated_at=now,
+        raise CreationIdempotencyConflict(
+            f"Creation key {creation_idempotency_key} already used by "
+            f"user {created_by_user_id} with a different request hash"
         )
-        self._session.add(project)
-        await self._session.flush()
-        return project
 
     # ------------------------------------------------------------------
     # member management
@@ -167,33 +233,66 @@ class ProjectRepository:
 
         One row per ``(project_id, user_id)`` — calling with a different
         role updates the existing row in-place.
-        """
-        now = datetime.now(UTC)
-        stmt = pg_insert(ProjectMember).values(
-            id=uuid.uuid4(),
-            project_id=project_id,
-            user_id=user_id,
-            role=role,
-            created_by_user_id=created_by_user_id,
-            created_at=now,
-            updated_at=now,
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["project_id", "user_id"],
-            set_={
-                "role": stmt.excluded.role,
-                "updated_at": stmt.excluded.updated_at,
-            },
-        )
-        await self._session.execute(stmt)
-        await self._session.flush()
 
-        # Return the current row
-        result = await self._session.execute(
-            select(ProjectMember).where(
+        All membership mutations are serialized on a shared project-row
+        lock so that last-owner guards cannot be bypassed by concurrent
+        sessions.
+        """
+        # Serialize all membership mutations on the project row
+        await self.get_project_for_update(project_id)
+
+        # Guard: downgrading the sole OWNER is forbidden
+        if role != "OWNER":
+            existing_stmt = select(ProjectMember.role).where(
                 ProjectMember.project_id == project_id,
                 ProjectMember.user_id == user_id,
             )
+            existing_result = await self._session.execute(existing_stmt)
+            existing_role: str | None = existing_result.scalar_one_or_none()
+            if existing_role == "OWNER":
+                other_stmt = select(ProjectMember.id).where(
+                    ProjectMember.project_id == project_id,
+                    ProjectMember.role == "OWNER",
+                    ProjectMember.user_id != user_id,
+                )
+                other_result = await self._session.execute(other_stmt)
+                if other_result.scalar_one_or_none() is None:
+                    raise LastOwnerCannotBeRemoved(
+                        f"Cannot downgrade user {user_id}: they are the "
+                        f"last OWNER of project {project_id}"
+                    )
+
+        now = datetime.now(UTC)
+        upsert_stmt = (
+            pg_insert(ProjectMember)
+            .values(
+                id=uuid.uuid4(),
+                project_id=project_id,
+                user_id=user_id,
+                role=role,
+                created_by_user_id=created_by_user_id,
+                created_at=now,
+                updated_at=now,
+            )
+            .on_conflict_do_update(
+                index_elements=["project_id", "user_id"],
+                set_={
+                    "role": pg_insert(ProjectMember).excluded.role,
+                    "updated_at": pg_insert(ProjectMember).excluded.updated_at,
+                },
+            )
+        )
+        await self._session.execute(upsert_stmt)
+        await self._session.flush()
+
+        # Return current persisted state, bypassing the identity map
+        result = await self._session.execute(
+            select(ProjectMember)
+            .where(
+                ProjectMember.project_id == project_id,
+                ProjectMember.user_id == user_id,
+            )
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one()
 
@@ -205,17 +304,17 @@ class ProjectRepository:
         """Delete a project member with last-owner enforcement.
 
         Raises ``LastOwnerCannotBeRemoved`` when the target is the sole
-        OWNER of the project.  The check is performed under a ``FOR UPDATE``
-        row lock to prevent concurrent removals from bypassing the guard.
+        OWNER of the project.
+
+        A shared project-row lock serializes all membership mutations so
+        that concurrent owner deletions cannot bypass the last-owner guard.
         """
-        # Lock the member row if it exists
-        stmt = (
-            select(ProjectMember)
-            .where(
-                ProjectMember.project_id == project_id,
-                ProjectMember.user_id == user_id,
-            )
-            .with_for_update()
+        # Serialize all membership mutations on the project row
+        await self.get_project_for_update(project_id)
+
+        stmt = select(ProjectMember).where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == user_id,
         )
         result = await self._session.execute(stmt)
         member = result.scalar_one_or_none()
@@ -224,17 +323,15 @@ class ProjectRepository:
             return  # idempotent no-op
 
         if member.role == "OWNER":
-            # Count other OWNERs (locked rows not required — the unique
-            # constraint already serialises concurrent modifications to
-            # the same project-user pair, and we hold a lock on *this* row).
-            count_stmt = select(ProjectMember).where(
+            # Count other OWNERs (we hold the project lock; no concurrent
+            # membership changes can happen under this project)
+            count_stmt = select(ProjectMember.id).where(
                 ProjectMember.project_id == project_id,
                 ProjectMember.role == "OWNER",
                 ProjectMember.user_id != user_id,
             )
             count_result = await self._session.execute(count_stmt)
-            other_owners = count_result.scalars().all()
-            if len(other_owners) == 0:
+            if count_result.scalar_one_or_none() is None:
                 raise LastOwnerCannotBeRemoved(
                     f"User {user_id} is the last OWNER of project {project_id}"
                 )

@@ -271,7 +271,7 @@ class TestDedicatedTestRedisGuard:
         """redis-py raises ``ValueError`` when ``?db=`` is non-numeric.
         The guard must fail closed — the endpoint cannot be identified."""
         monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/0")
-        with pytest.raises(pytest.fail.Exception, match="(?i)non-numeric db"):
+        with pytest.raises(pytest.fail.Exception, match="(?i)cannot parse|invalid.*db"):
             _require_dedicated_test_redis("redis://app-shared:6379/0?db=not-a-number")
 
     # -----------------------------------------------------------------
@@ -488,6 +488,38 @@ class TestDedicatedTestRedisGuard:
         monkeypatch.setenv("REDIS_URL", "redis://ipv6-host-a.example:6379/0")
         with pytest.raises(pytest.fail.Exception, match="dedicated"):
             _require_dedicated_test_redis("redis://ipv6-host-b.example:6379/0")
+
+    # -----------------------------------------------------------------
+    # Query parameter precedence via redis-py parse_url
+    # -----------------------------------------------------------------
+
+    def test_guard_rejects_query_port_precedence(
+        self, monkeypatch,
+    ) -> None:
+        """redis-py's parse_url respects ``?port=N``, overriding the
+        authority port.  ``redis://10.1.2.3/0?port=6380`` and
+        ``redis://10.1.2.3:6380/0`` target the same endpoint."""
+        monkeypatch.setenv(
+            "REDIS_URL", "redis://10.1.2.3:6380/0",
+        )
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://10.1.2.3/0?port=6380")
+
+    # -----------------------------------------------------------------
+    # IP canonicalization — equivalent spellings must match
+    # -----------------------------------------------------------------
+
+    def test_guard_rejects_ipv6_leading_zero_canonicalization(
+        self, monkeypatch,
+    ) -> None:
+        """IPv6 addresses with leading zeros (``2001:0db8::1``) must
+        canonicalise to the same form as the compressed representation
+        (``2001:db8::1``) via ``ipaddress.ip_address()``."""
+        monkeypatch.setenv(
+            "REDIS_URL", "redis://[2001:0db8::1]:6379/0",
+        )
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://[2001:db8::1]:6379/0")
 
     # -----------------------------------------------------------------
     # Genuinely distinct isolated DBs are accepted

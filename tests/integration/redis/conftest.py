@@ -17,10 +17,12 @@ import socket
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple, Protocol
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import urlparse
 
 import pytest
 import pytest_asyncio
+
+from redis.asyncio.connection import parse_url as _redis_parse_url
 
 from src.integrations.redis.client import RedisRuntime
 from src.integrations.redis.scripts import OccupancyManager
@@ -93,10 +95,9 @@ def _resolve_host_for_guard(host: str) -> _HostIdentity:
     if _is_loopback_ip(host):
         return "localhost"
 
-    # Non-loopback literal IP — return as-is.
+    # Non-loopback literal IP — canonicalize via ipaddress.
     try:
-        ipaddress.ip_address(host)
-        return host
+        return str(ipaddress.ip_address(host))
     except ValueError:
         pass  # Not an IP → hostname, needs resolution.
 
@@ -122,6 +123,11 @@ def _resolve_host_for_guard(host: str) -> _HostIdentity:
 
     for info in addrs:
         ip = info[4][0]
+        # Canonicalize IP via ipaddress for stable comparison.
+        try:
+            ip = str(ipaddress.ip_address(ip))
+        except ValueError:
+            pass
         ips.add(ip)
         if _is_loopback_ip(ip):
             has_loopback = True
@@ -167,46 +173,6 @@ def _hosts_share_identity(test: _Endpoint, app: _Endpoint) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Database path normalisation — matches redis-py 7.4.1 parse_url() semantics
-# ---------------------------------------------------------------------------
-
-
-def _normalize_db_path(parsed) -> int:
-    """Extract and normalise the database number, matching redis-py 7.4.1.
-
-    * Query-string ``?db=N`` takes precedence.  Non-numeric values fail
-      closed because redis-py raises ``ValueError``.
-    * Path DB: ``int(unquote(path).replace("/", ""))`` — exactly what
-      redis-py 7.4.1 ``parse_url()`` does.
-    * Invalid / missing paths default to ``0``.
-    """
-    query_params = parse_qs(parsed.query)
-    if "db" in query_params:
-        raw = query_params["db"][0]
-        try:
-            return int(raw)
-        except ValueError:
-            pytest.fail(
-                f"Invalid query-string db={raw!r} in Redis URL; "
-                f"redis-py raises ValueError on non-numeric db"
-            )
-
-    # redis-py 7.4.1: int(unquote(parsed.path).replace("/", ""))
-    try:
-        path = unquote(parsed.path or "")
-    except (ValueError, TypeError):
-        path = parsed.path or ""
-
-    cleaned = path.replace("/", "")
-    if not cleaned:
-        return 0
-    try:
-        return int(cleaned)
-    except ValueError:
-        return 0
-
-
-# ---------------------------------------------------------------------------
 # Structured endpoint representation — safe for IPv4 and IPv6
 # ---------------------------------------------------------------------------
 
@@ -215,9 +181,9 @@ class _Endpoint(NamedTuple):
     """Immutable canonical endpoint identity.
 
     ``host`` is a resolved host identifier: ``"localhost"`` for loopback,
-    a single IP for literal addresses, or a comma-separated sorted list
-    of IPs for multi-address DNS answers.  ``port`` and ``db`` are always
-    integers.
+    a single canonicalised IP for literal addresses, or a comma-separated
+    sorted list of canonicalised IPs for multi-address DNS answers.
+    ``port`` and ``db`` are always integers.
 
     The structured representation avoids delimiter-parsing bugs (e.g.
     splitting ``2001:db8::1:6379/0`` on ``:`` for IPv6).
@@ -228,40 +194,55 @@ class _Endpoint(NamedTuple):
 
 
 # ---------------------------------------------------------------------------
-# Endpoint normalisation
+# Endpoint normalisation — delegates option precedence to redis-py parse_url
 # ---------------------------------------------------------------------------
 
 
 def _normalize_redis_endpoint(url: str) -> _Endpoint:
     """Return a canonical **target-identity** endpoint for a Redis URL.
 
+    Option precedence (``?port=``, ``?db=``, path DB, scheme default
+    port, percent-encoding) is delegated entirely to redis-py's own
+    ``parse_url()`` — there is no hand-reimplementation of redis-py
+    endpoint semantics.
+
     Credentials and scheme are deliberately **excluded** — the guard
     compares Redis target identity (which process + which database), not
     how you connect.
 
-    Hostnames are resolved via DNS (fail-closed) so two aliases pointing
-    to the same IP address produce identical canonical forms.
+    Hostnames are resolved via DNS (fail-closed) and all IP addresses
+    are canonicalised via ``ipaddress`` so equivalent spellings match.
     """
-    parsed = urlparse(url)
-
-    # --- host ---
-    host_raw = (parsed.hostname or "").lower()
-
-    # Decode percent-encoding in hostname.
     try:
-        host_raw = unquote(host_raw)
-    except (ValueError, TypeError):
-        pass
+        params = _redis_parse_url(url)
+    except (ValueError, TypeError) as exc:
+        pytest.fail(
+            f"redis-py cannot parse Redis URL {url!r}: {exc}"
+        )
+
+    host_raw = params.get("host")
+    if not host_raw:
+        pytest.fail(
+            f"Redis URL {url!r} has no discernible host; "
+            f"the safety guard requires a valid endpoint"
+        )
 
     host = _resolve_host_for_guard(host_raw)
 
-    # --- port ---
-    port = parsed.port
-    if port is None:
-        port = _DEFAULT_REDIS_PORT
-
-    # --- database ---
-    db = _normalize_db_path(parsed)
+    # Apply redis-py defaults and coerce to int (parse_url stores
+    # authority-port as int but unsupported query-string keys as str).
+    try:
+        port = int(params.get("port", _DEFAULT_REDIS_PORT))
+    except (ValueError, TypeError):
+        pytest.fail(
+            f"Redis URL {url!r} has an invalid port value: {params['port']!r}"
+        )
+    try:
+        db = int(params.get("db", 0))
+    except (ValueError, TypeError):
+        pytest.fail(
+            f"Redis URL {url!r} has an invalid db value: {params['db']!r}"
+        )
 
     return _Endpoint(host=host, port=port, db=db)
 

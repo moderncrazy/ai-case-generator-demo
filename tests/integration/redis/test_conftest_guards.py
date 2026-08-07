@@ -255,6 +255,25 @@ class TestDedicatedTestRedisGuard:
         with pytest.raises(pytest.fail.Exception, match="dedicated"):
             _require_dedicated_test_redis("redis://app-shared:6379/0")
 
+    def test_guard_rejects_path_12_vs_path_1_slash_2(
+        self, monkeypatch,
+    ) -> None:
+        """redis-py 7.4.1 computes the DB as
+        ``int(unquote(path).replace('/', ''))``.  ``/12`` → ``12`` and
+        ``/1/2`` → ``12`` target the same database and must be rejected."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/12")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://app-shared:6379/1/2")
+
+    def test_guard_aborts_on_invalid_query_db(
+        self, monkeypatch,
+    ) -> None:
+        """redis-py raises ``ValueError`` when ``?db=`` is non-numeric.
+        The guard must fail closed — the endpoint cannot be identified."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="(?i)non-numeric db"):
+            _require_dedicated_test_redis("redis://app-shared:6379/0?db=not-a-number")
+
     # -----------------------------------------------------------------
     # Scheme default port — redis-py uses 6379 for both redis and rediss
     # -----------------------------------------------------------------
@@ -434,6 +453,41 @@ class TestDedicatedTestRedisGuard:
         monkeypatch.setenv("REDIS_URL", "redis://host-a.example:6379/0")
         url = _require_dedicated_test_redis("redis://host-b.example:6379/0")
         assert url == "redis://host-b.example:6379/0"
+
+    def test_guard_rejects_overlapping_ipv6_sets(
+        self, monkeypatch,
+    ) -> None:
+        """Two hostnames resolving to overlapping-but-not-identical IPv6
+        address sets must be rejected — the shared address means they
+        could target the same Redis instance."""
+        import socket as _socket
+
+        original = _socket.getaddrinfo
+        IPV6_A = "2001:db8::1"
+        IPV6_B = "2001:db8::2"
+        IPV6_C = "2001:db8::3"
+
+        def _fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            if host == "ipv6-host-a.example":
+                return [
+                    (_socket.AF_INET6, _socket.SOCK_STREAM, 6, "",
+                     (IPV6_A, 0, 0, 0)),
+                    (_socket.AF_INET6, _socket.SOCK_STREAM, 6, "",
+                     (IPV6_B, 0, 0, 0)),
+                ]
+            if host == "ipv6-host-b.example":
+                return [
+                    (_socket.AF_INET6, _socket.SOCK_STREAM, 6, "",
+                     (IPV6_B, 0, 0, 0)),
+                    (_socket.AF_INET6, _socket.SOCK_STREAM, 6, "",
+                     (IPV6_C, 0, 0, 0)),
+                ]
+            return original(host, port, family, type, proto, flags)
+
+        monkeypatch.setattr(_socket, "getaddrinfo", _fake_getaddrinfo)
+        monkeypatch.setenv("REDIS_URL", "redis://ipv6-host-a.example:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://ipv6-host-b.example:6379/0")
 
     # -----------------------------------------------------------------
     # Genuinely distinct isolated DBs are accepted

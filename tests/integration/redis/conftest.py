@@ -16,7 +16,7 @@ import os
 import socket
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
+from typing import NamedTuple, Protocol
 from urllib.parse import parse_qs, unquote, urlparse
 
 import pytest
@@ -141,21 +141,21 @@ def _resolve_host_for_guard(host: str) -> _HostIdentity:
     return ",".join(sorted(ips))
 
 
-def _hosts_share_identity(a: str, b: str) -> bool:
-    """Return True when two resolved host identities target the same
-    endpoint or have overlapping IP address sets."""
-    if a == b:
+def _hosts_share_identity(test: _Endpoint, app: _Endpoint) -> bool:
+    """Return True when two endpoints' resolved host identities target
+    the same machine or have overlapping IP address sets."""
+    if test.host == app.host:
         return True
 
     # Extract IP components from comma-separated lists.
-    a_ips = set(a.split(","))
-    b_ips = set(b.split(","))
+    a_ips = set(test.host.split(","))
+    b_ips = set(app.host.split(","))
 
     # "localhost" is not an IP — skip overlap check.
     if "localhost" in a_ips or "localhost" in b_ips:
         return False
 
-    # Verify all components are valid IP addresses.
+    # Verify all components are valid IP addresses (IPv4 or IPv6).
     try:
         for ip in a_ips | b_ips:
             ipaddress.ip_address(ip)
@@ -167,46 +167,64 @@ def _hosts_share_identity(a: str, b: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Database path normalisation — matches redis-py from_url() semantics
+# Database path normalisation — matches redis-py 7.4.1 parse_url() semantics
 # ---------------------------------------------------------------------------
 
 
-def _normalize_db_path(parsed) -> str:
-    """Extract and normalise the database number, matching redis-py's
-    ``from_url()`` behaviour.
+def _normalize_db_path(parsed) -> int:
+    """Extract and normalise the database number, matching redis-py 7.4.1.
 
-    * Query-string ``?db=N`` takes precedence over the path.
-    * Percent-encoding in the path is decoded **before** splitting on
-      ``/`` (so ``/%2F1`` → ``//1`` → ``1``).
-    * The first non-empty path segment is used; trailing slashes are
-      ignored (``/1/`` → ``1``).
-    * Non-numeric values default to ``0`` (redis-py's safe default).
-    * Malformed percent-encoding is kept as-is for comparison.
+    * Query-string ``?db=N`` takes precedence.  Non-numeric values fail
+      closed because redis-py raises ``ValueError``.
+    * Path DB: ``int(unquote(path).replace("/", ""))`` — exactly what
+      redis-py 7.4.1 ``parse_url()`` does.
+    * Invalid / missing paths default to ``0``.
     """
     query_params = parse_qs(parsed.query)
     if "db" in query_params:
         raw = query_params["db"][0]
-    else:
-        # Decode percent-encoding in the full path first.
         try:
-            path = unquote(parsed.path or "")
-        except (ValueError, TypeError):
-            path = parsed.path or ""
-        # Split on / and take the first non-empty segment.
-        segments = [s for s in path.split("/") if s]
-        raw = segments[0] if segments else "0"
+            return int(raw)
+        except ValueError:
+            pytest.fail(
+                f"Invalid query-string db={raw!r} in Redis URL; "
+                f"redis-py raises ValueError on non-numeric db"
+            )
 
-    # Decode any remaining percent-encoding in the raw value.
+    # redis-py 7.4.1: int(unquote(parsed.path).replace("/", ""))
     try:
-        raw = unquote(raw)
+        path = unquote(parsed.path or "")
     except (ValueError, TypeError):
-        pass
+        path = parsed.path or ""
 
-    # Try integer.  Non-numeric → 0 (redis-py default).
+    cleaned = path.replace("/", "")
+    if not cleaned:
+        return 0
     try:
-        return str(int(raw))
+        return int(cleaned)
     except ValueError:
-        return "0"
+        return 0
+
+
+# ---------------------------------------------------------------------------
+# Structured endpoint representation — safe for IPv4 and IPv6
+# ---------------------------------------------------------------------------
+
+
+class _Endpoint(NamedTuple):
+    """Immutable canonical endpoint identity.
+
+    ``host`` is a resolved host identifier: ``"localhost"`` for loopback,
+    a single IP for literal addresses, or a comma-separated sorted list
+    of IPs for multi-address DNS answers.  ``port`` and ``db`` are always
+    integers.
+
+    The structured representation avoids delimiter-parsing bugs (e.g.
+    splitting ``2001:db8::1:6379/0`` on ``:`` for IPv6).
+    """
+    host: str
+    port: int
+    db: int
 
 
 # ---------------------------------------------------------------------------
@@ -214,8 +232,8 @@ def _normalize_db_path(parsed) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _normalize_redis_endpoint(url: str) -> str:
-    """Return a canonical **target-identity** identifier for a Redis URL.
+def _normalize_redis_endpoint(url: str) -> _Endpoint:
+    """Return a canonical **target-identity** endpoint for a Redis URL.
 
     Credentials and scheme are deliberately **excluded** — the guard
     compares Redis target identity (which process + which database), not
@@ -245,7 +263,7 @@ def _normalize_redis_endpoint(url: str) -> str:
     # --- database ---
     db = _normalize_db_path(parsed)
 
-    return f"{host}:{port}/{db}"
+    return _Endpoint(host=host, port=port, db=db)
 
 
 def _require_dedicated_test_redis(url: str) -> str:
@@ -285,6 +303,7 @@ def _require_dedicated_test_redis(url: str) -> str:
             continue
         normalized_app = _normalize_redis_endpoint(app_url)
 
+        # Exact match (host identity, port, db) → reject.
         if normalized_test == normalized_app:
             pytest.fail(
                 f"TEST_REDIS_URL must be a dedicated URL, distinct from "
@@ -293,13 +312,12 @@ def _require_dedicated_test_redis(url: str) -> str:
             )
 
         # Ports or DBs differ → provably distinct endpoints.
-        test_host, test_rest = normalized_test.split(":", 1)
-        app_host, app_rest = normalized_app.split(":", 1)
-        if test_rest != app_rest:
+        if (normalized_test.port != normalized_app.port
+                or normalized_test.db != normalized_app.db):
             continue
 
-        # Same port + db — check for overlapping IP sets.
-        if _hosts_share_identity(test_host, app_host):
+        # Same port + db — check for overlapping IP address sets.
+        if _hosts_share_identity(normalized_test, normalized_app):
             pytest.fail(
                 f"TEST_REDIS_URL must be a dedicated URL, distinct from "
                 f"{name} ({app_url!r}) so tests never flush a shared "

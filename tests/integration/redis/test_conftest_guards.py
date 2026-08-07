@@ -139,22 +139,160 @@ class TestDedicatedTestRedisGuard:
         with pytest.raises(pytest.fail.Exception, match="dedicated"):
             _require_dedicated_test_redis("redis://0.0.0.0:6379/0")
 
-    def test_guard_rejects_credential_equivalent_url(
+    def test_guard_rejects_different_credentials_same_target(
         self, monkeypatch,
     ) -> None:
-        """Different credential spellings on the same endpoint must still
-        be detected as the same database.
+        """Different credentials on the same (host, port, db) must be
+        detected as the same database — the guard compares target
+        identity, not authentication identity.
 
-        Two URLs that differ only in credentials still target the same
-        Redis instance; a ``FLUSHDB`` against either wipes the other's
-        data.  The guard must reject them so session-start cleanup can
-        never erase application data.
+        Two URLs that differ only in credentials target the same Redis
+        instance; a ``FLUSHDB`` against either erases the other's data.
         """
         monkeypatch.setenv(
-            "REDIS_URL", "redis://user:pass@app-host:6379/0",
+            "REDIS_URL", "redis://alice:s3cret@app-host:6379/0",
         )
         with pytest.raises(pytest.fail.Exception, match="dedicated"):
-            _require_dedicated_test_redis("redis://user:pass@app-host:6379/0")
+            _require_dedicated_test_redis("redis://bob:other@app-host:6379/0")
+
+    # -----------------------------------------------------------------
+    # Query-string / percent-encoding / numeric DB normalisation
+    # -----------------------------------------------------------------
+
+    def test_guard_rejects_query_string_db_precedence(
+        self, monkeypatch,
+    ) -> None:
+        """``?db=1`` takes precedence over the path segment.
+        ``redis://host/0?db=1`` and ``redis://host/1`` are the same db."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/1")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://app-shared:6379/0?db=1")
+
+    def test_guard_rejects_numeric_db_path_equivalence(
+        self, monkeypatch,
+    ) -> None:
+        """Leading-zero db numbers (``/01``) must normalise to the integer
+        value (``/1``)."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/1")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://app-shared:6379/01")
+
+    def test_guard_rejects_percent_encoded_db_path(
+        self, monkeypatch,
+    ) -> None:
+        """Percent-encoded DB numbers (``/%31``) must decode to the
+        integer value (``/1``)."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/1")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://app-shared:6379/%31")
+
+    # -----------------------------------------------------------------
+    # Scheme default port — redis-py uses 6379 for both redis and rediss
+    # -----------------------------------------------------------------
+
+    def test_guard_rejects_rediss_implicit_port_6379(
+        self, monkeypatch,
+    ) -> None:
+        """redis-py defaults to port 6379 for both ``redis://`` and
+        ``rediss://``.  An explicit ``redis://host:6379/db`` and an
+        implicit ``rediss://host/db`` target the same host:port."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/2")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("rediss://app-shared/2")
+
+    def test_guard_rejects_redis_implicit_port_6379(
+        self, monkeypatch,
+    ) -> None:
+        """``rediss://host:6379/db`` (explicit) and ``redis://host/db``
+        (implicit) must match because redis-py uses 6379 for both."""
+        monkeypatch.setenv("REDIS_URL", "rediss://app-shared:6379/2")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://app-shared/2")
+
+    # -----------------------------------------------------------------
+    # Full 127.0.0.0/8 loopback range
+    # -----------------------------------------------------------------
+
+    def test_guard_rejects_127_0_0_2_loopback(
+        self, monkeypatch,
+    ) -> None:
+        """Any address in 127.0.0.0/8 is loopback, not just 127.0.0.1."""
+        monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://127.0.0.2:6379/0")
+
+    def test_guard_rejects_127_255_255_255_loopback(
+        self, monkeypatch,
+    ) -> None:
+        """127.255.255.255 (the top of 127.0.0.0/8) is also loopback."""
+        monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://127.255.255.255:6379/0")
+
+    # -----------------------------------------------------------------
+    # DNS resolution — hostnames resolving to loopback addresses
+    # -----------------------------------------------------------------
+
+    def test_guard_rejects_hostname_resolving_to_loopback(
+        self, monkeypatch,
+    ) -> None:
+        """A hostname whose DNS resolution returns only 127.0.0.0/8
+        addresses is equivalent to ``localhost``.
+
+        Uses a monkeypatched resolver so the test does not depend on
+        external DNS configuration."""
+        import socket as _socket
+
+        original = _socket.getaddrinfo
+
+        def _fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            if host == "my-redis.internal":
+                return [(2, 1, 6, "", ("127.0.0.3", 0))]
+            return original(host, port, family, type, proto, flags)
+
+        monkeypatch.setattr(_socket, "getaddrinfo", _fake_getaddrinfo)
+        monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://my-redis.internal:6379/0")
+
+    def test_guard_dns_failure_keeps_hostname(
+        self, monkeypatch,
+    ) -> None:
+        """A DNS failure must NOT bypass the guard: unresolvable hostnames
+        are kept as-is so a match is only found for identical strings.
+        This is conservative — a false-negative (missing a match) is
+        acceptable; a false-positive (wrongly matching) would let a
+        session-start flush erase application data."""
+        monkeypatch.setenv("REDIS_URL", "redis://never-resolves.example:6379/0")
+        # The guard must NOT crash, and since the hostnames differ (one
+        # is the test URL placeholder, the other is the Redis URL), no
+        # rejection is expected.
+        result = _require_dedicated_test_redis(
+            "redis://other-test-host:6379/0",
+        )
+        assert result == "redis://other-test-host:6379/0"
+
+    # -----------------------------------------------------------------
+    # Genuinely distinct isolated DBs are accepted
+    # -----------------------------------------------------------------
+
+    def test_guard_accepts_distinct_db_on_same_host(
+        self, monkeypatch,
+    ) -> None:
+        """Different database numbers on the same instance are genuinely
+        distinct isolated DBs and must be accepted."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-host:6379/0")
+        url = _require_dedicated_test_redis("redis://app-host:6379/1")
+        assert url == "redis://app-host:6379/1"
+
+    def test_guard_accepts_distinct_port(
+        self, monkeypatch,
+    ) -> None:
+        """A different port on the same host is a genuinely distinct
+        instance and must be accepted."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-host:6379/0")
+        url = _require_dedicated_test_redis("redis://app-host:6380/0")
+        assert url == "redis://app-host:6380/0"
 
     # -----------------------------------------------------------------
 

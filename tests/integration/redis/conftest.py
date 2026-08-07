@@ -11,11 +11,13 @@ application data.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import os
+import socket
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import pytest
 import pytest_asyncio
@@ -47,47 +49,135 @@ class FakeClock:
 # ---------------------------------------------------------------------------
 
 _DEFAULT_REDIS_PORT = 6379
-_DEFAULT_REDISS_PORT = 6380
 
+# Static well-known aliases (0.0.0.0 = "any address", treated as localhost).
 _LOOPBACK_ALIASES: dict[str, str] = {
-    "127.0.0.1": "localhost",
     "::1": "localhost",
     "0.0.0.0": "localhost",
 }
 
 
+def _is_loopback_ip(addr: str) -> bool:
+    """Return True when *addr* is an IPv4 127.0.0.0/8 or IPv6 ::1 address."""
+    try:
+        ip = ipaddress.ip_address(addr)
+        return ip.is_loopback or ip == ipaddress.IPv4Address("0.0.0.0")
+    except ValueError:
+        return False
+
+
+def _resolve_host_to_localhost(host: str) -> str:
+    """Try to resolve *host* via DNS.
+
+    If every resolved address is loopback, return ``"localhost"``.
+    Otherwise return *host* unchanged.  A resolution failure keeps the
+    original *host* — a false-negative (missing a match) is safe; a
+    false-positive (wrongly matching) would let ``FLUSHDB`` erase
+    application data.
+    """
+    try:
+        addrs = socket.getaddrinfo(host, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except socket.gaierror:
+        return host
+
+    if not addrs:
+        return host
+
+    for info in addrs:
+        resolved = info[4][0]
+        if not _is_loopback_ip(resolved):
+            return host
+
+    return "localhost"
+
+
+def _normalize_db_path(parsed) -> str:
+    """Extract and normalise the database number from a parsed URL.
+
+    The query-string ``?db=N`` takes precedence over the path segment.
+    Percent-encoding is decoded and leading zeros are stripped so
+    ``/01``, ``/%31``, and ``/1?db=0`` all normalise to ``1``.
+    Non-numeric values are kept as-is (conservative comparison).
+    """
+    raw = "0"
+    query_params = parse_qs(parsed.query)
+    if "db" in query_params:
+        raw = query_params["db"][0]
+    else:
+        raw = (parsed.path or "").lstrip("/") or "0"
+
+    # Decode percent-encoding.  On malformed encoding, keep the raw
+    # string unchanged — different spellings won't accidentally match.
+    try:
+        raw = unquote(raw)
+    except (ValueError, TypeError):
+        pass
+
+    # Strip leading zeros for numeric values.
+    try:
+        return str(int(raw))
+    except ValueError:
+        return raw
+
+
 def _normalize_redis_endpoint(url: str) -> str:
-    """Return a canonical endpoint identifier for a Redis URL.
+    """Return a canonical **target-identity** identifier for a Redis URL.
 
     Two URLs that target the same logical Redis database must normalise
-    to the same string so harmless spelling differences (scheme/host
-    case, default port, default database path, loopback aliases, and
-    credentials) cannot bypass the safety guard.
+    to the same string.  Credentials are deliberately **excluded** from
+    the canonical form — the guard compares Redis target identity, not
+    authentication identity.
 
-    The canonical form is ``scheme://[user:pass@]host:port/db`` with
-    all components lowercased and defaults made explicit.
+    Normalisations applied:
+
+    * scheme, host, and DB are lower-cased
+    * percent-encoding is decoded in host and DB path
+    * default port 6379 (redis-py's default for both ``redis://`` and
+      ``rediss://``) is made explicit
+    * missing DB defaults to ``0``
+    * query-string ``?db=N`` takes precedence over the path number
+    * leading zeros are stripped from numeric DB paths
+    * all 127.0.0.0/8 and ``::1`` addresses resolve to ``localhost``
+    * hostnames whose DNS resolves entirely to loopback addresses are
+      normalised to ``localhost`` (DNS failures keep the original
+      hostname to stay safe)
+    * ``0.0.0.0`` (wildcard bind) is treated as ``localhost``
     """
     parsed = urlparse(url)
 
-    scheme = parsed.scheme.lower()
-
+    # --- host ---
     host = (parsed.hostname or "").lower()
+
+    # Decode percent-encoding in hostname.
+    try:
+        host = unquote(host)
+    except (ValueError, TypeError):
+        pass
+
+    # Static aliases first.
     host = _LOOPBACK_ALIASES.get(host, host)
 
+    # Any 127.0.0.0/8 or ::1 IP → localhost.
+    if _is_loopback_ip(host):
+        host = "localhost"
+
+    # DNS resolution for non-IP hostnames not already canonicalised.
+    if host != "localhost":
+        host = _resolve_host_to_localhost(host)
+
+    # --- port ---
     port = parsed.port
     if port is None:
-        port = _DEFAULT_REDIS_PORT if scheme == "redis" else _DEFAULT_REDISS_PORT
+        port = _DEFAULT_REDIS_PORT
 
-    db = parsed.path.lstrip("/") or "0"
+    # --- database ---
+    db = _normalize_db_path(parsed)
 
-    netloc = host
-    if parsed.username or parsed.password:
-        user = (parsed.username or "").lower()
-        pwd = parsed.password or ""
-        netloc = f"{user}:{pwd}@{host}"
-    netloc = f"{netloc}:{port}"
-
-    return urlunparse((scheme, netloc, f"/{db}", "", "", ""))
+    # Canonical form: host:port/db only.
+    # Scheme and credentials are deliberately excluded — the guard
+    # compares Redis target identity (which process + database), not
+    # connection parameters or authentication identity.
+    return f"{host}:{port}/{db}"
 
 
 def _require_dedicated_test_redis(url: str) -> str:
@@ -97,9 +187,10 @@ def _require_dedicated_test_redis(url: str) -> str:
     ``TEST_REDIS_URL``; it never falls back to the application Redis
     (``REDIS_URL`` / ``PLATFORM_REDIS_URL``).  Endpoints are compared
     after normalisation so equivalent spellings (case, default port,
-    default database, loopback aliases, credentials) are always
-    detected as the same database — a session-start flush must never
-    be able to erase application data.
+    default database, loopback aliases, credentials, query-string DB,
+    percent-encoding, numeric DB equivalence) are always detected as
+    the same database — a session-start flush must never be able to
+    erase application data.
     """
     if not url:
         pytest.fail(

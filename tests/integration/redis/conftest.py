@@ -66,104 +66,176 @@ def _is_loopback_ip(addr: str) -> bool:
         return False
 
 
-def _resolve_host_to_localhost(host: str) -> str:
-    """Try to resolve *host* via DNS.
+# ---------------------------------------------------------------------------
+# Hostname resolution — fail-closed for safety
+# ---------------------------------------------------------------------------
 
-    If every resolved address is loopback, return ``"localhost"``.
-    Otherwise return *host* unchanged.  A resolution failure keeps the
-    original *host* — a false-negative (missing a match) is safe; a
-    false-positive (wrongly matching) would let ``FLUSHDB`` erase
-    application data.
+_HostIdentity = str  # "localhost", "10.1.2.3", or "10.1.2.3,10.1.2.4"
+
+
+def _resolve_host_for_guard(host: str) -> _HostIdentity:
+    """Resolve *host* to a canonical identifier for the safety guard.
+
+    * Loopback IPs / static aliases → ``"localhost"``
+    * Non-loopback literal IPs → the IP as-is
+    * Hostnames → DNS resolution **must** succeed and be unambiguous
+
+    Failures that make endpoint identity unprovable cause an immediate
+    ``pytest.fail`` — the guard must **never** accept an unresolvable or
+    ambiguous application endpoint as proven-distinct.
     """
+    # Static aliases (::1, 0.0.0.0).
+    mapped = _LOOPBACK_ALIASES.get(host)
+    if mapped is not None:
+        return mapped
+
+    # Literal loopback IP.
+    if _is_loopback_ip(host):
+        return "localhost"
+
+    # Non-loopback literal IP — return as-is.
+    try:
+        ipaddress.ip_address(host)
+        return host
+    except ValueError:
+        pass  # Not an IP → hostname, needs resolution.
+
+    # ---- DNS resolution (fail-closed) ----
     try:
         addrs = socket.getaddrinfo(host, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
     except socket.gaierror:
-        return host
+        pytest.fail(
+            f"Cannot resolve Redis endpoint hostname {host!r}; "
+            f"the safety guard requires provable endpoint identity "
+            f"before allowing a FLUSHDB fixture to run"
+        )
 
     if not addrs:
-        return host
+        pytest.fail(
+            f"DNS resolution for Redis hostname {host!r} returned no "
+            f"addresses; cannot verify endpoint identity"
+        )
+
+    ips: set[str] = set()
+    has_loopback = False
+    has_non_loopback = False
 
     for info in addrs:
-        resolved = info[4][0]
-        if not _is_loopback_ip(resolved):
-            return host
+        ip = info[4][0]
+        ips.add(ip)
+        if _is_loopback_ip(ip):
+            has_loopback = True
+        else:
+            has_non_loopback = True
 
-    return "localhost"
+    if has_loopback and has_non_loopback:
+        pytest.fail(
+            f"Redis hostname {host!r} resolves to mixed loopback and "
+            f"non-loopback addresses; cannot verify endpoint identity"
+        )
+
+    if has_loopback:
+        return "localhost"
+
+    # All non-loopback — sorted, comma-separated for stable comparison.
+    return ",".join(sorted(ips))
+
+
+def _hosts_share_identity(a: str, b: str) -> bool:
+    """Return True when two resolved host identities target the same
+    endpoint or have overlapping IP address sets."""
+    if a == b:
+        return True
+
+    # Extract IP components from comma-separated lists.
+    a_ips = set(a.split(","))
+    b_ips = set(b.split(","))
+
+    # "localhost" is not an IP — skip overlap check.
+    if "localhost" in a_ips or "localhost" in b_ips:
+        return False
+
+    # Verify all components are valid IP addresses.
+    try:
+        for ip in a_ips | b_ips:
+            ipaddress.ip_address(ip)
+    except ValueError:
+        return False  # Non-IP component — can't verify overlap.
+
+    # Overlapping IP sets → same endpoint.
+    return bool(a_ips & b_ips)
+
+
+# ---------------------------------------------------------------------------
+# Database path normalisation — matches redis-py from_url() semantics
+# ---------------------------------------------------------------------------
 
 
 def _normalize_db_path(parsed) -> str:
-    """Extract and normalise the database number from a parsed URL.
+    """Extract and normalise the database number, matching redis-py's
+    ``from_url()`` behaviour.
 
-    The query-string ``?db=N`` takes precedence over the path segment.
-    Percent-encoding is decoded and leading zeros are stripped so
-    ``/01``, ``/%31``, and ``/1?db=0`` all normalise to ``1``.
-    Non-numeric values are kept as-is (conservative comparison).
+    * Query-string ``?db=N`` takes precedence over the path.
+    * Percent-encoding in the path is decoded **before** splitting on
+      ``/`` (so ``/%2F1`` → ``//1`` → ``1``).
+    * The first non-empty path segment is used; trailing slashes are
+      ignored (``/1/`` → ``1``).
+    * Non-numeric values default to ``0`` (redis-py's safe default).
+    * Malformed percent-encoding is kept as-is for comparison.
     """
-    raw = "0"
     query_params = parse_qs(parsed.query)
     if "db" in query_params:
         raw = query_params["db"][0]
     else:
-        raw = (parsed.path or "").lstrip("/") or "0"
+        # Decode percent-encoding in the full path first.
+        try:
+            path = unquote(parsed.path or "")
+        except (ValueError, TypeError):
+            path = parsed.path or ""
+        # Split on / and take the first non-empty segment.
+        segments = [s for s in path.split("/") if s]
+        raw = segments[0] if segments else "0"
 
-    # Decode percent-encoding.  On malformed encoding, keep the raw
-    # string unchanged — different spellings won't accidentally match.
+    # Decode any remaining percent-encoding in the raw value.
     try:
         raw = unquote(raw)
     except (ValueError, TypeError):
         pass
 
-    # Strip leading zeros for numeric values.
+    # Try integer.  Non-numeric → 0 (redis-py default).
     try:
         return str(int(raw))
     except ValueError:
-        return raw
+        return "0"
+
+
+# ---------------------------------------------------------------------------
+# Endpoint normalisation
+# ---------------------------------------------------------------------------
 
 
 def _normalize_redis_endpoint(url: str) -> str:
     """Return a canonical **target-identity** identifier for a Redis URL.
 
-    Two URLs that target the same logical Redis database must normalise
-    to the same string.  Credentials are deliberately **excluded** from
-    the canonical form — the guard compares Redis target identity, not
-    authentication identity.
+    Credentials and scheme are deliberately **excluded** — the guard
+    compares Redis target identity (which process + which database), not
+    how you connect.
 
-    Normalisations applied:
-
-    * scheme, host, and DB are lower-cased
-    * percent-encoding is decoded in host and DB path
-    * default port 6379 (redis-py's default for both ``redis://`` and
-      ``rediss://``) is made explicit
-    * missing DB defaults to ``0``
-    * query-string ``?db=N`` takes precedence over the path number
-    * leading zeros are stripped from numeric DB paths
-    * all 127.0.0.0/8 and ``::1`` addresses resolve to ``localhost``
-    * hostnames whose DNS resolves entirely to loopback addresses are
-      normalised to ``localhost`` (DNS failures keep the original
-      hostname to stay safe)
-    * ``0.0.0.0`` (wildcard bind) is treated as ``localhost``
+    Hostnames are resolved via DNS (fail-closed) so two aliases pointing
+    to the same IP address produce identical canonical forms.
     """
     parsed = urlparse(url)
 
     # --- host ---
-    host = (parsed.hostname or "").lower()
+    host_raw = (parsed.hostname or "").lower()
 
     # Decode percent-encoding in hostname.
     try:
-        host = unquote(host)
+        host_raw = unquote(host_raw)
     except (ValueError, TypeError):
         pass
 
-    # Static aliases first.
-    host = _LOOPBACK_ALIASES.get(host, host)
-
-    # Any 127.0.0.0/8 or ::1 IP → localhost.
-    if _is_loopback_ip(host):
-        host = "localhost"
-
-    # DNS resolution for non-IP hostnames not already canonicalised.
-    if host != "localhost":
-        host = _resolve_host_to_localhost(host)
+    host = _resolve_host_for_guard(host_raw)
 
     # --- port ---
     port = parsed.port
@@ -173,10 +245,6 @@ def _normalize_redis_endpoint(url: str) -> str:
     # --- database ---
     db = _normalize_db_path(parsed)
 
-    # Canonical form: host:port/db only.
-    # Scheme and credentials are deliberately excluded — the guard
-    # compares Redis target identity (which process + database), not
-    # connection parameters or authentication identity.
     return f"{host}:{port}/{db}"
 
 
@@ -186,11 +254,12 @@ def _require_dedicated_test_redis(url: str) -> str:
     The suite may only run against an explicitly-supplied
     ``TEST_REDIS_URL``; it never falls back to the application Redis
     (``REDIS_URL`` / ``PLATFORM_REDIS_URL``).  Endpoints are compared
-    after normalisation so equivalent spellings (case, default port,
-    default database, loopback aliases, credentials, query-string DB,
-    percent-encoding, numeric DB equivalence) are always detected as
-    the same database — a session-start flush must never be able to
-    erase application data.
+    after full normalisation including DNS resolution so equivalent
+    spellings are always detected.
+
+    Malformed or unprovable application endpoints cause the guard to
+    abort with a clear ``pytest.fail`` — the fixture must never risk
+    flushing application data.
     """
     if not url:
         pytest.fail(
@@ -215,7 +284,22 @@ def _require_dedicated_test_redis(url: str) -> str:
         if not app_url:
             continue
         normalized_app = _normalize_redis_endpoint(app_url)
+
         if normalized_test == normalized_app:
+            pytest.fail(
+                f"TEST_REDIS_URL must be a dedicated URL, distinct from "
+                f"{name} ({app_url!r}) so tests never flush a shared "
+                f"application Redis"
+            )
+
+        # Ports or DBs differ → provably distinct endpoints.
+        test_host, test_rest = normalized_test.split(":", 1)
+        app_host, app_rest = normalized_app.split(":", 1)
+        if test_rest != app_rest:
+            continue
+
+        # Same port + db — check for overlapping IP sets.
+        if _hosts_share_identity(test_host, app_host):
             pytest.fail(
                 f"TEST_REDIS_URL must be a dedicated URL, distinct from "
                 f"{name} ({app_url!r}) so tests never flush a shared "

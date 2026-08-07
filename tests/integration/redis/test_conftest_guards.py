@@ -28,6 +28,31 @@ from tests.integration.redis.conftest import (
 
 
 class TestDedicatedTestRedisGuard:
+    @pytest.fixture(autouse=True)
+    def _stable_dns(self, request: pytest.FixtureRequest) -> None:
+        """Resolve test hostnames to stable non-loopback IPs.
+
+        Tests that need custom DNS behaviour (failure, mixed answers,
+        specific addresses) override this with their own monkeypatch."""
+        import socket as _socket
+
+        original = _socket.getaddrinfo
+        known: dict[str, str] = {
+            "app-host": "10.99.99.1",
+            "app-shared": "10.99.99.2",
+        }
+
+        def _fake(host, port, family=0, type=0, proto=0, flags=0):
+            if host in known:
+                return [
+                    (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                     (known[host], 0)),
+                ]
+            return original(host, port, family, type, proto, flags)
+
+        mp = request.getfixturevalue("monkeypatch")
+        mp.setattr(_socket, "getaddrinfo", _fake)
+
     def test_guard_rejects_empty_url(self) -> None:
         with pytest.raises(pytest.fail.Exception, match="TEST_REDIS_URL"):
             _require_dedicated_test_redis("")
@@ -187,6 +212,50 @@ class TestDedicatedTestRedisGuard:
             _require_dedicated_test_redis("redis://app-shared:6379/%31")
 
     # -----------------------------------------------------------------
+    # redis-py DB path semantics — decode-then-split, non-numeric → 0
+    # -----------------------------------------------------------------
+
+    def test_guard_rejects_percent_encoded_slash_db_path(
+        self, monkeypatch,
+    ) -> None:
+        """redis-py decodes percent-encoding before splitting the path on
+        ``/``.  ``/%2F1`` (``%2F`` = ``/``) decodes to ``//1``, which
+        splits to ``['', '1']`` — first non-empty segment is ``1``.
+        This must be detected as equivalent to ``/1``."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/1")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://app-shared:6379/%2F1")
+
+    def test_guard_rejects_trailing_slash_db_path(
+        self, monkeypatch,
+    ) -> None:
+        """redis-py splits the path on ``/`` and takes the first non-empty
+        segment.  ``/1/`` splits to ``['1', '']`` → ``1``.  Must be
+        equivalent to ``/1``."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/1")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://app-shared:6379/1/")
+
+    def test_guard_rejects_non_numeric_db_defaults_to_zero(
+        self, monkeypatch,
+    ) -> None:
+        """redis-py defaults to DB 0 when the path is non-numeric.
+        ``/not-a-db`` and ``/0`` target the same database."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://app-shared:6379/not-a-db")
+
+    def test_guard_rejects_malformed_app_db_spelling_versus_valid_test_zero(
+        self, monkeypatch,
+    ) -> None:
+        """An application URL with a non-numeric path (``/garbage``)
+        defaults to DB 0 in redis-py.  A valid test URL targeting ``/0``
+        must be rejected because they are the same endpoint."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/garbage")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://app-shared:6379/0")
+
+    # -----------------------------------------------------------------
     # Scheme default port — redis-py uses 6379 for both redis and rediss
     # -----------------------------------------------------------------
 
@@ -230,24 +299,24 @@ class TestDedicatedTestRedisGuard:
             _require_dedicated_test_redis("redis://127.255.255.255:6379/0")
 
     # -----------------------------------------------------------------
-    # DNS resolution — hostnames resolving to loopback addresses
+    # DNS resolution — fail-closed for safety
     # -----------------------------------------------------------------
 
     def test_guard_rejects_hostname_resolving_to_loopback(
         self, monkeypatch,
     ) -> None:
-        """A hostname whose DNS resolution returns only 127.0.0.0/8
-        addresses is equivalent to ``localhost``.
-
-        Uses a monkeypatched resolver so the test does not depend on
-        external DNS configuration."""
+        """A hostname whose DNS resolution returns only loopback
+        addresses must be normalised to ``localhost`` and rejected."""
         import socket as _socket
 
         original = _socket.getaddrinfo
 
         def _fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-            if host == "my-redis.internal":
-                return [(2, 1, 6, "", ("127.0.0.3", 0))]
+            if host in ("my-redis.internal", "localhost"):
+                return [
+                    (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                     ("127.0.0.1", 0)),
+                ]
             return original(host, port, family, type, proto, flags)
 
         monkeypatch.setattr(_socket, "getaddrinfo", _fake_getaddrinfo)
@@ -255,22 +324,116 @@ class TestDedicatedTestRedisGuard:
         with pytest.raises(pytest.fail.Exception, match="dedicated"):
             _require_dedicated_test_redis("redis://my-redis.internal:6379/0")
 
-    def test_guard_dns_failure_keeps_hostname(
+    def test_guard_aborts_on_test_url_dns_failure(
         self, monkeypatch,
     ) -> None:
-        """A DNS failure must NOT bypass the guard: unresolvable hostnames
-        are kept as-is so a match is only found for identical strings.
-        This is conservative — a false-negative (missing a match) is
-        acceptable; a false-positive (wrongly matching) would let a
-        session-start flush erase application data."""
-        monkeypatch.setenv("REDIS_URL", "redis://never-resolves.example:6379/0")
-        # The guard must NOT crash, and since the hostnames differ (one
-        # is the test URL placeholder, the other is the Redis URL), no
-        # rejection is expected.
-        result = _require_dedicated_test_redis(
-            "redis://other-test-host:6379/0",
-        )
-        assert result == "redis://other-test-host:6379/0"
+        """When ``TEST_REDIS_URL`` hostname cannot be resolved, the guard
+        must abort — a DNS failure must never be accepted as proof that
+        the endpoint is distinct."""
+        import socket as _socket
+
+        def _failing_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            raise _socket.gaierror("Name or service not known")
+
+        monkeypatch.setattr(_socket, "getaddrinfo", _failing_getaddrinfo)
+        monkeypatch.setenv("REDIS_URL", "redis://app-host:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="(?i)cannot resolve"):
+            _require_dedicated_test_redis("redis://test-host:6379/1")
+
+    def test_guard_aborts_on_app_url_dns_failure(
+        self, monkeypatch,
+    ) -> None:
+        """When an application URL's hostname cannot be resolved, the
+        guard must abort — we cannot prove the endpoints are distinct."""
+        import socket as _socket
+
+        original = _socket.getaddrinfo
+
+        def _fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            if host == "app-host":
+                raise _socket.gaierror("Name or service not known")
+            return original(host, port, family, type, proto, flags)
+
+        monkeypatch.setattr(_socket, "getaddrinfo", _fake_getaddrinfo)
+        monkeypatch.setenv("REDIS_URL", "redis://app-host:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="(?i)cannot resolve"):
+            _require_dedicated_test_redis("redis://localhost:6379/1")
+
+    def test_guard_aborts_on_mixed_loopback_answers(
+        self, monkeypatch,
+    ) -> None:
+        """A hostname resolving to both loopback and non-loopback
+        addresses is ambiguous — the guard must abort."""
+        import socket as _socket
+
+        def _fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            if host == "mixed-host":
+                return [
+                    (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                     ("127.0.0.1", 0)),
+                    (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                     ("10.1.2.3", 0)),
+                ]
+            if host == "localhost":
+                return [
+                    (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                     ("127.0.0.1", 0)),
+                ]
+            raise _socket.gaierror(f"unexpected host: {host}")
+
+        monkeypatch.setattr(_socket, "getaddrinfo", _fake_getaddrinfo)
+        monkeypatch.setenv("REDIS_URL", "redis://mixed-host:6379/1")
+        with pytest.raises(pytest.fail.Exception, match="mixed"):
+            _require_dedicated_test_redis("redis://localhost:6379/2")
+
+    def test_guard_rejects_two_non_loopback_aliases_same_ip(
+        self, monkeypatch,
+    ) -> None:
+        """Two non-loopback hostnames resolving to the same IP address
+        target the same Redis instance and must be rejected."""
+        import socket as _socket
+
+        original = _socket.getaddrinfo
+
+        def _fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            if host in ("alias1.example", "alias2.example"):
+                return [
+                    (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                     ("10.1.2.3", 0)),
+                ]
+            return original(host, port, family, type, proto, flags)
+
+        monkeypatch.setattr(_socket, "getaddrinfo", _fake_getaddrinfo)
+        monkeypatch.setenv("REDIS_URL", "redis://alias1.example:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://alias2.example:6379/0")
+
+    def test_guard_accepts_disjoint_non_loopback_ip_sets(
+        self, monkeypatch,
+    ) -> None:
+        """Two hostnames resolving to completely disjoint IP sets are
+        provably distinct and must be accepted."""
+        import socket as _socket
+
+        original = _socket.getaddrinfo
+
+        def _fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            if host == "host-a.example":
+                return [
+                    (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                     ("10.1.2.3", 0)),
+                ]
+            if host == "host-b.example":
+                return [
+                    (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                     ("10.1.2.4", 0)),
+                ]
+            return original(host, port, family, type, proto, flags)
+
+        monkeypatch.setattr(_socket, "getaddrinfo", _fake_getaddrinfo)
+        monkeypatch.setenv("REDIS_URL", "redis://host-a.example:6379/0")
+        url = _require_dedicated_test_redis("redis://host-b.example:6379/0")
+        assert url == "redis://host-b.example:6379/0"
 
     # -----------------------------------------------------------------
     # Genuinely distinct isolated DBs are accepted

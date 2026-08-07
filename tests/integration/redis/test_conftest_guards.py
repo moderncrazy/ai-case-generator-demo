@@ -490,20 +490,110 @@ class TestDedicatedTestRedisGuard:
             _require_dedicated_test_redis("redis://ipv6-host-b.example:6379/0")
 
     # -----------------------------------------------------------------
-    # Query parameter precedence via redis-py parse_url
+    # TOCTOU — same raw hostname rejected before DNS resolution
     # -----------------------------------------------------------------
 
-    def test_guard_rejects_query_port_precedence(
+    def test_guard_rejects_same_raw_hostname_before_dns(
         self, monkeypatch,
     ) -> None:
-        """redis-py's parse_url respects ``?port=N``, overriding the
-        authority port.  ``redis://10.1.2.3/0?port=6380`` and
-        ``redis://10.1.2.3:6380/0`` target the same endpoint."""
+        """When the test and application URLs share the same raw hostname
+        (after redis-py parse_url normalisation) AND the same effective
+        port and db, the guard must reject immediately WITHOUT resolving
+        DNS.  Resolving the same hostname twice creates a TOCTOU window:
+        round-robin DNS could hand out different addresses on successive
+        calls, making the endpoint appear distinct when it is not."""
+        import socket as _socket
+
+        call_count = [0]
+
+        def _counting_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            call_count[0] += 1
+            return [
+                (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                 ("10.99.99.1", 0)),
+            ]
+
+        monkeypatch.setattr(_socket, "getaddrinfo", _counting_getaddrinfo)
+        monkeypatch.setenv("REDIS_URL", "redis://same-host:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://same-host:6379/0")
+        # DNS must NOT have been called — the guard rejects on raw
+        # hostname match before ever resolving.
+        assert call_count[0] == 0, (
+            f"DNS was called {call_count[0]} time(s); "
+            f"the guard must reject same-raw-hostname before DNS resolution"
+        )
+
+    # -----------------------------------------------------------------
+    # Non-IP DNS answer — fail closed
+    # -----------------------------------------------------------------
+
+    def test_guard_aborts_on_non_ip_dns_answer(
+        self, monkeypatch,
+    ) -> None:
+        """When DNS returns an address that ``ipaddress.ip_address`` cannot
+        validate (i.e. it is not a well-formed IPv4 or IPv6 address), the
+        guard must fail closed rather than silently keeping a non-IP
+        string in the address set.
+
+        Silently retaining a non-IP string could cause the overlap check
+        in ``_hosts_share_identity`` to return ``False`` for endpoints
+        that genuinely share an address — a false-negative that would
+        allow a FLUSHDB against application data."""
+        import socket as _socket
+
+        def _fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            if host == "bad-dns-host":
+                return [
+                    (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                     ("not-an-ip-address", 0)),
+                ]
+            if host == "app-host":
+                return [
+                    (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                     ("10.99.99.1", 0)),
+                ]
+            raise _socket.gaierror(f"unexpected host: {host}")
+
+        monkeypatch.setattr(_socket, "getaddrinfo", _fake_getaddrinfo)
+        monkeypatch.setenv("REDIS_URL", "redis://app-host:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="(?i)cannot validate|not a valid"):
+            _require_dedicated_test_redis("redis://bad-dns-host:6379/1")
+
+    # -----------------------------------------------------------------
+    # Query parameter port — derive semantics from parse_url, not assumption
+    # -----------------------------------------------------------------
+
+    def test_guard_rejects_query_port_without_authority_port(
+        self, monkeypatch,
+    ) -> None:
+        """When no authority port is present, redis-py's parse_url keeps
+        the ``?port=N`` query-string value (as a string).  The guard
+        coerces it to int, so ``redis://10.1.2.3/0?port=6380`` and
+        ``redis://10.1.2.3:6380/0`` target the same endpoint and must be
+        rejected."""
         monkeypatch.setenv(
             "REDIS_URL", "redis://10.1.2.3:6380/0",
         )
         with pytest.raises(pytest.fail.Exception, match="dedicated"):
             _require_dedicated_test_redis("redis://10.1.2.3/0?port=6380")
+
+    def test_guard_authority_port_overrides_query_port(
+        self, monkeypatch,
+    ) -> None:
+        """When both an authority port AND a ``?port=`` query parameter
+        are present, redis-py's parse_url overwrites the query-port value
+        with the authority port (line 1208-1209 of connection.py).
+
+        ``redis://10.1.2.3:6379/0?port=6380`` → effective port is 6379,
+        NOT 6380.  Therefore a URL explicitly targeting port 6380 is a
+        genuinely distinct endpoint and must be ACCEPTED."""
+        monkeypatch.setenv(
+            "REDIS_URL", "redis://10.1.2.3:6379/0?port=6380",
+        )
+        # The test URL explicitly targets 6380 — a different port.
+        url = _require_dedicated_test_redis("redis://10.1.2.3:6380/0")
+        assert url == "redis://10.1.2.3:6380/0"
 
     # -----------------------------------------------------------------
     # IP canonicalization — equivalent spellings must match
@@ -520,6 +610,51 @@ class TestDedicatedTestRedisGuard:
         )
         with pytest.raises(pytest.fail.Exception, match="dedicated"):
             _require_dedicated_test_redis("redis://[2001:db8::1]:6379/0")
+
+    # -----------------------------------------------------------------
+    # IPv4-mapped IPv6 canonicalization
+    # -----------------------------------------------------------------
+
+    def test_guard_rejects_ipv4_mapped_ipv6_literal_to_ipv4(
+        self, monkeypatch,
+    ) -> None:
+        """An IPv4-mapped IPv6 literal (``::ffff:10.1.2.3``) must
+        canonicalise to the equivalent IPv4 address (``10.1.2.3``) so
+        the two spellings are detected as the same endpoint."""
+        monkeypatch.setenv(
+            "REDIS_URL", "redis://10.1.2.3:6379/0",
+        )
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://[::ffff:10.1.2.3]:6379/0")
+
+    def test_guard_rejects_ipv4_mapped_ipv6_dns_to_ipv4(
+        self, monkeypatch,
+    ) -> None:
+        """When DNS returns an IPv4-mapped IPv6 address
+        (``::ffff:10.99.99.1``) for one hostname and the equivalent
+        plain IPv4 address (``10.99.99.1``) for another, the guard must
+        detect that they are the same IP and reject."""
+        import socket as _socket
+
+        original = _socket.getaddrinfo
+
+        def _fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            if host == "mapped-host":
+                return [
+                    (_socket.AF_INET6, _socket.SOCK_STREAM, 6, "",
+                     ("::ffff:10.99.99.1", 0, 0, 0)),
+                ]
+            if host == "plain-host":
+                return [
+                    (_socket.AF_INET, _socket.SOCK_STREAM, 6, "",
+                     ("10.99.99.1", 0)),
+                ]
+            return original(host, port, family, type, proto, flags)
+
+        monkeypatch.setattr(_socket, "getaddrinfo", _fake_getaddrinfo)
+        monkeypatch.setenv("REDIS_URL", "redis://mapped-host:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://plain-host:6379/0")
 
     # -----------------------------------------------------------------
     # Genuinely distinct isolated DBs are accepted

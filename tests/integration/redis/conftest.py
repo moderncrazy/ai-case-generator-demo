@@ -59,10 +59,29 @@ _LOOPBACK_ALIASES: dict[str, str] = {
 }
 
 
+def _canonicalize_ip(raw: str) -> str:
+    """Return the canonical string form of an IP address.
+
+    IPv4-mapped IPv6 addresses (``::ffff:x.x.x.x``) are explicitly
+    converted to their equivalent IPv4 address via
+    ``IPv6Address.ipv4_mapped``.  ``str(ipaddress.ip_address(...))``
+    does NOT perform this mapping — it preserves the IPv6 spelling.
+    """
+    ip = ipaddress.ip_address(raw)
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        return str(ip.ipv4_mapped)
+    return str(ip)
+
+
 def _is_loopback_ip(addr: str) -> bool:
-    """Return True when *addr* is an IPv4 127.0.0.0/8 or IPv6 ::1 address."""
+    """Return True when *addr* is an IPv4 127.0.0.0/8 or IPv6 ::1 address.
+
+    IPv4-mapped IPv6 loopback (``::ffff:127.0.0.1``) is correctly
+    detected by first converting to the mapped IPv4 address."""
     try:
         ip = ipaddress.ip_address(addr)
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
         return ip.is_loopback or ip == ipaddress.IPv4Address("0.0.0.0")
     except ValueError:
         return False
@@ -72,15 +91,16 @@ def _is_loopback_ip(addr: str) -> bool:
 # Hostname resolution — fail-closed for safety
 # ---------------------------------------------------------------------------
 
-_HostIdentity = str  # "localhost", "10.1.2.3", or "10.1.2.3,10.1.2.4"
+_HostIdentity = frozenset[str]  # frozenset({"localhost"}) or frozenset({"10.1.2.3", ...})
 
 
 def _resolve_host_for_guard(host: str) -> _HostIdentity:
-    """Resolve *host* to a canonical identifier for the safety guard.
+    """Resolve *host* to a canonical frozenset of IP address strings.
 
-    * Loopback IPs / static aliases → ``"localhost"``
-    * Non-loopback literal IPs → the IP as-is
-    * Hostnames → DNS resolution **must** succeed and be unambiguous
+    * Loopback IPs / static aliases → ``frozenset({"localhost"})``
+    * Non-loopback literal IPs → ``frozenset({canonical_ip})``
+    * Hostnames → DNS resolution **must** succeed and be unambiguous;
+      every returned address must be a valid IP
 
     Failures that make endpoint identity unprovable cause an immediate
     ``pytest.fail`` — the guard must **never** accept an unresolvable or
@@ -89,15 +109,17 @@ def _resolve_host_for_guard(host: str) -> _HostIdentity:
     # Static aliases (::1, 0.0.0.0).
     mapped = _LOOPBACK_ALIASES.get(host)
     if mapped is not None:
-        return mapped
+        return frozenset({mapped})
 
     # Literal loopback IP.
     if _is_loopback_ip(host):
-        return "localhost"
+        return frozenset({"localhost"})
 
     # Non-loopback literal IP — canonicalize via ipaddress.
+    # IPv4-mapped IPv6 (::ffff:10.1.2.3) is converted to IPv4 (10.1.2.3)
+    # via _canonicalize_ip so the two spellings cannot differ.
     try:
-        return str(ipaddress.ip_address(host))
+        return frozenset({_canonicalize_ip(host)})
     except ValueError:
         pass  # Not an IP → hostname, needs resolution.
 
@@ -122,12 +144,19 @@ def _resolve_host_for_guard(host: str) -> _HostIdentity:
     has_non_loopback = False
 
     for info in addrs:
-        ip = info[4][0]
-        # Canonicalize IP via ipaddress for stable comparison.
+        raw_ip = info[4][0]
+        # Canonicalize IP via _canonicalize_ip for stable comparison.
+        # IPv4-mapped IPv6 (::ffff:x.x.x.x) → IPv4 (x.x.x.x).
+        # Non-IP strings cause an immediate fail-closed — we must
+        # never retain an unvalidated string in the address set.
         try:
-            ip = str(ipaddress.ip_address(ip))
+            ip = _canonicalize_ip(raw_ip)
         except ValueError:
-            pass
+            pytest.fail(
+                f"DNS resolution for Redis hostname {host!r} returned "
+                f"an address {raw_ip!r} that is not a valid IP address; "
+                f"cannot verify endpoint identity"
+            )
         ips.add(ip)
         if _is_loopback_ip(ip):
             has_loopback = True
@@ -141,10 +170,10 @@ def _resolve_host_for_guard(host: str) -> _HostIdentity:
         )
 
     if has_loopback:
-        return "localhost"
+        return frozenset({"localhost"})
 
-    # All non-loopback — sorted, comma-separated for stable comparison.
-    return ",".join(sorted(ips))
+    # All non-loopback — immutable frozenset for structural identity.
+    return frozenset(ips)
 
 
 def _hosts_share_identity(test: _Endpoint, app: _Endpoint) -> bool:
@@ -153,23 +182,13 @@ def _hosts_share_identity(test: _Endpoint, app: _Endpoint) -> bool:
     if test.host == app.host:
         return True
 
-    # Extract IP components from comma-separated lists.
-    a_ips = set(test.host.split(","))
-    b_ips = set(app.host.split(","))
-
-    # "localhost" is not an IP — skip overlap check.
-    if "localhost" in a_ips or "localhost" in b_ips:
+    # "localhost" is a sentinel, not an IP — skip overlap check.
+    if "localhost" in test.host or "localhost" in app.host:
         return False
 
-    # Verify all components are valid IP addresses (IPv4 or IPv6).
-    try:
-        for ip in a_ips | b_ips:
-            ipaddress.ip_address(ip)
-    except ValueError:
-        return False  # Non-IP component — can't verify overlap.
-
+    # Both hosts are frozensets of canonical IP strings.
     # Overlapping IP sets → same endpoint.
-    return bool(a_ips & b_ips)
+    return bool(test.host & app.host)
 
 
 # ---------------------------------------------------------------------------
@@ -180,15 +199,18 @@ def _hosts_share_identity(test: _Endpoint, app: _Endpoint) -> bool:
 class _Endpoint(NamedTuple):
     """Immutable canonical endpoint identity.
 
-    ``host`` is a resolved host identifier: ``"localhost"`` for loopback,
-    a single canonicalised IP for literal addresses, or a comma-separated
-    sorted list of canonicalised IPs for multi-address DNS answers.
+    ``host`` is a frozenset of canonical IP address strings, or
+    ``frozenset({"localhost"})`` for loopback addresses.  IPv4-mapped
+    IPv6 addresses (``::ffff:x.x.x.x``) are normalised to their IPv4
+    equivalents by ``ipaddress.ip_address()``.
+
     ``port`` and ``db`` are always integers.
 
-    The structured representation avoids delimiter-parsing bugs (e.g.
-    splitting ``2001:db8::1:6379/0`` on ``:`` for IPv6).
+    The structured frozenset representation avoids delimiter-parsing
+    bugs (e.g. splitting ``2001:db8::1:6379/0`` on ``:`` for IPv6) and
+    makes set-overlap checks natural.
     """
-    host: str
+    host: frozenset[str]
     port: int
     db: int
 
@@ -260,6 +282,7 @@ def _require_dedicated_test_redis(url: str) -> str:
     abort with a clear ``pytest.fail`` — the fixture must never risk
     flushing application data.
     """
+    # ---- Phase 1: basic structural validation (no DNS) ----
     if not url:
         pytest.fail(
             "TEST_REDIS_URL environment variable is not set; "
@@ -276,12 +299,63 @@ def _require_dedicated_test_redis(url: str) -> str:
             f"TEST_REDIS_URL must include a hostname, got {url!r}"
         )
 
+    # ---- Phase 2: TOCTOU pre-screen — reject same raw hostname
+    #      + same effective port/db BEFORE any DNS resolution.
+    #      Resolving the same hostname twice creates a window where
+    #      round-robin DNS could return different addresses on
+    #      successive calls, making the endpoint appear distinct
+    #      when it is not.
+    try:
+        test_params = _redis_parse_url(url)
+    except (ValueError, TypeError) as exc:
+        pytest.fail(
+            f"redis-py cannot parse Redis URL {url!r}: {exc}"
+        )
+    test_host_raw = test_params.get("host")
+    if not test_host_raw:
+        pytest.fail(
+            f"Redis URL {url!r} has no discernible host; "
+            f"the safety guard requires a valid endpoint"
+        )
+    try:
+        test_effective_port = int(test_params.get("port", _DEFAULT_REDIS_PORT))
+        test_effective_db = int(test_params.get("db", 0))
+    except (ValueError, TypeError):
+        pytest.fail(
+            f"Redis URL {url!r} has an invalid port or db value"
+        )
+
+    for name in ("REDIS_URL", "PLATFORM_REDIS_URL"):
+        app_url = os.environ.get(name, "")
+        if not app_url:
+            continue
+        try:
+            app_params = _redis_parse_url(app_url)
+        except (ValueError, TypeError):
+            continue  # Malformed app URL; skip (will fail in Phase 3).
+        app_host_raw = app_params.get("host")
+        if app_host_raw and app_host_raw == test_host_raw:
+            try:
+                app_eff_port = int(app_params.get("port", _DEFAULT_REDIS_PORT))
+                app_eff_db = int(app_params.get("db", 0))
+            except (ValueError, TypeError):
+                continue
+            if (app_eff_port == test_effective_port
+                    and app_eff_db == test_effective_db):
+                pytest.fail(
+                    f"TEST_REDIS_URL must be a dedicated URL, distinct "
+                    f"from {name} ({app_url!r}) so tests never flush a "
+                    f"shared application Redis"
+                )
+
+    # ---- Phase 3: full DNS-resolved normalisation and comparison ----
     normalized_test = _normalize_redis_endpoint(url)
 
     for name in ("REDIS_URL", "PLATFORM_REDIS_URL"):
         app_url = os.environ.get(name, "")
         if not app_url:
             continue
+
         normalized_app = _normalize_redis_endpoint(app_url)
 
         # Exact match (host identity, port, db) → reject.

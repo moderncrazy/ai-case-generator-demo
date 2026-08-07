@@ -71,10 +71,15 @@ async def readiness(request: Request) -> JSONResponse:
     timeout: float = getattr(
         request.app.state, "probe_timeout_seconds", PROBE_TIMEOUT_SECONDS
     )
-    states: dict[str, str] = dict(
-        await asyncio.gather(
-            *(_run_probe(name, probe, timeout) for name, probe in probes.items())
-        )
+    # Execute only the required probes; extra entries in health_probes are
+    # ignored — they must not run, delay readiness, or appear in the response.
+    tasks = [
+        _run_probe(name, probes[name], timeout)
+        for name in REQUIRED_PROBES
+        if name in probes
+    ]
+    states: dict[str, str] = (
+        dict(await asyncio.gather(*tasks)) if tasks else {}
     )
     for name in REQUIRED_PROBES:
         states.setdefault(name, "unavailable")

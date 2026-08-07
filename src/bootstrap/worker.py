@@ -38,7 +38,19 @@ class CheckpointSetupResource:
 
     async def open(self) -> None:
         await self._store.open()
-        await self._store.setup()
+        try:
+            await self._store.setup()
+        except BaseException as setup_error:
+            try:
+                await self._store.close()
+            except BaseException as close_error:
+                # The original setup() failure takes precedence;
+                # attach the close failure as a note so it is not
+                # silently lost.
+                setup_error.add_note(
+                    f"cleanup after setup failure failed: {close_error!r}"
+                )
+            raise
 
     async def close(self) -> None:
         await self._store.close()

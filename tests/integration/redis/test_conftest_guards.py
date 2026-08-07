@@ -68,21 +68,95 @@ class TestDedicatedTestRedisGuard:
         url = _require_dedicated_test_redis("redis://localhost:6380/1")
         assert url == "redis://localhost:6380/1"
 
-    def test_guard_accepts_loopback_url_shared_with_app(
+    def test_guard_rejects_identical_loopback_urls(
         self, monkeypatch,
     ) -> None:
-        """A loopback test container is accepted even when the controller
-        also points the application URL at it.
-
-        The disposable loopback container is explicitly provided as the
-        test target, so a session-start flush cannot erase any *shared*
-        application database (which would live on a remote host).
-        """
+        """A test URL identical to a loopback application URL must be
+        rejected: the guard normalizes endpoints so even identical
+        loopback strings are treated as the same database and rejected
+        to protect against a session-start flush."""
         monkeypatch.setenv(
             "REDIS_URL", "redis://127.0.0.1:56379/15",
         )
-        url = _require_dedicated_test_redis("redis://127.0.0.1:56379/15")
-        assert url == "redis://127.0.0.1:56379/15"
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://127.0.0.1:56379/15")
+
+    # -----------------------------------------------------------------
+    # Endpoint normalisation — equivalent spellings must be caught
+    # -----------------------------------------------------------------
+
+    def test_guard_rejects_case_different_equivalent_url(
+        self, monkeypatch,
+    ) -> None:
+        """Scheme or host case differences must not bypass the guard.
+
+        ``REDIS://LOCALHOST:6379/0`` and ``redis://localhost:6379/0``
+        are the same endpoint once normalised.
+        """
+        monkeypatch.setenv("REDIS_URL", "REDIS://LOCALHOST:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://localhost:6379/0")
+
+    def test_guard_rejects_default_port_equivalent_url(
+        self, monkeypatch,
+    ) -> None:
+        """A missing port (defaults to 6379 for redis) must normalise to
+        the explicit port spelling."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/2")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://app-shared/2")
+
+    def test_guard_rejects_default_db_equivalent_url(
+        self, monkeypatch,
+    ) -> None:
+        """A missing database number (defaults to 0) must normalise to
+        the explicit ``/0`` spelling."""
+        monkeypatch.setenv("REDIS_URL", "redis://app-shared:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://app-shared:6379")
+
+    def test_guard_rejects_loopback_alias_equivalent_url(
+        self, monkeypatch,
+    ) -> None:
+        """Loopback alias 127.0.0.1 must normalise to localhost."""
+        monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://127.0.0.1:6379/0")
+
+    def test_guard_rejects_ipv6_loopback_alias_equivalent_url(
+        self, monkeypatch,
+    ) -> None:
+        """Loopback alias ::1 must normalise to localhost."""
+        monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://[::1]:6379/0")
+
+    def test_guard_rejects_wildcard_loopback_alias_equivalent_url(
+        self, monkeypatch,
+    ) -> None:
+        """Loopback alias 0.0.0.0 must normalise to localhost."""
+        monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://0.0.0.0:6379/0")
+
+    def test_guard_rejects_credential_equivalent_url(
+        self, monkeypatch,
+    ) -> None:
+        """Different credential spellings on the same endpoint must still
+        be detected as the same database.
+
+        Two URLs that differ only in credentials still target the same
+        Redis instance; a ``FLUSHDB`` against either wipes the other's
+        data.  The guard must reject them so session-start cleanup can
+        never erase application data.
+        """
+        monkeypatch.setenv(
+            "REDIS_URL", "redis://user:pass@app-host:6379/0",
+        )
+        with pytest.raises(pytest.fail.Exception, match="dedicated"):
+            _require_dedicated_test_redis("redis://user:pass@app-host:6379/0")
+
+    # -----------------------------------------------------------------
 
     def test_app_urls_never_selected_when_test_url_missing(
         self, monkeypatch,

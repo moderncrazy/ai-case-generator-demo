@@ -265,6 +265,91 @@ async def test_start_preserves_original_failure_when_cleanup_fails() -> None:
     assert events == ["open:failing-close", "close:failing-close"]
 
 
+# ---------------------------------------------------------------------------
+# FINAL-R3: CheckpointSetupResource exception safety
+# ---------------------------------------------------------------------------
+
+
+class _FailingSetupCheckpointStore:
+    """A store whose ``open()`` succeeds but ``setup()`` always fails.
+
+    Used to verify that ``CheckpointSetupResource.open()`` closes the
+    underlying store when setup fails, so the connection pool does not
+    leak.
+    """
+
+    def __init__(self, events: list[str]) -> None:
+        self._events = events
+        self._saver = None
+
+    async def open(self) -> None:
+        self._events.append("open")
+        self._saver = object()  # non-None sentinel
+
+    async def setup(self) -> None:
+        self._events.append("setup")
+        raise RuntimeError("setup failed")
+
+    async def close(self) -> None:
+        self._events.append("close")
+        self._saver = None
+
+    @property
+    def saver(self) -> object | None:
+        return self._saver
+
+
+class _FailingSetupAndCloseStore(_FailingSetupCheckpointStore):
+    """A store where ``open()`` succeeds, ``setup()`` fails, and ``close()``
+    also fails — used to verify error precedence."""
+
+    async def close(self) -> None:
+        self._events.append("close")
+        self._saver = None
+        raise RuntimeError("close failed")
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_setup_resource_closes_store_on_setup_failure() -> None:
+    """When ``setup()`` fails, the store must still be closed.
+
+    ``CheckpointSetupResource.open()`` calls ``_store.open()`` then
+    ``_store.setup()``.  If ``setup()`` raises, the store was already
+    opened and must be closed within ``open()`` so the connection pool is
+    not leaked — the ``ManagedLifecycle`` does *not* track a resource
+    whose ``open()`` raised.
+    """
+    events: list[str] = []
+    store = _FailingSetupCheckpointStore(events)  # type: ignore[arg-type]
+    resource = CheckpointSetupResource(store)  # type: ignore[arg-type]
+
+    with pytest.raises(RuntimeError, match="setup failed"):
+        await resource.open()
+
+    assert events == ["open", "setup", "close"]
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_setup_resource_error_precedence() -> None:
+    """The original ``setup()`` error must propagate even when ``close()``
+    also fails during cleanup.
+
+    When ``setup()`` raises and ``close()`` also raises, the original
+    ``setup failed`` error must be the one that propagates, with the
+    ``close failed`` error attached as a note (not the reverse).
+    """
+    events: list[str] = []
+    store = _FailingSetupAndCloseStore(events)  # type: ignore[arg-type]
+    resource = CheckpointSetupResource(store)  # type: ignore[arg-type]
+
+    with pytest.raises(RuntimeError, match="setup failed") as exc_info:
+        await resource.open()
+
+    assert events == ["open", "setup", "close"]
+    notes = getattr(exc_info.value, "__notes__", [])
+    assert any("close failed" in note for note in notes)
+
+
 def test_worker_and_scheduler_modules_expose_dash_m_entrypoints() -> None:
     import src.bootstrap.scheduler as scheduler
     import src.bootstrap.worker as worker

@@ -200,6 +200,90 @@ async def test_readiness_reports_missing_probe_unavailable() -> None:
     assert set(body) == {"status", "postgres", "redis"}
 
 
+@pytest.mark.asyncio
+async def test_readiness_ignores_extra_probes_not_in_required_set() -> None:
+    """Extra entries in ``health_probes`` must not execute or appear in
+    the response — only the required ``postgres`` and ``redis`` probes
+    are exposed."""
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    extra_called = False
+
+    async def _ready() -> bool:
+        return True
+
+    async def _extra() -> bool:
+        nonlocal extra_called
+        extra_called = True
+        return True
+
+    app.state.health_probes = {
+        "postgres": _ready,
+        "redis": _ready,
+        "sidecar": _extra,  # NOT in REQUIRED_PROBES
+    }
+    app.include_router(health_router)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test"
+    ) as client:
+        response = await client.get("/health/ready")
+    assert response.status_code == 200
+    body = response.json()
+    # Exact contract: only {status, postgres, redis}
+    assert set(body) == {"status", "postgres", "redis"}
+    assert body["postgres"] == "ready"
+    assert body["redis"] == "ready"
+    assert extra_called is False, "extra probe must not execute"
+
+
+@pytest.mark.asyncio
+async def test_readiness_extra_probe_does_not_affect_503_decision() -> None:
+    """An extra probe that would fail must neither execute nor influence
+    the readiness status — only the two required probes matter."""
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    extra_called = False
+
+    async def _ready() -> bool:
+        return True
+
+    async def _down() -> bool:
+        return False
+
+    async def _failing_extra() -> bool:
+        nonlocal extra_called
+        extra_called = True
+        raise RuntimeError("boom")
+
+    # redis is down; sidecar exists but must be ignored
+    app.state.health_probes = {
+        "postgres": _ready,
+        "redis": _down,
+        "sidecar": _failing_extra,
+    }
+    app.include_router(health_router)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test"
+    ) as client:
+        response = await client.get("/health/ready")
+    assert response.status_code == 503
+    body = response.json()
+    assert set(body) == {"status", "postgres", "redis"}
+    assert body["postgres"] == "ready"
+    assert body["redis"] == "unavailable"
+    assert extra_called is False, (
+        "extra probe must not execute even when required probes degrade"
+    )
+
+
 def _registered_paths(routes: object) -> set[str]:
     """Collect served route paths, recursing through included routers.
 

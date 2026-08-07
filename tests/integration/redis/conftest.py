@@ -15,7 +15,7 @@ import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import pytest
 import pytest_asyncio
@@ -46,7 +46,48 @@ class FakeClock:
 # Dedicated test-Redis guard
 # ---------------------------------------------------------------------------
 
-_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})
+_DEFAULT_REDIS_PORT = 6379
+_DEFAULT_REDISS_PORT = 6380
+
+_LOOPBACK_ALIASES: dict[str, str] = {
+    "127.0.0.1": "localhost",
+    "::1": "localhost",
+    "0.0.0.0": "localhost",
+}
+
+
+def _normalize_redis_endpoint(url: str) -> str:
+    """Return a canonical endpoint identifier for a Redis URL.
+
+    Two URLs that target the same logical Redis database must normalise
+    to the same string so harmless spelling differences (scheme/host
+    case, default port, default database path, loopback aliases, and
+    credentials) cannot bypass the safety guard.
+
+    The canonical form is ``scheme://[user:pass@]host:port/db`` with
+    all components lowercased and defaults made explicit.
+    """
+    parsed = urlparse(url)
+
+    scheme = parsed.scheme.lower()
+
+    host = (parsed.hostname or "").lower()
+    host = _LOOPBACK_ALIASES.get(host, host)
+
+    port = parsed.port
+    if port is None:
+        port = _DEFAULT_REDIS_PORT if scheme == "redis" else _DEFAULT_REDISS_PORT
+
+    db = parsed.path.lstrip("/") or "0"
+
+    netloc = host
+    if parsed.username or parsed.password:
+        user = (parsed.username or "").lower()
+        pwd = parsed.password or ""
+        netloc = f"{user}:{pwd}@{host}"
+    netloc = f"{netloc}:{port}"
+
+    return urlunparse((scheme, netloc, f"/{db}", "", "", ""))
 
 
 def _require_dedicated_test_redis(url: str) -> str:
@@ -54,12 +95,11 @@ def _require_dedicated_test_redis(url: str) -> str:
 
     The suite may only run against an explicitly-supplied
     ``TEST_REDIS_URL``; it never falls back to the application Redis
-    (``REDIS_URL`` / ``PLATFORM_REDIS_URL``).  A URL equal to a
-    *remote/shared* application Redis is rejected so a session-start
-    flush can never erase a shared application database.  A loopback
-    test container is accepted even when the controller also points the
-    application URL at it, because that container is disposable and
-    explicitly provided as the test target.
+    (``REDIS_URL`` / ``PLATFORM_REDIS_URL``).  Endpoints are compared
+    after normalisation so equivalent spellings (case, default port,
+    default database, loopback aliases, credentials) are always
+    detected as the same database — a session-start flush must never
+    be able to erase application data.
     """
     if not url:
         pytest.fail(
@@ -76,16 +116,20 @@ def _require_dedicated_test_redis(url: str) -> str:
         pytest.fail(
             f"TEST_REDIS_URL must include a hostname, got {url!r}"
         )
+
+    normalized_test = _normalize_redis_endpoint(url)
+
     for name in ("REDIS_URL", "PLATFORM_REDIS_URL"):
         app_url = os.environ.get(name, "")
-        if app_url and url == app_url:
-            app_host = (urlparse(app_url).hostname or "").lower()
-            if app_host not in _LOOPBACK_HOSTS:
-                pytest.fail(
-                    f"TEST_REDIS_URL must be a dedicated URL, distinct from "
-                    f"{name} ({app_url!r}) so tests never flush a shared "
-                    f"application Redis"
-                )
+        if not app_url:
+            continue
+        normalized_app = _normalize_redis_endpoint(app_url)
+        if normalized_test == normalized_app:
+            pytest.fail(
+                f"TEST_REDIS_URL must be a dedicated URL, distinct from "
+                f"{name} ({app_url!r}) so tests never flush a shared "
+                f"application Redis"
+            )
     return url
 
 
